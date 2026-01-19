@@ -33,7 +33,7 @@ export default defineConfig(({ mode }) => {
 
     build: {
       rollupOptions: {
-        external: ['react-is'], // ← виправлення для Recharts
+        external: ['react-is'], // Виправлення для Recharts
       },
       sourcemap: mode === 'development',
     },
