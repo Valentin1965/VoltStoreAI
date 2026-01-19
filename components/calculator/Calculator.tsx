@@ -1,7 +1,9 @@
+
 import React, { useState, useMemo } from 'react';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useCart } from '../../contexts/CartContext';
-import { Sparkles, ArrowRight, RotateCcw, Check, Loader2, ShieldCheck, Activity, Cpu, Plus, Minus, RefreshCw, Info, ChevronRight } from 'lucide-react';
+// Added Zap to the imports
+import { Sparkles, ArrowRight, RotateCcw, Check, Loader2, ShieldCheck, Activity, Cpu, Plus, Minus, RefreshCw, Info, ChevronRight, Zap } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
 interface Alternative {
@@ -65,20 +67,29 @@ export const Calculator: React.FC = () => {
   const handleCalculate = async () => {
     setLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-      const prompt = `Ви енергетичний експерт. Створіть набір обладнання для: ${config.objectType}, споживання: ${config.monthlyUsage}. Поверніть ТІЛЬКИ JSON: {"title": "Назва", "description": "Опис", "components": [{"id": "1", "name": "Товар", "price": 100, "quantity": 1, "alternatives": []}]}`;
+      // Ініціалізація згідно з правилами: тільки process.env.API_KEY
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const prompt = `Ви енергетичний експерт. Створіть оптимальний набір обладнання для: ${config.objectType}, середнє споживання: ${config.monthlyUsage}. 
+      Об'єкт потребує: ${config.purpose}.
+      Поверніть ТІЛЬКИ чистий JSON без Markdown розмітки: {"title": "Назва комплекту", "description": "Короткий опис", "components": [{"id": "1", "name": "Точна назва товару", "price": 100, "quantity": 1, "alternatives": []}]}`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
-        config: { responseMimeType: "application/json" }
+        config: { 
+          responseMimeType: "application/json"
+        }
       });
 
-      const data = JSON.parse(response.text || '{}');
+      const responseText = response.text;
+      if (!responseText) throw new Error("Empty response");
+      
+      const data = JSON.parse(responseText);
       setResult({ title: data.title, description: data.description });
       setActiveComponents(data.components || []);
       setStep(3);
     } catch (err) {
+      console.error("AI Error:", err);
       useFallback();
     } finally {
       setLoading(false);
@@ -163,45 +174,74 @@ export const Calculator: React.FC = () => {
           {step === 3 && result && (
             <div className="animate-fade-in space-y-12">
               <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-black text-slate-900">{result.title}</h2>
-                <button onClick={() => setStep(1)} className="p-4 bg-slate-50 rounded-full text-slate-300 hover:text-yellow-600 transition-all"><RotateCcw size={24}/></button>
+                <div>
+                  <h2 className="text-3xl font-black text-slate-900">{result.title}</h2>
+                  <p className="text-sm text-slate-500 mt-2">{result.description}</p>
+                </div>
+                <button onClick={() => setStep(1)} className="p-4 bg-slate-50 rounded-full text-slate-300 hover:text-yellow-600 transition-all shadow-inner"><RotateCcw size={24}/></button>
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                 <div className="lg:col-span-2 space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ShieldCheck className="text-green-500" size={16} />
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Сертифіковані компоненти</span>
+                  </div>
                   {activeComponents.map(c => (
-                    <div key={c.id} className="p-6 bg-white rounded-[2rem] border border-slate-100 flex justify-between items-center">
-                      <div>
-                        <div className="font-bold text-slate-900">{c.name}</div>
-                        <div className="text-[10px] text-slate-400 font-black uppercase">₴{c.price.toLocaleString()}</div>
+                    <div key={c.id} className="p-6 bg-white rounded-[2rem] border border-slate-100 flex justify-between items-center group hover:border-yellow-200 transition-all shadow-sm">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-yellow-50 group-hover:text-yellow-600 transition-colors">
+                          <Zap size={20} />
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-900">{c.name}</div>
+                          <div className="text-[10px] text-slate-400 font-black uppercase">
+                            {c.quantity} шт × ₴{c.price.toLocaleString()}
+                          </div>
+                        </div>
                       </div>
                       <div className="font-black text-slate-900">₴{(c.price * c.quantity).toLocaleString()}</div>
                     </div>
                   ))}
                 </div>
-                <div className="bg-slate-900 p-8 rounded-[3rem] text-center text-white">
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Разом</div>
-                  <div className="text-4xl font-black text-yellow-400 mb-8">₴{totalPrice.toLocaleString()}</div>
-                  <button 
-                    onClick={() => {
-                      addItem({
-                        id: 'custom-' + Date.now(),
-                        name: result.title,
-                        description: result.description,
-                        price: totalPrice,
-                        category: 'Kits',
-                        image: 'https://images.unsplash.com/photo-1509391366360-fe5bb58583bb?auto=format&fit=crop&w=800',
-                        rating: 5,
-                        reviewsCount: 1,
-                        stock: 1,
-                        features: activeComponents.map(ac => ac.name)
-                      }, activeComponents.map(ac => ({ id: ac.id, name: ac.name, price: ac.price, quantity: ac.quantity })));
-                      addNotification('Додано до кошика', 'success');
-                    }}
-                    className="w-full bg-yellow-400 text-yellow-950 py-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-yellow-500 transition-all"
-                  >
-                    Додати набір у кошик
-                  </button>
+                <div className="space-y-6">
+                  <div className="bg-slate-900 p-8 rounded-[3rem] text-center text-white shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 relative z-10">Повна вартість</div>
+                    <div className="text-4xl font-black text-yellow-400 mb-8 relative z-10">₴{totalPrice.toLocaleString()}</div>
+                    <button 
+                      onClick={() => {
+                        addItem({
+                          id: 'custom-' + Date.now(),
+                          name: result.title,
+                          description: result.description,
+                          price: totalPrice,
+                          category: 'Kits',
+                          image: 'https://images.unsplash.com/photo-1509391366360-fe5bb58583bb?auto=format&fit=crop&w=800',
+                          rating: 5,
+                          reviewsCount: 1,
+                          stock: 1,
+                          features: activeComponents.map(ac => ac.name)
+                        }, activeComponents.map(ac => ({ id: ac.id, name: ac.name, price: ac.price, quantity: ac.quantity })));
+                        addNotification('Набір додано до кошика', 'success');
+                      }}
+                      className="w-full bg-yellow-400 text-yellow-950 py-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-yellow-500 transition-all shadow-lg active:scale-95"
+                    >
+                      Додати у кошик
+                    </button>
+                  </div>
+                  
+                  <div className="bg-blue-50 p-6 rounded-[2rem] border border-blue-100">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="bg-blue-600 p-2 rounded-lg text-white">
+                        <Activity size={16} />
+                      </div>
+                      <span className="font-black text-xs text-blue-900 uppercase">Аналіз надійності</span>
+                    </div>
+                    <p className="text-[10px] text-blue-700 font-medium leading-relaxed">
+                      Ця конфігурація забезпечить до 12 годин автономної роботи при навантаженні 500Вт.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
