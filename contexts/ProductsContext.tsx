@@ -1,10 +1,9 @@
-
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import { Product, Category } from '../types';
 import { supabase } from '../services/supabase';
 import { useNotification } from './NotificationContext';
 
-interface ProductsContextType {
+export interface ProductsContextType {
   products: Product[];
   isLoading: boolean;
   categories: Category[];
@@ -40,7 +39,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setProducts(data || []);
     } catch (err: any) {
       console.error('Fetch error:', err);
-      addNotification('Помилка завантаження товарів. Перевірте базу.', 'error');
+      addNotification('Помилка завантаження товарів.', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -68,7 +67,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       if (error) throw error;
       if (data) setProducts(prev => [data[0], ...prev]);
-      addNotification('Товар додано', 'success');
+      addNotification('Товар додано успішно', 'success');
     } catch (err: any) {
       addNotification('Помилка: ' + err.message, 'error');
     }
@@ -83,7 +82,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       if (error) throw error;
       setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
-      addNotification('Оновлено', 'success');
+      addNotification('Дані оновлено', 'success');
     } catch (err: any) {
       addNotification('Помилка: ' + err.message, 'error');
     }
@@ -98,7 +97,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       if (error) throw error;
       setProducts(prev => prev.filter(p => p.id !== id));
-      addNotification('Видалено', 'info');
+      addNotification('Товар видалено', 'info');
     } catch (err: any) {
       addNotification('Помилка: ' + err.message, 'error');
     }
@@ -126,7 +125,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   );
 };
 
-export const useProducts = () => {
+export const useProducts = (): ProductsContextType => {
   const context = useContext(ProductsContext);
   if (!context) {
     throw new Error('useProducts must be used within ProductsProvider');

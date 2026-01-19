@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
-import { Mic, MicOff, MessageSquare, X, Zap, Loader2 } from 'lucide-react';
+import { Mic, MicOff, X, Zap, Loader2 } from 'lucide-react';
 
 export const LiveAssistant: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -9,7 +9,6 @@ export const LiveAssistant: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [transcription, setTranscription] = useState<string[]>([]);
   
-  const audioContextRef = useRef<AudioContext | null>(null);
   const sessionRef = useRef<any>(null);
 
   const startSession = async () => {
@@ -24,14 +23,21 @@ export const LiveAssistant: React.FC = () => {
             setIsConnecting(false);
           },
           onmessage: async (message: LiveServerMessage) => {
-            // Безпечна перевірка наявності даних для відтворення аудіо (Fix TS18048)
-            const audioData = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-            if (audioData) {
-              console.log("Отримано аудіо відповідь");
+            // Безпечна перевірка для усунення помилки TS18048
+            const serverContent = message.serverContent;
+            if (serverContent && serverContent.modelTurn && serverContent.modelTurn.parts) {
+              const parts = serverContent.modelTurn.parts;
+              if (parts.length > 0) {
+                const audioPart = parts.find(p => p.inlineData);
+                if (audioPart && audioPart.inlineData) {
+                  console.log("Отримано аудіо дані");
+                }
+              }
             }
 
-            if (message.serverContent?.outputTranscription) {
-              setTranscription(prev => [...prev, message.serverContent!.outputTranscription!.text]);
+            if (serverContent && serverContent.outputTranscription && serverContent.outputTranscription.text) {
+              const text = serverContent.outputTranscription.text;
+              setTranscription(prev => [...prev, text]);
             }
           },
           onerror: (e) => {
@@ -46,7 +52,7 @@ export const LiveAssistant: React.FC = () => {
         },
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: 'Ви асистент магазину VoltStore. Допомагайте клієнтам обрати інвертори та акумулятори.',
+          systemInstruction: 'Ви — інтелектуальний асистент магазину VoltStore. Допомагайте клієнтам підібрати енергетичне обладнання.',
         }
       });
 
@@ -60,7 +66,11 @@ export const LiveAssistant: React.FC = () => {
 
   const stopSession = () => {
     if (sessionRef.current) {
-      sessionRef.current.close();
+      try {
+        sessionRef.current.close();
+      } catch (e) {
+        console.error("Close error:", e);
+      }
       sessionRef.current = null;
     }
     setIsActive(false);
@@ -76,30 +86,36 @@ export const LiveAssistant: React.FC = () => {
           <div className="bg-yellow-400 p-1.5 rounded-full group-hover:rotate-12 transition-transform">
             <Zap size={18} className="text-yellow-950 fill-yellow-950" />
           </div>
-          <span className="font-bold text-xs pr-2">AI Асистент</span>
+          <span className="font-bold text-xs pr-2">AI Консультант</span>
         </button>
       ) : (
-        <div className="bg-white w-80 rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden animate-fade-in">
+        <div className="bg-white w-80 rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden animate-fade-in">
           <div className="bg-slate-900 p-6 flex justify-between items-center text-white">
             <div className="flex items-center gap-2">
-              <Zap size={16} className="text-yellow-400" />
+              <div className="bg-yellow-400 p-1 rounded-lg">
+                <Zap size={14} className="text-slate-900 fill-slate-900" />
+              </div>
               <span className="font-black text-[10px] uppercase tracking-widest">Volt Voice AI</span>
             </div>
-            <button onClick={() => { stopSession(); setIsOpen(false); }} className="text-slate-400 hover:text-white"><X size={18}/></button>
+            <button onClick={() => { stopSession(); setIsOpen(false); }} className="text-slate-400 hover:text-white transition-colors"><X size={18}/></button>
           </div>
           
-          <div className="p-8 h-64 overflow-y-auto flex flex-col gap-4 bg-slate-50/50">
+          <div className="p-6 h-64 overflow-y-auto flex flex-col gap-3 bg-slate-50/50">
             {transcription.length === 0 && !isConnecting && (
-              <p className="text-[10px] text-slate-400 text-center font-bold mt-10">Натисніть на мікрофон, щоб почати розмову</p>
+              <p className="text-[10px] text-slate-400 text-center font-bold mt-12 px-4 leading-relaxed uppercase tracking-widest">
+                Привіт! Натисніть кнопку нижче, щоб розпочати консультацію
+              </p>
             )}
             {isConnecting && (
               <div className="flex flex-col items-center justify-center h-full gap-3">
-                <Loader2 className="animate-spin text-yellow-500" />
-                <p className="text-[10px] font-black uppercase text-slate-400">Підключення...</p>
+                <Loader2 className="animate-spin text-yellow-500" size={24} />
+                <p className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em]">Підключення...</p>
               </div>
             )}
             {transcription.map((t, i) => (
-              <div key={i} className="bg-white p-3 rounded-2xl text-[11px] font-medium text-slate-700 shadow-sm border border-slate-100">{t}</div>
+              <div key={i} className="bg-white p-4 rounded-2xl text-[11px] font-medium text-slate-700 shadow-sm border border-slate-100 animate-fade-in leading-relaxed">
+                {t}
+              </div>
             ))}
           </div>
 
@@ -107,11 +123,11 @@ export const LiveAssistant: React.FC = () => {
             <button 
               onClick={isActive ? stopSession : startSession}
               disabled={isConnecting}
-              className={`w-16 h-16 rounded-full flex items-center justify-center transition-all shadow-xl ${
+              className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-xl active:scale-90 ${
                 isActive ? 'bg-red-500 text-white animate-pulse' : 'bg-yellow-400 text-yellow-950 hover:bg-yellow-500'
               } disabled:opacity-50`}
             >
-              {isActive ? <MicOff size={24} /> : <Mic size={24} />}
+              {isActive ? <MicOff size={20} /> : <Mic size={20} />}
             </button>
           </div>
         </div>

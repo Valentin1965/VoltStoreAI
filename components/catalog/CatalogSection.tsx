@@ -4,7 +4,7 @@ import { useProducts } from '../../contexts/ProductsContext';
 import { useCart } from '../../contexts/CartContext';
 import { useWishlist } from '../../contexts/WishlistContext';
 import { useNotification } from '../../contexts/NotificationContext';
-import { Star, ShoppingCart, Zap, X, Heart, Loader2 } from 'lucide-react';
+import { Star, ShoppingCart, X, Heart, Loader2 } from 'lucide-react';
 import { Product } from '../../types';
 
 interface ProductCardProps {
@@ -78,7 +78,7 @@ export const CatalogSection: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center py-32 space-y-4">
         <Loader2 className="text-yellow-400 animate-spin" size={32} />
-        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Завантаження...</p>
+        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Завантаження каталогу...</p>
       </div>
     );
   }
@@ -116,7 +116,7 @@ export const CatalogSection: React.FC = () => {
             onAddToCart={(e, p) => {
               e.stopPropagation();
               addItem(p);
-              addNotification('Додано!', 'success');
+              addNotification('Додано до кошика', 'success');
             }}
           />
         ))}
@@ -126,17 +126,18 @@ export const CatalogSection: React.FC = () => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-xl rounded-[2rem] p-8 relative animate-fade-in">
             <button onClick={() => setSelectedProduct(null)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-900"><X size={20}/></button>
-            <div className="flex gap-8 items-start">
-              <img src={selectedProduct.image} className="w-40 rounded-2xl" />
-              <div>
+            <div className="flex flex-col md:flex-row gap-8 items-start">
+              <img src={selectedProduct.image} className="w-full md:w-48 rounded-2xl object-cover" alt={selectedProduct.name} />
+              <div className="flex-1">
+                <div className="text-[10px] font-black uppercase text-yellow-600 mb-1">{selectedProduct.category}</div>
                 <h2 className="text-xl font-bold mb-2">{selectedProduct.name}</h2>
-                <p className="text-sm text-slate-500 mb-6">{selectedProduct.description}</p>
+                <p className="text-xs text-slate-500 mb-6 leading-relaxed">{selectedProduct.description}</p>
                 <div className="text-2xl font-black mb-6">₴{selectedProduct.price.toLocaleString()}</div>
                 <button 
-                  onClick={() => { addItem(selectedProduct); setSelectedProduct(null); }}
-                  className="w-full bg-yellow-400 py-4 rounded-xl font-bold"
+                  onClick={() => { addItem(selectedProduct); setSelectedProduct(null); addNotification('Додано до кошика', 'success'); }}
+                  className="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-950 py-4 rounded-xl font-black transition-all shadow-lg"
                 >
-                  У кошик
+                  Купити
                 </button>
               </div>
             </div>

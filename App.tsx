@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Layout } from './components/layout/Layout';
 import { CatalogSection } from './components/catalog/CatalogSection';
@@ -7,6 +6,7 @@ import { CheckoutPage } from './components/checkout/CheckoutPage';
 import { AdminPanel } from './components/admin/AdminPanel';
 import { Calculator } from './components/calculator/Calculator';
 import { WishlistPage } from './components/wishlist/WishlistPage';
+import { LiveAssistant } from './components/ai/LiveAssistant';
 import { ProductsProvider } from './contexts/ProductsContext';
 import { CartProvider } from './contexts/CartContext';
 import { NotificationProvider } from './contexts/NotificationContext';
@@ -43,6 +43,7 @@ const App: React.FC = () => {
             <Layout currentView={currentView} setView={setCurrentView}>
               {renderView()}
             </Layout>
+            <LiveAssistant />
           </WishlistProvider>
         </CartProvider>
       </ProductsProvider>
