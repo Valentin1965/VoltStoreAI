@@ -1,8 +1,8 @@
-
 {
   "name": "Voltstore Pro",
   "description": "High-performance power equipment store featuring AI-driven tools and modern logistics.",
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "microphone"
   ]
 }
