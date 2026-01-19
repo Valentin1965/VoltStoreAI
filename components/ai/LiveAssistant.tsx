@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { Mic, MicOff, X, Zap, Loader2 } from 'lucide-react';
@@ -153,7 +154,7 @@ export const LiveAssistant: React.FC = () => {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
           },
           outputAudioTranscription: {},
-          systemInstruction: 'Ви — інтелектуальний асистент магазину VoltStore. Допомагайте клієнтам підібрати енергетичне обладнання.',
+          systemInstruction: 'You are an intelligent assistant for VoltStore. Help customers select the right energy equipment. Respond in English.',
         }
       });
 
@@ -178,7 +179,7 @@ export const LiveAssistant: React.FC = () => {
           <div className="bg-yellow-400 p-1.5 rounded-full group-hover:rotate-12 transition-transform">
             <Zap size={18} className="text-yellow-950 fill-yellow-950" />
           </div>
-          <span className="font-bold text-xs pr-2">AI Консультант</span>
+          <span className="font-bold text-xs pr-2">AI Assistant</span>
         </button>
       ) : (
         <div className="bg-white w-80 rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden animate-fade-in">
@@ -195,13 +196,13 @@ export const LiveAssistant: React.FC = () => {
           <div className="p-6 h-64 overflow-y-auto flex flex-col gap-3 bg-slate-50/50">
             {transcription.length === 0 && !isConnecting && (
               <p className="text-[10px] text-slate-400 text-center font-bold mt-12 px-4 leading-relaxed uppercase tracking-widest">
-                Привіт! Натисніть кнопку нижче, щоб розпочати голосову консультацію
+                Hello! Click the button below to start a voice consultation.
               </p>
             )}
             {isConnecting && (
               <div className="flex flex-col items-center justify-center h-full gap-3">
                 <Loader2 className="animate-spin text-yellow-500" size={24} />
-                <p className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em]">Підключення...</p>
+                <p className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em]">Connecting...</p>
               </div>
             )}
             {transcription.map((t, i) => (

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Layout } from './components/layout/Layout';
 import { CatalogSection } from './components/catalog/CatalogSection';
@@ -19,7 +20,7 @@ const App: React.FC = () => {
   const renderView = () => {
     switch (currentView) {
       case AppView.CATALOG:
-        return <CatalogSection />;
+        return <CatalogSection onSelectSystem={() => setCurrentView(AppView.CALCULATOR)} />;
       case AppView.CART:
         return <CartPage onCheckout={() => setCurrentView(AppView.CHECKOUT)} />;
       case AppView.CHECKOUT:
@@ -31,7 +32,7 @@ const App: React.FC = () => {
       case AppView.WISHLIST:
         return <WishlistPage />;
       default:
-        return <CatalogSection />;
+        return <CatalogSection onSelectSystem={() => setCurrentView(AppView.CALCULATOR)} />;
     }
   };
 
