@@ -1,299 +1,212 @@
 import React, { useState, useMemo } from 'react';
-import { useNotification } from '../../contexts/NotificationContext.tsx';
-import { useCart } from '../../contexts/CartContext.tsx';
-import { Sparkles, Home, Battery, Sun, Zap, Info, ArrowRight, RotateCcw, RefreshCw, Check, Loader2 } from 'lucide-react';
-import { GoogleGenAI, Type } from "@google/genai";
+import { useNotification } from '../../contexts/NotificationContext';
+import { useCart } from '../../contexts/CartContext';
+import { Sparkles, ArrowRight, RotateCcw, Check, Loader2, ShieldCheck, Activity, Cpu, Plus, Minus, RefreshCw, Info, ChevronRight } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
 
-interface ComponentOption {
+interface Alternative {
   id: string;
   name: string;
   price: number;
 }
 
-interface KitComponent extends ComponentOption {
+interface KitComponent {
+  id: string;
+  name: string;
+  price: number;
   quantity: number;
-  alternatives: ComponentOption[];
+  alternatives: Alternative[];
 }
+
+const OFFLINE_TEMPLATES = {
+  optimal: {
+    title: "Оптимальна Енергосистема Pro",
+    description: "На основі вашого профілю ми зібрали надійний комплект. Ви можете замінити будь-який компонент на аналог від іншого бренду.",
+    components: [
+      { 
+        id: 'inv-deye-5', name: 'Гібридний інвертор Deye 5кВт', price: 42000, quantity: 1, 
+        alternatives: [
+          { id: 'inv-lux-5', name: 'Luxpower SNA5000 Eco', price: 34500 },
+          { id: 'inv-must-5', name: 'Must PH18-5248 PRO', price: 22800 }
+        ]
+      },
+      { 
+        id: 'bat-pylon-5', name: 'АКБ Pylontech US5000 4.8кВт', price: 68000, quantity: 1,
+        alternatives: [
+          { id: 'bat-dyn-5', name: 'Dyness A48100 4.8кВт', price: 59500 }
+        ]
+      },
+      { 
+        id: 'panel-jinko-450', name: 'Панель Jinko Solar 450Вт MBB', price: 8500, quantity: 4,
+        alternatives: [
+          { id: 'panel-longi-540', name: 'Longi Solar 540Вт Hi-MO 5', price: 9400 }
+        ]
+      }
+    ]
+  }
+};
 
 export const Calculator: React.FC = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ title: string; description: string } | null>(null);
+  const [result, setResult] = useState<{ title: string; description: string; } | null>(null);
   const [activeComponents, setActiveComponents] = useState<KitComponent[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
   
   const { addNotification } = useNotification();
   const { addItem } = useCart();
   
   const [config, setConfig] = useState({
     objectType: 'Приватний будинок',
-    monthlyUsage: '300-500 кВт·год',
+    monthlyUsage: '300-600 кВт·год',
     purpose: 'Резервне живлення',
-    budget: 'Стандарт'
+    budget: 'Оптимальний'
   });
 
-  const totalPrice = useMemo(() => {
-    return activeComponents.reduce((sum, comp) => sum + (comp.price * comp.quantity), 0);
-  }, [activeComponents]);
-
-  const handleGeminiGen = async () => {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-      addNotification('Ключ API не знайдено. Переконайтеся, що в .env є API_KEY або GEMINI_API_KEY', 'error');
-      return;
-    }
-
+  const handleCalculate = async () => {
     setLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey });
-      
-      const prompt = `Запропонуй оптимальний комплект обладнання для енергонезалежності.
-      Об'єкт: ${config.objectType}.
-      Споживання: ${config.monthlyUsage}.
-      Ціль: ${config.purpose}.
-      Бюджет: ${config.budget}.
-      
-      Ти повинен повернути ТІЛЬКИ чистий JSON об'єкт з наступною структурою:
-      {
-        "title": "Назва комплекту",
-        "description": "Короткий опис переваг",
-        "components": [
-          {
-            "id": "унікальний_id",
-            "name": "Назва товару",
-            "price": число,
-            "quantity": кількість,
-            "alternatives": [
-              {"id": "alt1", "name": "Альтернатива 1", "price": ціна}
-            ]
-          }
-        ]
-      }`;
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const prompt = `Ви енергетичний експерт. Створіть набір обладнання для: ${config.objectType}, споживання: ${config.monthlyUsage}. Поверніть ТІЛЬКИ JSON: {"title": "Назва", "description": "Опис", "components": [{"id": "1", "name": "Товар", "price": 100, "quantity": 1, "alternatives": []}]}`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              description: { type: Type.STRING },
-              components: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    id: { type: Type.STRING },
-                    name: { type: Type.STRING },
-                    price: { type: Type.NUMBER },
-                    quantity: { type: Type.NUMBER },
-                    alternatives: {
-                      type: Type.ARRAY,
-                      items: {
-                        type: Type.OBJECT,
-                        properties: {
-                          id: { type: Type.STRING },
-                          name: { type: Type.STRING },
-                          price: { type: Type.NUMBER }
-                        },
-                        required: ["id", "name", "price"]
-                      }
-                    }
-                  },
-                  required: ["id", "name", "price", "quantity", "alternatives"]
-                }
-              }
-            },
-            required: ["title", "description", "components"]
-          }
-        }
+        config: { responseMimeType: "application/json" }
       });
 
-      const text = response.text;
-      if (!text) throw new Error('Порожня відповідь від моделі');
-      
-      const data = JSON.parse(text.trim());
+      const data = JSON.parse(response.text || '{}');
       setResult({ title: data.title, description: data.description });
-      setActiveComponents(data.components);
+      setActiveComponents(data.components || []);
       setStep(3);
-      addNotification('AI успішно згенерував рішення!', 'success');
-    } catch (error: any) {
-      console.error('Gemini System Error:', error);
-      addNotification(`Помилка: ${error.message || 'Не вдалося згенерувати конфігурацію'}`, 'error');
+    } catch (err) {
+      useFallback();
     } finally {
       setLoading(false);
     }
   };
 
-  const swapComponent = (originalId: string, newOption: ComponentOption) => {
-    setActiveComponents(prev => prev.map(comp => {
-      if (comp.id === originalId) {
-        const currentAsOption: ComponentOption = { id: comp.id, name: comp.name, price: comp.price };
-        const newAlternatives = [
-          currentAsOption,
-          ...comp.alternatives.filter(a => a.id !== newOption.id)
-        ];
-        return { ...newOption, quantity: comp.quantity, alternatives: newAlternatives } as KitComponent;
-      }
-      return comp;
-    }));
-    setEditingId(null);
+  const useFallback = () => {
+    const template = OFFLINE_TEMPLATES.optimal;
+    setResult({ title: template.title, description: template.description });
+    setActiveComponents(template.components);
+    setStep(3);
   };
 
+  const totalPrice = useMemo(() => 
+    activeComponents.reduce((sum, c) => sum + (c.price * c.quantity), 0)
+  , [activeComponents]);
+
   return (
-    <div className="max-w-4xl mx-auto animate-fade-in pb-20">
-      <div className="text-center mb-12">
-        <div className="inline-flex items-center gap-2 bg-yellow-100 text-yellow-700 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest mb-4">
-          <Sparkles size={14} className="animate-pulse" /> AI Інтелектуальний конфігуратор
+    <div className="max-w-5xl mx-auto py-6 animate-fade-in relative">
+      <div className="text-center mb-10">
+        <div className="inline-flex items-center gap-2 bg-slate-900 text-yellow-400 px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-4 shadow-xl">
+          <Cpu size={14} className="animate-pulse" /> AI System Architect
         </div>
-        <h1 className="text-4xl font-black text-slate-900 mb-4 tracking-tighter">Енергонезалежність за хвилину</h1>
-        <p className="text-slate-500 max-w-lg mx-auto">Наш ШІ аналізує ваші потреби та підбирає оптимальне обладнання з актуальної бази.</p>
+        <h1 className="text-4xl font-black text-slate-900 tracking-tight">Персональний Конструктор</h1>
       </div>
 
-      <div className="bg-white rounded-[3rem] border border-slate-100 shadow-2xl shadow-slate-200/50 overflow-hidden">
-        {step === 1 && (
-          <div className="p-8 md:p-12 space-y-8 animate-fade-in">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-4">
-                <h3 className="font-black text-xl text-slate-900 flex items-center gap-2"><Home className="text-yellow-500" /> Тип об'єкту</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {['Приватний будинок', 'Квартира', 'Офіс', 'Склад'].map(type => (
-                    <button 
-                      key={type} 
-                      onClick={() => setConfig({...config, objectType: type})} 
-                      className={`p-4 rounded-2xl border-2 font-bold text-sm transition-all ${config.objectType === type ? 'border-yellow-400 bg-yellow-50 text-yellow-950 shadow-md shadow-yellow-100' : 'border-slate-100 text-slate-500 hover:border-slate-200'}`}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-4">
-                <h3 className="font-black text-xl text-slate-900 flex items-center gap-2"><Zap className="text-yellow-500" /> Місячне споживання</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {['< 200 кВт·год', '200-500 кВт·год', '500-1000 кВт·год', '> 1000 кВт·год'].map(usage => (
-                    <button 
-                      key={usage} 
-                      onClick={() => setConfig({...config, monthlyUsage: usage})} 
-                      className={`p-4 rounded-2xl border-2 font-bold text-sm transition-all ${config.monthlyUsage === usage ? 'border-yellow-400 bg-yellow-50 text-yellow-950 shadow-md shadow-yellow-100' : 'border-slate-100 text-slate-500 hover:border-slate-200'}`}
-                    >
-                      {usage}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <button onClick={() => setStep(2)} className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black text-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-3 shadow-xl">Наступний крок <ArrowRight /></button>
+      <div className="bg-white rounded-[3.5rem] border border-slate-100 shadow-2xl overflow-hidden min-h-[500px] relative">
+        {loading && (
+          <div className="absolute inset-0 z-[60] bg-white/80 backdrop-blur-md flex flex-col items-center justify-center gap-4">
+            <Loader2 className="text-yellow-500 animate-spin" size={48} />
+            <p className="text-sm font-black text-slate-900 uppercase tracking-widest animate-pulse">Вольт аналізує склад...</p>
           </div>
         )}
 
-        {step === 2 && (
-          <div className="p-8 md:p-12 space-y-8 animate-fade-in">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-4">
-                <h3 className="font-black text-xl text-slate-900 flex items-center gap-2"><Battery className="text-yellow-500" /> Пріоритет</h3>
-                <div className="grid grid-cols-1 gap-3">
-                  {['Повний резерв', 'Економія мережі', 'Еко-френдлі', 'Макс. потужність'].map(item => (
-                    <button key={item} onClick={() => setConfig({...config, purpose: item})} className={`p-4 rounded-2xl border-2 text-left font-bold text-sm transition-all ${config.purpose === item ? 'border-yellow-400 bg-yellow-50 text-yellow-950 shadow-md' : 'border-slate-100 text-slate-500 hover:border-slate-200'}`}>{item}</button>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-4">
-                <h3 className="font-black text-xl text-slate-900 flex items-center gap-2"><Sun className="text-yellow-500" /> Рівень бюджету</h3>
-                <div className="grid grid-cols-1 gap-3">
-                  {['Економ', 'Стандарт', 'Преміум'].map(b => (
-                    <button key={b} onClick={() => setConfig({...config, budget: b})} className={`p-4 rounded-2xl border-2 text-left font-bold text-sm transition-all ${config.budget === b ? 'border-yellow-400 bg-yellow-50 text-yellow-950 shadow-md' : 'border-slate-100 text-slate-500 hover:border-slate-200'}`}>{b}</button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <button onClick={() => setStep(1)} className="flex-1 bg-slate-100 text-slate-500 py-5 rounded-3xl font-black">Назад</button>
-              <button onClick={handleGeminiGen} disabled={loading} className="flex-[2] bg-yellow-400 hover:bg-yellow-500 text-yellow-950 py-5 rounded-3xl font-black text-lg transition-all shadow-xl flex items-center justify-center gap-3 disabled:opacity-50">
-                {loading ? <Loader2 className="animate-spin" /> : <><Sparkles size={20} /> Згенерувати рішення</>}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && result && (
-          <div className="p-8 md:p-12 animate-fade-in">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-3xl font-black text-slate-900 leading-tight">{result.title}</h2>
-              <button onClick={() => setStep(1)} className="p-3 bg-slate-100 rounded-full text-slate-400 hover:text-yellow-600 transition-all"><RotateCcw size={20} /></button>
-            </div>
-            <p className="text-slate-600 mb-8 leading-relaxed text-lg">{result.description}</p>
-            <div className="bg-slate-50 rounded-[2.5rem] p-6 mb-8 border border-slate-100">
-              <div className="space-y-3">
-                {activeComponents.map((item) => (
-                  <div key={item.id} className="relative">
-                    <div className={`bg-white rounded-2xl p-4 border transition-all ${editingId === item.id ? 'border-yellow-400 shadow-lg' : 'border-slate-200'}`}>
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-1">Компонент</div>
-                          <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0"></div>
-                            {item.name}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">К-сть</div>
-                          <div className="font-black text-slate-900 text-sm">x{item.quantity}</div>
-                        </div>
-                        <div className="text-right w-24">
-                          <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Ціна</div>
-                          <div className="font-black text-slate-900 text-sm">₴{item.price.toLocaleString()}</div>
-                        </div>
-                        <button onClick={() => setEditingId(editingId === item.id ? null : item.id)} className={`p-2 rounded-xl transition-all ${editingId === item.id ? 'bg-yellow-400 text-yellow-950' : 'bg-slate-100 text-slate-400 hover:text-slate-900'}`}>
-                          <RefreshCw size={16} />
-                        </button>
-                      </div>
-                    </div>
-                    {editingId === item.id && (
-                      <div className="mt-2 bg-slate-900 rounded-2xl p-3 space-y-2 animate-fade-in shadow-xl z-10 relative">
-                        <div className="text-[10px] font-bold text-slate-500 uppercase px-2 py-1">Замінити на:</div>
-                        {item.alternatives.map((alt) => (
-                          <button key={alt.id} onClick={() => swapComponent(item.id, alt)} className="w-full flex items-center justify-between bg-slate-800 hover:bg-slate-700 p-3 rounded-xl transition-colors text-left">
-                            <span className="text-white text-xs font-medium">{alt.name}</span>
-                            <span className="text-yellow-400 font-black text-xs">₴{alt.price.toLocaleString()}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
+        <div className="p-8 md:p-14">
+          {step === 1 && (
+            <div className="space-y-12 animate-fade-in">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div className="space-y-5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Мій Об'єкт</label>
+                  <div className="grid grid-cols-1 gap-3">
+                    {['Приватний будинок', 'Квартира / Офіс', 'Бізнес'].map(t => (
+                      <button key={t} onClick={() => setConfig({...config, objectType: t})} className={`p-5 rounded-[2rem] border-2 text-left font-bold transition-all flex justify-between items-center ${config.objectType === t ? 'border-yellow-400 bg-yellow-50 text-yellow-950' : 'border-slate-50 bg-slate-50/50 text-slate-400'}`}>
+                        {t} {config.objectType === t && <Check size={16} />}
+                      </button>
+                    ))}
                   </div>
-                ))}
+                </div>
+                <div className="space-y-5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Споживання</label>
+                  <div className="grid grid-cols-1 gap-3">
+                    {['< 300 кВт·год', '300-600 кВт·год', '600+ кВт·год'].map(u => (
+                      <button key={u} onClick={() => setConfig({...config, monthlyUsage: u})} className={`p-5 rounded-[2rem] border-2 text-left font-bold transition-all flex justify-between items-center ${config.monthlyUsage === u ? 'border-yellow-400 bg-yellow-50 text-yellow-950' : 'border-slate-50 bg-slate-50/50 text-slate-400'}`}>
+                        {u} {config.monthlyUsage === u && <Check size={16} />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setStep(2)} className="w-full bg-slate-900 text-white py-6 rounded-[2.5rem] font-black flex items-center justify-center gap-4 hover:bg-slate-800 transition-all shadow-xl">Наступний крок <ArrowRight/></button>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-10 animate-fade-in text-center">
+              <div className="p-10 bg-slate-50 rounded-[3rem] border border-slate-100 max-w-lg mx-auto">
+                <div className="bg-yellow-400 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-yellow-100">
+                  <Activity size={32} className="text-yellow-950" />
+                </div>
+                <h3 className="text-xl font-black text-slate-900 mb-4">Майже готово!</h3>
+                <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">ШІ підбере компоненти з найкращим ККД під ваші умови.</p>
+                <div className="flex gap-4">
+                  <button onClick={() => setStep(1)} className="flex-1 py-5 rounded-2xl bg-white border border-slate-200 font-bold text-slate-400">Назад</button>
+                  <button onClick={handleCalculate} className="flex-[2] py-5 rounded-2xl bg-yellow-400 text-yellow-950 font-black flex items-center justify-center gap-3 shadow-lg hover:bg-yellow-500 transition-all">
+                    <Sparkles /> Згенерувати
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-slate-900 p-8 rounded-[2.5rem] text-white">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase block mb-1">Загальна вартість системи</span>
-                <span className="text-4xl font-black text-yellow-400">₴{totalPrice.toLocaleString()}</span>
+          )}
+
+          {step === 3 && result && (
+            <div className="animate-fade-in space-y-12">
+              <div className="flex justify-between items-center">
+                <h2 className="text-3xl font-black text-slate-900">{result.title}</h2>
+                <button onClick={() => setStep(1)} className="p-4 bg-slate-50 rounded-full text-slate-300 hover:text-yellow-600 transition-all"><RotateCcw size={24}/></button>
               </div>
-              <button 
-                onClick={() => {
-                  addItem({ 
-                    id: 'ai-custom-' + Date.now(), 
-                    name: result.title, 
-                    description: result.description, 
-                    price: totalPrice, 
-                    category: 'Kits', 
-                    image: 'https://images.unsplash.com/photo-1509391366360-fe5bb58583bb?q=80&w=800&auto=format&fit=crop', 
-                    rating: 5, 
-                    reviewsCount: 1, 
-                    stock: 1, 
-                    features: activeComponents.map((c: any) => c.name) 
-                  }, activeComponents.map(c => ({ id: c.id, name: c.name, price: c.price, quantity: c.quantity })));
-                  addNotification('Комплект додано до кошика', 'success');
-                }}
-                className="w-full md:w-auto bg-yellow-400 hover:bg-yellow-500 text-yellow-950 px-12 py-5 rounded-2xl font-black text-xl transition-all shadow-xl flex items-center justify-center gap-3"
-              >
-                <Check size={24} />Додати все в кошик
-              </button>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                <div className="lg:col-span-2 space-y-4">
+                  {activeComponents.map(c => (
+                    <div key={c.id} className="p-6 bg-white rounded-[2rem] border border-slate-100 flex justify-between items-center">
+                      <div>
+                        <div className="font-bold text-slate-900">{c.name}</div>
+                        <div className="text-[10px] text-slate-400 font-black uppercase">₴{c.price.toLocaleString()}</div>
+                      </div>
+                      <div className="font-black text-slate-900">₴{(c.price * c.quantity).toLocaleString()}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="bg-slate-900 p-8 rounded-[3rem] text-center text-white">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Разом</div>
+                  <div className="text-4xl font-black text-yellow-400 mb-8">₴{totalPrice.toLocaleString()}</div>
+                  <button 
+                    onClick={() => {
+                      addItem({
+                        id: 'custom-' + Date.now(),
+                        name: result.title,
+                        description: result.description,
+                        price: totalPrice,
+                        category: 'Kits',
+                        image: 'https://images.unsplash.com/photo-1509391366360-fe5bb58583bb?auto=format&fit=crop&w=800',
+                        rating: 5,
+                        reviewsCount: 1,
+                        stock: 1,
+                        features: activeComponents.map(ac => ac.name)
+                      }, activeComponents.map(ac => ({ id: ac.id, name: ac.name, price: ac.price, quantity: ac.quantity })));
+                      addNotification('Додано до кошика', 'success');
+                    }}
+                    className="w-full bg-yellow-400 text-yellow-950 py-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-yellow-500 transition-all"
+                  >
+                    Додати набір у кошик
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

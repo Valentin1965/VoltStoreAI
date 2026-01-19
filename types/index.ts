@@ -27,8 +27,8 @@ export interface Product {
   price: number;
   oldPrice?: number;
   category: Category;
-  image: string; // Featured image
-  images?: string[]; // Gallery images
+  image: string;
+  images?: string[];
   rating: number;
   reviewsCount: number;
   stock: number;
@@ -44,6 +44,8 @@ export interface KitPart {
   name: string;
   price: number;
   quantity: number;
+  minQuantity?: number;
+  maxQuantity?: number;
 }
 
 export interface CartItem extends Product {
@@ -64,10 +66,4 @@ export interface Order {
     city: string;
     department: string;
   };
-}
-
-export interface ConfiguratorStep {
-  id: number;
-  question: string;
-  options: { label: string; value: string; icon?: string }[];
 }

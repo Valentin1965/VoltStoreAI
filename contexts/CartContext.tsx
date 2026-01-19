@@ -8,6 +8,7 @@ interface CartContextType {
   removeItem: (id: string) => void;
   removePart: (itemId: string, partId: string) => void;
   updateQuantity: (id: string, delta: number) => void;
+  updatePartQuantity: (itemId: string, partId: string, delta: number) => void;
   clearCart: () => void;
   totalItems: number;
   totalPrice: number;
@@ -27,13 +28,20 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addItem = (product: Product, parts?: KitPart[]) => {
     setItems(prev => {
-      const existing = prev.find(i => i.id === product.id);
-      if (existing && !parts) {
+      // Якщо це комплект, завжди створюємо новий унікальний запис, 
+      // бо замовник може створити два різних комплекти одного типу
+      if (parts) {
+        const id = `${product.id}-${Date.now()}`;
+        return [...prev, { ...product, id, quantity: 1, parts }];
+      }
+
+      // Для звичайних товарів шукаємо існуючий
+      const existing = prev.find(i => i.id === product.id && !i.parts);
+      if (existing) {
         return prev.map(i => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
       }
-      // Kits with parts are treated as unique items to avoid merging different configurations
-      const id = parts ? `${product.id}-${Date.now()}` : product.id;
-      return [...prev, { ...product, id, quantity: 1, parts }];
+      
+      return [...prev, { ...product, quantity: 1 }];
     });
   };
 
@@ -48,12 +56,36 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!partToRemove) return item;
 
         const updatedParts = item.parts.filter(p => p.id !== partId);
-        const newPrice = item.price - (partToRemove.price * partToRemove.quantity);
+        // Оновлюємо базову ціну комплекту (ціна за 1 шт комплекту)
+        const priceReduction = partToRemove.price * partToRemove.quantity;
         
         return {
           ...item,
           parts: updatedParts,
-          price: Math.max(0, newPrice)
+          price: Math.max(0, item.price - priceReduction)
+        };
+      }
+      return item;
+    }));
+  };
+
+  const updatePartQuantity = (itemId: string, partId: string, delta: number) => {
+    setItems(prev => prev.map(item => {
+      if (item.id === itemId && item.parts) {
+        let priceDiff = 0;
+        const updatedParts = item.parts.map(p => {
+          if (p.id === partId) {
+            const newQty = Math.max(1, p.quantity + delta);
+            priceDiff = (newQty - p.quantity) * p.price;
+            return { ...p, quantity: newQty };
+          }
+          return p;
+        });
+
+        return {
+          ...item,
+          parts: updatedParts,
+          price: Math.max(0, item.price + priceDiff)
         };
       }
       return item;
@@ -76,7 +108,17 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const totalPrice = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, removePart, updateQuantity, clearCart, totalItems, totalPrice }}>
+    <CartContext.Provider value={{ 
+      items, 
+      addItem, 
+      removeItem, 
+      removePart, 
+      updateQuantity, 
+      updatePartQuantity,
+      clearCart, 
+      totalItems, 
+      totalPrice 
+    }}>
       {children}
     </CartContext.Provider>
   );
