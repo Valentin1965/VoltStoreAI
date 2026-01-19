@@ -3,8 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useCart } from '../../contexts/CartContext';
 import { useWishlist } from '../../contexts/WishlistContext';
+import { useCompare } from '../../contexts/CompareContext';
 import { useNotification } from '../../contexts/NotificationContext';
-import { Star, ShoppingCart, X, Heart, Loader2, CheckCircle2, AlertCircle, Zap, ShieldCheck, TrendingUp, Sparkles } from 'lucide-react';
+import { Star, ShoppingCart, X, Heart, Loader2, Zap, ShieldCheck, TrendingUp, Sparkles, Share2, Scale } from 'lucide-react';
 import { Product } from '../../types';
 
 interface ProductCardProps {
@@ -17,8 +18,20 @@ interface ProductCardProps {
 const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSelect, onAddToCart }) => {
   const images = product.images && product.images.length > 0 ? product.images : [product.image];
   const { toggleWishlist, isInWishlist } = useWishlist();
-  const isFavorite = isInWishlist(product.id);
+  const { toggleCompare, isInCompare } = useCompare();
+  const { addNotification } = useNotification();
+  
+  const isReserved = isInWishlist(product.id);
+  const isComparing = isInCompare(product.id);
   const isLowStock = product.stock > 0 && product.stock < 5;
+
+  const handleShare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = window.location.origin + '?product=' + product.id;
+    navigator.clipboard.writeText(url).then(() => {
+      addNotification('Link copied to clipboard', 'success');
+    });
+  };
 
   return (
     <div 
@@ -42,17 +55,42 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSelect, onA
           )}
         </div>
 
-        <button 
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleWishlist(product);
-          }}
-          className={`absolute top-5 right-5 p-3 rounded-2xl shadow-lg z-10 transition-all active:scale-90 ${
-            isFavorite ? 'bg-red-500 text-white' : 'bg-white/80 text-slate-400 hover:text-red-500 backdrop-blur-md border border-slate-100'
-          }`}
-        >
-          <Heart size={16} fill={isFavorite ? "currentColor" : "none"} />
-        </button>
+        {/* Action Buttons Group */}
+        <div className="absolute top-5 right-5 flex flex-col gap-2 z-10 translate-x-4 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleWishlist(product);
+            }}
+            className={`p-3 rounded-2xl shadow-lg transition-all active:scale-90 ${
+              isReserved ? 'bg-red-500 text-white' : 'bg-white/80 text-slate-400 hover:text-red-500 backdrop-blur-md border border-slate-100'
+            }`}
+            title={isReserved ? "Скасувати бронювання" : "Забронювати товар"}
+          >
+            <Heart size={16} fill={isReserved ? "currentColor" : "none"} />
+          </button>
+
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleCompare(product);
+            }}
+            className={`p-3 rounded-2xl shadow-lg transition-all active:scale-90 ${
+              isComparing ? 'bg-blue-500 text-white' : 'bg-white/80 text-slate-400 hover:text-blue-500 backdrop-blur-md border border-slate-100'
+            }`}
+            title="Compare"
+          >
+            <Scale size={16} />
+          </button>
+
+          <button 
+            onClick={handleShare}
+            className="p-3 rounded-2xl shadow-lg transition-all active:scale-90 bg-white/80 text-slate-400 hover:text-yellow-600 backdrop-blur-md border border-slate-100"
+            title="Share"
+          >
+            <Share2 size={16} />
+          </button>
+        </div>
 
         <div className="absolute bottom-5 left-5 right-5 bg-white/90 backdrop-blur-xl border border-slate-100 p-4 rounded-2xl flex items-center justify-between opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-xl">
            <span className="text-sm font-black text-slate-900">₴{product.price.toLocaleString()}</span>
@@ -104,6 +142,7 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({ onSelectSystem }
   const { filteredProducts, categories, selectedCategory, setSelectedCategory, isLoading } = useProducts();
   const { addItem } = useCart();
   const { addNotification } = useNotification();
+  const { toggleCompare, isInCompare } = useCompare();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [visitorCount, setVisitorCount] = useState(142);
 
@@ -268,17 +307,25 @@ export const CatalogSection: React.FC<CatalogSectionProps> = ({ onSelectSystem }
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Investment</div>
                   <div className="text-5xl font-black text-slate-900 tracking-tighter">₴{selectedProduct.price.toLocaleString()}</div>
                 </div>
-                <button 
-                  disabled={selectedProduct.stock === 0}
-                  onClick={() => { 
-                    addItem(selectedProduct); 
-                    setSelectedProduct(null); 
-                    addNotification('Transaction Added', 'success'); 
-                  }}
-                  className="flex-1 bg-slate-900 hover:bg-yellow-400 text-white hover:text-yellow-950 py-8 rounded-[2.5rem] font-black text-xl uppercase tracking-widest transition-all shadow-2xl active:scale-95 disabled:opacity-20"
-                >
-                  {selectedProduct.stock > 0 ? 'Order Now' : 'Out of Stock'}
-                </button>
+                <div className="flex flex-1 gap-4">
+                  <button 
+                    onClick={() => toggleCompare(selectedProduct)}
+                    className={`p-6 rounded-[2.5rem] transition-all border-2 ${isInCompare(selectedProduct.id) ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-slate-400 border-slate-100 hover:border-blue-500'}`}
+                  >
+                    <Scale size={24} />
+                  </button>
+                  <button 
+                    disabled={selectedProduct.stock === 0}
+                    onClick={() => { 
+                      addItem(selectedProduct); 
+                      setSelectedProduct(null); 
+                      addNotification('Transaction Added', 'success'); 
+                    }}
+                    className="flex-1 bg-slate-900 hover:bg-yellow-400 text-white hover:text-yellow-950 py-8 rounded-[2.5rem] font-black text-xl uppercase tracking-widest transition-all shadow-2xl active:scale-95 disabled:opacity-20"
+                  >
+                    {selectedProduct.stock > 0 ? 'Order Now' : 'Out of Stock'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

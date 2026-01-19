@@ -1,9 +1,10 @@
 
 import React from 'react';
-import { ShoppingCart, LayoutGrid, Calculator, ShieldCheck, Heart, Zap, Search, Menu, User } from 'lucide-react';
+import { ShoppingCart, LayoutGrid, Calculator, ShieldCheck, Heart, Zap, Search, Menu, User, Scale } from 'lucide-react';
 import { AppView } from '../../types';
 import { useCart } from '../../contexts/CartContext';
 import { useProducts } from '../../contexts/ProductsContext';
+import { useCompare } from '../../contexts/CompareContext';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -14,11 +15,13 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }) => {
   const { totalItems } = useCart();
   const { searchQuery, setSearchQuery } = useProducts();
+  const { compareList } = useCompare();
 
   const navItems = [
     { id: AppView.CATALOG, label: 'Catalog', icon: LayoutGrid },
     { id: AppView.CALCULATOR, label: 'AI Architect', icon: Calculator },
-    { id: AppView.WISHLIST, label: 'Wishlist', icon: Heart },
+    { id: AppView.WISHLIST, label: 'Бронювання', icon: Heart },
+    { id: AppView.COMPARE, label: 'Compare', icon: Scale },
     { id: AppView.ADMIN, label: 'Admin', icon: ShieldCheck },
   ];
 
@@ -69,6 +72,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
           </div>
 
           <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setView(AppView.COMPARE)}
+              className="relative p-2.5 hover:bg-slate-100 rounded-xl text-slate-500 hover:text-slate-900 transition-all active:scale-90"
+            >
+              <Scale size={20} />
+              {compareList.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-yellow-400 text-yellow-950 text-[8px] font-black w-4 h-4 flex items-center justify-center rounded-full border border-white">
+                  {compareList.length}
+                </span>
+              )}
+            </button>
             <button className="hidden sm:flex items-center gap-2 px-4 py-2 hover:bg-slate-100 rounded-xl text-slate-500 hover:text-slate-900 transition-all font-bold text-[10px] uppercase tracking-widest">
               <User size={16} />
               <span>Login</span>
@@ -131,7 +145,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
             <ul className="space-y-4 text-[11px] font-bold uppercase tracking-widest">
               <li><button onClick={() => setView(AppView.CATALOG)} className="hover:text-yellow-500 transition-colors">Catalog</button></li>
               <li><button onClick={() => setView(AppView.CALCULATOR)} className="hover:text-yellow-500 transition-colors">AI Architect</button></li>
-              <li><button onClick={() => setView(AppView.WISHLIST)} className="hover:text-yellow-500 transition-colors">Wishlist</button></li>
+              <li><button onClick={() => setView(AppView.WISHLIST)} className="hover:text-yellow-500 transition-colors">Бронювання</button></li>
             </ul>
           </div>
 

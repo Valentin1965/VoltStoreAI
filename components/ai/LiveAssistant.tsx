@@ -154,7 +154,7 @@ export const LiveAssistant: React.FC = () => {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
           },
           outputAudioTranscription: {},
-          systemInstruction: 'You are an intelligent assistant for VoltStore. Help customers select the right energy equipment. Respond in English.',
+          systemInstruction: 'You are an intelligent assistant for VoltStore. Help customers select the right energy equipment (inverters, batteries, solar panels). Respond in English.',
         }
       });
 

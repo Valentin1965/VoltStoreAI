@@ -7,11 +7,13 @@ import { CheckoutPage } from './components/checkout/CheckoutPage';
 import { AdminPanel } from './components/admin/AdminPanel';
 import { Calculator } from './components/calculator/Calculator';
 import { WishlistPage } from './components/wishlist/WishlistPage';
+import { ComparePage } from './components/compare/ComparePage';
 import { LiveAssistant } from './components/ai/LiveAssistant';
 import { ProductsProvider } from './contexts/ProductsContext';
 import { CartProvider } from './contexts/CartContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { WishlistProvider } from './contexts/WishlistContext';
+import { CompareProvider } from './contexts/CompareContext';
 import { AppView } from './types';
 
 const App: React.FC = () => {
@@ -31,6 +33,8 @@ const App: React.FC = () => {
         return <Calculator />;
       case AppView.WISHLIST:
         return <WishlistPage />;
+      case AppView.COMPARE:
+        return <ComparePage />;
       default:
         return <CatalogSection onSelectSystem={() => setCurrentView(AppView.CALCULATOR)} />;
     }
@@ -41,10 +45,12 @@ const App: React.FC = () => {
       <ProductsProvider>
         <CartProvider>
           <WishlistProvider>
-            <Layout currentView={currentView} setView={setCurrentView}>
-              {renderView()}
-            </Layout>
-            <LiveAssistant />
+            <CompareProvider>
+              <Layout currentView={currentView} setView={setCurrentView}>
+                {renderView()}
+              </Layout>
+              <LiveAssistant />
+            </CompareProvider>
           </WishlistProvider>
         </CartProvider>
       </ProductsProvider>

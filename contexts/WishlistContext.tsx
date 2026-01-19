@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Product } from '../types';
+import { useNotification } from './NotificationContext';
 
 interface WishlistContextType {
   wishlist: Product[];
@@ -15,6 +16,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const saved = localStorage.getItem('voltstore_wishlist');
     return saved ? JSON.parse(saved) : [];
   });
+  const { addNotification } = useNotification();
 
   useEffect(() => {
     localStorage.setItem('voltstore_wishlist', JSON.stringify(wishlist));
@@ -24,8 +26,10 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setWishlist(prev => {
       const exists = prev.find(p => p.id === product.id);
       if (exists) {
+        addNotification('Бронювання скасовано', 'info');
         return prev.filter(p => p.id !== product.id);
       }
+      addNotification('Обладнання успішно заброньовано', 'success');
       return [...prev, product];
     });
   };
