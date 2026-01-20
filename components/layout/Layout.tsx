@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { ShoppingCart, LayoutGrid, Calculator, ShieldCheck, Heart, Zap, Search, Menu, User, Scale } from 'lucide-react';
+import { ShoppingCart, LayoutGrid, Calculator, ShieldCheck, Heart, Zap, Search, User, Scale, ArrowLeft, X } from 'lucide-react';
 import { AppView } from '../../types';
 import { useCart } from '../../contexts/CartContext';
 import { useProducts } from '../../contexts/ProductsContext';
@@ -19,11 +19,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
 
   const navItems = [
     { id: AppView.CATALOG, label: 'Catalog', icon: LayoutGrid },
-    { id: AppView.CALCULATOR, label: 'AI Architect', icon: Calculator },
+    { id: AppView.CALCULATOR, label: 'Підбір комплекту', icon: Calculator },
     { id: AppView.WISHLIST, label: 'Бронювання', icon: Heart },
     { id: AppView.COMPARE, label: 'Compare', icon: Scale },
     { id: AppView.ADMIN, label: 'Admin', icon: ShieldCheck },
   ];
+
+  const handleBack = () => {
+    setView(AppView.CATALOG);
+  };
 
   return (
     <div className="min-h-screen flex flex-col selection:bg-yellow-400 selection:text-yellow-900 font-sans text-slate-900 bg-slate-50 relative overflow-x-hidden">
@@ -38,62 +42,69 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
       </div>
 
       {/* Top Banner */}
-      <div className="relative z-50 bg-yellow-400 text-yellow-950 py-1.5 text-[9px] font-black tracking-widest uppercase overflow-hidden whitespace-nowrap border-b border-yellow-500/20">
+      <div className="relative z-[40] bg-yellow-400 text-yellow-950 py-1 text-[8px] font-black tracking-widest uppercase overflow-hidden whitespace-nowrap border-b border-yellow-500/20">
         <div className="animate-marquee inline-block px-4">
           ⚡ Free Shipping from 50,000 UAH • 5-Year Warranty • Turnkey Energy Independence ⚡
         </div>
       </div>
 
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-3xl border-b border-slate-200 shadow-sm">
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between gap-6">
-          <div 
-            className="flex items-center gap-2.5 cursor-pointer shrink-0 group" 
-            onClick={() => setView(AppView.CATALOG)}
-          >
-            <div className="bg-yellow-400 p-2 rounded-lg group-hover:scale-110 transition-all shadow-lg shadow-yellow-400/20">
-              <Zap className="text-yellow-950 fill-yellow-950" size={20} />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xl font-black tracking-tighter text-slate-900 leading-none uppercase">VOLT<span className="text-yellow-400">STORE</span></span>
-              <span className="text-[8px] font-bold text-slate-400 tracking-wider uppercase leading-none mt-1">Advanced Energy</span>
+      <header className="sticky top-0 z-[50] bg-white/80 backdrop-blur-3xl border-b border-slate-200 shadow-sm">
+        <div className="container mx-auto px-6 h-14 flex items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            {currentView !== AppView.CATALOG && (
+              <button 
+                onClick={handleBack}
+                className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl shadow-sm border border-slate-200 text-slate-600 hover:text-slate-900 transition-all flex items-center justify-center animate-fade-in group"
+                title="Назад до каталогу"
+              >
+                <ArrowLeft size={18} className="group-hover:-translate-x-0.5 transition-transform" />
+              </button>
+            )}
+            <div 
+              className="flex items-center gap-2 cursor-pointer shrink-0 group" 
+              onClick={() => setView(AppView.CATALOG)}
+            >
+              <div className="bg-yellow-400 p-1.5 rounded-lg group-hover:scale-110 transition-all shadow-lg shadow-yellow-400/20">
+                <Zap className="text-yellow-950 fill-yellow-950" size={16} />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-lg font-black tracking-tighter text-slate-900 leading-none uppercase">VOLT<span className="text-yellow-400">STORE</span></span>
+                <span className="text-[7px] font-bold text-slate-400 tracking-wider uppercase leading-none mt-0.5">Energy Pro</span>
+              </div>
             </div>
           </div>
 
-          <div className="hidden md:flex flex-1 max-w-lg relative group">
+          <div className="hidden md:flex flex-1 max-w-md relative group">
             <input
               type="text"
-              placeholder="Search equipment..."
+              placeholder="Шукати обладнання..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-100/50 border border-slate-200 rounded-2xl py-2.5 pl-10 pr-4 focus:bg-white focus:border-yellow-400 transition-all outline-none text-xs font-semibold text-slate-700 placeholder:text-slate-400"
+              className="w-full bg-slate-100/50 border border-slate-200 rounded-xl py-2 pl-9 pr-4 focus:bg-white focus:border-yellow-400 transition-all outline-none text-[10px] font-semibold text-slate-700 placeholder:text-slate-400"
             />
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-yellow-500 transition-colors" size={16} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-yellow-500 transition-colors" size={14} />
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button 
               onClick={() => setView(AppView.COMPARE)}
-              className="relative p-2.5 hover:bg-slate-100 rounded-xl text-slate-500 hover:text-slate-900 transition-all active:scale-90"
+              className="relative p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-900 transition-all active:scale-90"
             >
-              <Scale size={20} />
+              <Scale size={18} />
               {compareList.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-yellow-400 text-yellow-950 text-[8px] font-black w-4 h-4 flex items-center justify-center rounded-full border border-white">
+                <span className="absolute -top-1 -right-1 bg-yellow-400 text-yellow-950 text-[7px] font-black w-3.5 h-3.5 flex items-center justify-center rounded-full border border-white">
                   {compareList.length}
                 </span>
               )}
             </button>
-            <button className="hidden sm:flex items-center gap-2 px-4 py-2 hover:bg-slate-100 rounded-xl text-slate-500 hover:text-slate-900 transition-all font-bold text-[10px] uppercase tracking-widest">
-              <User size={16} />
-              <span>Login</span>
-            </button>
             <button 
               onClick={() => setView(AppView.CART)}
-              className="relative p-3 bg-yellow-400 text-yellow-950 hover:bg-yellow-500 rounded-2xl transition-all shadow-xl shadow-yellow-400/10 active:scale-90"
+              className="relative p-2.5 bg-yellow-400 text-yellow-950 hover:bg-yellow-500 rounded-xl transition-all shadow-md active:scale-90"
             >
-              <ShoppingCart size={20} />
+              <ShoppingCart size={18} />
               {totalItems > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-slate-900 text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-yellow-400">
+                <span className="absolute -top-1.5 -right-1.5 bg-slate-900 text-white text-[9px] font-black w-4.5 h-4.5 flex items-center justify-center rounded-full border-2 border-yellow-400">
                   {totalItems}
                 </span>
               )}
@@ -101,20 +112,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="bg-white/50 border-t border-slate-100 hidden md:block">
-          <div className="container mx-auto px-6 flex justify-center gap-2 py-1.5">
+        <nav className="bg-white/40 border-t border-slate-100 hidden md:block">
+          <div className="container mx-auto px-6 flex justify-center gap-1 py-1">
             {navItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setView(item.id)}
-                className={`px-5 py-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.15em] transition-all rounded-xl ${
+                className={`px-4 py-1.5 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest transition-all rounded-lg ${
                   currentView === item.id 
                     ? 'text-slate-900 bg-white shadow-sm border border-slate-100' 
                     : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
                 }`}
               >
-                <item.icon size={12} className={currentView === item.id ? 'text-yellow-500' : ''} />
+                <item.icon size={11} className={currentView === item.id ? 'text-yellow-500' : ''} />
                 {item.label}
               </button>
             ))}
@@ -122,48 +132,28 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
         </nav>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 container mx-auto px-6 py-8 max-w-7xl relative z-10">
+      <main className="flex-1 container mx-auto px-6 py-6 max-w-7xl relative">
         {children}
       </main>
 
-      {/* Footer */}
-      <footer className="bg-white text-slate-500 py-16 mt-auto relative z-10 border-t border-slate-100">
-        <div className="container mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12">
-          <div className="space-y-6">
-            <div className="flex items-center gap-2 text-slate-900">
-              <Zap className="text-yellow-500 fill-yellow-500" size={28} />
-              <span className="text-2xl font-black tracking-tighter uppercase">VOLTSTORE</span>
-            </div>
-            <p className="text-xs leading-relaxed font-medium text-slate-400">
-              Leader in engineering autonomous power systems. Making energy accessible for every home.
-            </p>
+      <footer className="bg-white text-slate-500 py-6 mt-auto relative z-[10] border-t border-slate-100">
+        <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-2 text-slate-900 shrink-0">
+            <Zap className="text-yellow-500 fill-yellow-500" size={20} />
+            <span className="text-lg font-black tracking-tighter uppercase">VOLTSTORE</span>
           </div>
           
-          <div>
-            <h4 className="text-slate-900 font-black uppercase tracking-[0.2em] text-[10px] mb-6">Navigation</h4>
-            <ul className="space-y-4 text-[11px] font-bold uppercase tracking-widest">
-              <li><button onClick={() => setView(AppView.CATALOG)} className="hover:text-yellow-500 transition-colors">Catalog</button></li>
-              <li><button onClick={() => setView(AppView.CALCULATOR)} className="hover:text-yellow-500 transition-colors">AI Architect</button></li>
-              <li><button onClick={() => setView(AppView.WISHLIST)} className="hover:text-yellow-500 transition-colors">Бронювання</button></li>
-            </ul>
+          <div className="flex flex-wrap justify-center gap-6 text-[9px] font-black uppercase tracking-[0.2em]">
+            <button onClick={() => setView(AppView.CATALOG)} className="hover:text-yellow-500 transition-colors">Каталог</button>
+            <button onClick={() => setView(AppView.CALCULATOR)} className="hover:text-yellow-500 transition-colors">Підбір комплекту</button>
+            <button onClick={() => setView(AppView.WISHLIST)} className="hover:text-yellow-500 transition-colors">Бронювання</button>
+            <a href="#" className="hover:text-yellow-500 transition-colors">Контакти</a>
           </div>
 
-          <div>
-            <h4 className="text-slate-900 font-black uppercase tracking-[0.2em] text-[10px] mb-6">Company</h4>
-            <ul className="space-y-4 text-[11px] font-bold uppercase tracking-widest">
-              <li><a href="#" className="hover:text-yellow-500 transition-colors">Certification</a></li>
-              <li><a href="#" className="hover:text-yellow-500 transition-colors">Installation</a></li>
-              <li><a href="#" className="hover:text-yellow-500 transition-colors">Contacts</a></li>
-            </ul>
-          </div>
-
-          <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100 shadow-sm">
-            <h4 className="text-slate-900 font-black text-[10px] mb-4 uppercase tracking-widest">Hotline</h4>
-            <span className="text-xl font-black text-slate-900 block hover:text-yellow-500 transition-colors mb-6 tracking-tighter">0 800 777 00 01</span>
-            <button className="bg-slate-900 text-white hover:bg-yellow-400 hover:text-yellow-950 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all w-full">
-              Book Audit
-            </button>
+          <div className="flex items-center gap-4">
+             <span className="text-xs font-black text-slate-900 tracking-tighter">0 800 777 00 01</span>
+             <div className="h-4 w-[1px] bg-slate-200"></div>
+             <p className="text-[8px] font-bold text-slate-400 uppercase">© 2025 Voltstore Pro</p>
           </div>
         </div>
       </footer>

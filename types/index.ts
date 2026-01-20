@@ -21,6 +21,20 @@ export interface ProductSpec {
   value: string;
 }
 
+export interface Alternative {
+  id: string;
+  name: string;
+  price: number;
+}
+
+export interface KitComponent {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  alternatives: Alternative[];
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -38,6 +52,7 @@ export interface Product {
   features: string[];
   docs?: ProductDoc[];
   specs?: ProductSpec[];
+  kitComponents?: KitComponent[];
 }
 
 export interface KitPart {

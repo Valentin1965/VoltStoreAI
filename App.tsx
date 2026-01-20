@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Layout } from './components/layout/Layout';
-import { CatalogSection } from './components/catalog/CatalogSection';
+import { CatalogSection } from './components/catalog';
 import { CartPage } from './components/cart/CartPage';
 import { CheckoutPage } from './components/checkout/CheckoutPage';
 import { AdminPanel } from './components/admin/AdminPanel';
@@ -18,11 +18,16 @@ import { AppView } from './types';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.CATALOG);
+  const [calcMode, setCalcMode] = useState<1 | 2>(1); // 1: AI, 2: Kits
 
   const renderView = () => {
     switch (currentView) {
       case AppView.CATALOG:
-        return <CatalogSection onSelectSystem={() => setCurrentView(AppView.CALCULATOR)} />;
+        return (
+          <CatalogSection 
+            onSelectSystem={() => { setCalcMode(1); setCurrentView(AppView.CALCULATOR); }} 
+          />
+        );
       case AppView.CART:
         return <CartPage onCheckout={() => setCurrentView(AppView.CHECKOUT)} />;
       case AppView.CHECKOUT:
@@ -30,13 +35,13 @@ const App: React.FC = () => {
       case AppView.ADMIN:
         return <AdminPanel />;
       case AppView.CALCULATOR:
-        return <Calculator />;
+        return <Calculator initialStep={calcMode} />;
       case AppView.WISHLIST:
         return <WishlistPage />;
       case AppView.COMPARE:
         return <ComparePage />;
       default:
-        return <CatalogSection onSelectSystem={() => setCurrentView(AppView.CALCULATOR)} />;
+        return <CatalogSection onSelectSystem={() => { setCalcMode(1); setCurrentView(AppView.CALCULATOR); }} />;
     }
   };
 
