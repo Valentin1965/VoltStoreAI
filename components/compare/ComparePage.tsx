@@ -47,11 +47,12 @@ export const ComparePage: React.FC = () => {
                   <h4 className="font-bold text-slate-900 text-[11px] mb-2 line-clamp-1 uppercase tracking-tight leading-snug">{item.name}</h4>
                   <div className="flex items-center gap-1.5 mb-4">
                     <Star className="text-yellow-400 fill-yellow-400" size={10} />
-                    <span className="text-[10px] font-black text-slate-400">{item.rating} ({item.reviewsCount})</span>
+                    {/* Fix: changed reviewsCount to reviews_count */}
+                    <span className="text-[10px] font-black text-slate-400">{item.rating} ({item.reviews_count})</span>
                   </div>
                 </div>
                 <div className="space-y-3">
-                  <div className="text-base font-black text-slate-900">₴{item.price.toLocaleString()}</div>
+                  <div className="text-base font-black text-slate-900">₴{(item.price ?? 0).toLocaleString()}</div>
                   <button 
                     onClick={() => toggleCompare(item)}
                     className={`w-full py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border-2 ${
@@ -116,7 +117,7 @@ export const ComparePage: React.FC = () => {
               <td className="p-6 bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-widest">Price</td>
               {compareList.map(p => (
                 <td key={p.id} className="p-6 text-center">
-                  <div className="text-lg font-black text-slate-900 tracking-tighter">₴{p.price.toLocaleString()}</div>
+                  <div className="text-lg font-black text-slate-900 tracking-tighter">₴{(p.price ?? 0).toLocaleString()}</div>
                 </td>
               ))}
             </tr>
@@ -140,7 +141,7 @@ export const ComparePage: React.FC = () => {
                 <td className="p-6 bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-widest leading-tight break-words">{feature}</td>
                 {compareList.map(p => (
                   <td key={p.id} className="p-6 text-center">
-                    {p.features.includes(feature) ? (
+                    {p.features?.includes(feature) ? (
                       <CheckCircle2 className="text-green-500 mx-auto" size={16} />
                     ) : (
                       <X className="text-slate-100 mx-auto" size={16} />

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Layout } from './components/layout/Layout';
-import { CatalogSection } from './components/catalog';
+import { CatalogSection } from './components/catalog/CatalogSection';
 import { CartPage } from './components/cart/CartPage';
 import { CheckoutPage } from './components/checkout/CheckoutPage';
 import { AdminPanel } from './components/admin/AdminPanel';

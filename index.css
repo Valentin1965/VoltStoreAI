@@ -5,42 +5,55 @@
 
 @layer base {
   body {
-    @apply font-sans bg-slate-50 text-slate-900 antialiased;
+    @apply font-sans bg-slate-50 text-slate-900 antialiased selection:bg-yellow-400 selection:text-yellow-900;
   }
 }
 
-@keyframes marquee {
-  0% { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
+@layer components {
+  .premium-card {
+    @apply bg-white border border-slate-200/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-500 rounded-[2.5rem];
+  }
+  
+  .glass-panel {
+    @apply bg-white/80 backdrop-blur-2xl border border-white/40 shadow-2xl;
+  }
+
+  .btn-action {
+    @apply relative overflow-hidden bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-yellow-400 hover:text-yellow-950 transition-all duration-300 shadow-xl active:scale-95 flex items-center justify-center gap-3;
+  }
+
+  .input-premium {
+    @apply w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-sm font-bold transition-all outline-none focus:border-yellow-400 focus:bg-white focus:ring-4 focus:ring-yellow-400/10;
+  }
+
+  .section-title {
+    @apply text-4xl font-black text-slate-900 uppercase tracking-tighter;
+  }
 }
 
-.animate-marquee {
-  animation: marquee 25s linear infinite;
+@keyframes slow-zoom {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.05); }
 }
 
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+.animate-slow-zoom {
+  animation: slow-zoom 20s ease-in-out infinite alternate;
 }
 
-/* Custom Scrollbar Styles */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+  background: #f8fafc;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #e2e8f0; /* slate-200 */
+  background: #e2e8f0;
   border-radius: 10px;
+  border: 2px solid #f8fafc;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #cbd5e1; /* slate-300 */
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-yellow-500 to-orange-500;
 }

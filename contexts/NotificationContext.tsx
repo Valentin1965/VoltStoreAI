@@ -1,5 +1,6 @@
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { CheckCircle2, AlertCircle, Info as InfoIcon, X } from 'lucide-react';
 
 type NotificationType = 'success' | 'error' | 'info';
 
@@ -23,21 +24,40 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setNotifications(prev => [...prev, { id, message, type }]);
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
-    }, 3000);
+    }, 4000);
   }, []);
+
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
 
   return (
     <NotificationContext.Provider value={{ addNotification }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-2">
+      <div className="fixed bottom-8 right-8 z-[10000] flex flex-col gap-4 max-w-md w-full">
         {notifications.map(n => (
           <div
             key={n.id}
-            className={`px-4 py-3 rounded-lg shadow-lg text-white font-medium animate-fade-in ${
-              n.type === 'success' ? 'bg-green-600' : n.type === 'error' ? 'bg-red-600' : 'bg-blue-600'
+            className={`flex items-center gap-4 p-5 rounded-3xl backdrop-blur-xl border shadow-[0_20px_50px_rgba(0,0,0,0.2)] animate-fade-in transition-all group ${
+              n.type === 'success' 
+                ? 'bg-emerald-500/90 border-emerald-400/50 text-white' 
+                : n.type === 'error' 
+                ? 'bg-rose-500/90 border-rose-400/50 text-white' 
+                : 'bg-slate-900/90 border-slate-700/50 text-white'
             }`}
           >
-            {n.message}
+            <div className="shrink-0">
+              {n.type === 'success' && <CheckCircle2 size={24} />}
+              {n.type === 'error' && <AlertCircle size={24} />}
+              {n.type === 'info' && <InfoIcon size={24} />}
+            </div>
+            <p className="flex-1 font-bold text-sm uppercase tracking-tight leading-tight">{n.message}</p>
+            <button 
+              onClick={() => removeNotification(n.id)}
+              className="p-1.5 hover:bg-white/20 rounded-xl transition-colors"
+            >
+              <X size={16} />
+            </button>
           </div>
         ))}
       </div>

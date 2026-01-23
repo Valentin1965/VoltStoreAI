@@ -35,24 +35,29 @@ export interface KitComponent {
   alternatives: Alternative[];
 }
 
+// Updated Product interface: made optional fields optional (?) to satisfy TypeScript 
+// when these fields are missing in mock data, AI-generated components, or partial records.
 export interface Product {
   id: string;
   name: string;
-  description: string;
+  description: string | null;
   price: number;
-  oldPrice?: number;
+  old_price?: number | null;
   category: Category;
-  image: string;
-  images?: string[];
-  rating: number;
-  reviewsCount: number;
-  stock: number;
-  isNew?: boolean;
-  onSale?: boolean;
-  features: string[];
-  docs?: ProductDoc[];
-  specs?: ProductSpec[];
-  kitComponents?: KitComponent[];
+  sub_category?: string | null;
+  image: string | null;
+  images?: string[] | null;
+  rating?: number | null;
+  reviews_count?: number | null;
+  stock?: number | null;
+  is_new?: boolean | null;
+  on_sale?: boolean | null;
+  features?: string[] | null;
+  specs?: string | null; // JSON string or text
+  detailed_tech_specs?: string | null;
+  docs?: string | null; // JSON string or text
+  kitComponents?: KitComponent[]; // Keep for UI logic of kits
+  created_at?: string;
 }
 
 export interface KitPart {
