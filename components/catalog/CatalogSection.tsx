@@ -154,7 +154,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
     }
   };
 
-  const parseSpecs = (specsStr: string | null): ProductSpec[] => {
+  const parseSpecs = (specsStr: string | null | undefined): ProductSpec[] => {
     if (!specsStr) return [];
     try {
       const parsed = typeof specsStr === 'string' ? JSON.parse(specsStr) : specsStr;
@@ -164,7 +164,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
     }
   };
 
-  const parseDocs = (docsStr: string | null): ProductDoc[] => {
+  const parseDocs = (docsStr: string | null | undefined): ProductDoc[] => {
     if (!docsStr) return [];
     try {
       const parsed = typeof docsStr === 'string' ? JSON.parse(docsStr) : docsStr;
@@ -261,7 +261,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                 {/* Left: Image Gallery */}
                 <div className="lg:w-[58%] space-y-4">
                   <div className="aspect-video bg-slate-50 rounded-3xl overflow-hidden border border-slate-100 relative group/img p-6 flex items-center justify-center">
-                    <img src={productImages[activeImageIdx]} className="max-w-full max-h-full object-contain" alt="" onError={(e) => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }} />
+                    <img src={productImages[activeImageIdx] || IMAGE_FALLBACK} className="max-w-full max-h-full object-contain" alt="" onError={(e) => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }} />
                     {productImages.length > 1 && (
                       <div className="absolute inset-0 flex items-center justify-between px-3 opacity-0 group-hover/img:opacity-100 transition-opacity">
                         <button onClick={() => setActiveImageIdx(prev => (prev > 0 ? prev - 1 : productImages.length - 1))} className="p-2 bg-white/80 rounded-xl shadow-md"><ChevronLeft size={18}/></button>
@@ -273,7 +273,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                     <div className="flex gap-2 overflow-x-auto scrollbar-hide justify-center">
                       {productImages.map((img, i) => (
                         <button key={i} onClick={() => setActiveImageIdx(i)} className={`w-14 h-14 rounded-xl overflow-hidden border-2 shrink-0 p-1 bg-slate-50 ${activeImageIdx === i ? 'border-yellow-400' : 'border-transparent opacity-60'}`}>
-                          <img src={img} className="w-full h-full object-contain" alt="" />
+                          <img src={img || IMAGE_FALLBACK} className="w-full h-full object-contain" alt="" />
                         </button>
                       ))}
                     </div>

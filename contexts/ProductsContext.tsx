@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import { Product, Category } from '../types';
 import { supabase } from '../services/supabase';
@@ -52,8 +53,10 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
-      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                           p.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const productName = p.name || '';
+      const productDesc = p.description || '';
+      const matchesSearch = productName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                           productDesc.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     });
   }, [selectedCategory, searchQuery, products]);

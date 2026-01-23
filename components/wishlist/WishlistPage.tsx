@@ -5,6 +5,8 @@ import { useCart } from '../../contexts/CartContext';
 import { useProducts } from '../../contexts/ProductsContext';
 import { Heart, ShoppingCart, Trash2, Zap, Clock, ArrowRight, Star } from 'lucide-react';
 
+const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?q=80&w=400&auto=format&fit=crop';
+
 export const WishlistPage: React.FC = () => {
   const { wishlist, toggleWishlist, isInWishlist } = useWishlist();
   const { addItem } = useCart();
@@ -41,7 +43,7 @@ export const WishlistPage: React.FC = () => {
             {recommendations.map((item) => (
               <div key={item.id} className="group bg-white border border-slate-100 rounded-3xl p-4 hover:shadow-lg transition-all flex flex-col h-full border-b-2 border-transparent hover:border-b-yellow-400">
                 <div className="aspect-square rounded-2xl overflow-hidden mb-3 bg-slate-50 relative border border-slate-50">
-                  <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <img src={item.image || IMAGE_FALLBACK} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   <button 
                     onClick={() => toggleWishlist(item)}
                     className="absolute top-2 right-2 p-2 bg-white/90 backdrop-blur-md rounded-xl shadow-sm text-slate-400 hover:text-red-500 transition-colors"
@@ -54,7 +56,7 @@ export const WishlistPage: React.FC = () => {
                   <h4 className="font-bold text-slate-900 text-[11px] mb-2 line-clamp-1 uppercase tracking-tight">{item.name}</h4>
                   <div className="flex items-center gap-1 mb-3">
                     <Star className="text-yellow-400 fill-yellow-400" size={10} />
-                    <span className="text-[10px] font-black text-slate-400">{item.rating}</span>
+                    <span className="text-[10px] font-black text-slate-400">{item.rating || 0}</span>
                   </div>
                 </div>
                 <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-50">
@@ -84,7 +86,7 @@ export const WishlistPage: React.FC = () => {
         {wishlist.map((item) => (
           <div key={item.id} className="group bg-white border border-slate-100 rounded-[2rem] p-4 flex gap-5 hover:shadow-xl transition-all">
             <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0 bg-slate-50 border border-slate-100">
-              <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+              <img src={item.image || IMAGE_FALLBACK} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
             </div>
             <div className="flex flex-col justify-between py-1 flex-1 min-w-0">
               <div>

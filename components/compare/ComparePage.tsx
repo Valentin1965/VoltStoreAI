@@ -5,6 +5,8 @@ import { useCart } from '../../contexts/CartContext';
 import { useProducts } from '../../contexts/ProductsContext';
 import { Scale, Trash2, ShoppingCart, Star, Zap, X, ArrowRight, CheckCircle2 } from 'lucide-react';
 
+const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?q=80&w=400&auto=format&fit=crop';
+
 export const ComparePage: React.FC = () => {
   const { compareList, toggleCompare, clearCompare, isInCompare } = useCompare();
   const { addItem } = useCart();
@@ -39,7 +41,7 @@ export const ComparePage: React.FC = () => {
             {recommendations.map((item) => (
               <div key={item.id} className="group bg-white border border-slate-100 rounded-3xl p-5 hover:shadow-lg transition-all flex flex-col border-b-2 border-transparent hover:border-b-yellow-400 h-full">
                 <div className="aspect-square rounded-2xl overflow-hidden mb-4 bg-slate-50 relative border border-slate-50">
-                  <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <img src={item.image || IMAGE_FALLBACK} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/5 transition-colors pointer-events-none"></div>
                 </div>
                 <div className="flex-1 min-w-0">
@@ -47,8 +49,7 @@ export const ComparePage: React.FC = () => {
                   <h4 className="font-bold text-slate-900 text-[11px] mb-2 line-clamp-1 uppercase tracking-tight leading-snug">{item.name}</h4>
                   <div className="flex items-center gap-1.5 mb-4">
                     <Star className="text-yellow-400 fill-yellow-400" size={10} />
-                    {/* Fix: changed reviewsCount to reviews_count */}
-                    <span className="text-[10px] font-black text-slate-400">{item.rating} ({item.reviews_count})</span>
+                    <span className="text-[10px] font-black text-slate-400">{item.rating || 0} ({item.reviews_count || 0})</span>
                   </div>
                 </div>
                 <div className="space-y-3">
@@ -72,8 +73,7 @@ export const ComparePage: React.FC = () => {
     );
   }
 
-  // Find all unique feature keys across selected products
-  const allFeatures = Array.from(new Set(compareList.flatMap(p => p.features)));
+  const allFeatures = Array.from(new Set(compareList.flatMap(p => p.features || [])));
 
   return (
     <div className="animate-fade-in pb-32 max-w-7xl mx-auto">
@@ -97,7 +97,7 @@ export const ComparePage: React.FC = () => {
               {compareList.map(product => (
                 <th key={product.id} className="p-6 min-w-[200px] group">
                   <div className="relative mb-4">
-                    <img src={product.image} className="w-32 h-32 mx-auto rounded-2xl object-cover shadow-md border border-slate-50 group-hover:scale-105 transition-transform" alt="" />
+                    <img src={product.image || IMAGE_FALLBACK} className="w-32 h-32 mx-auto rounded-2xl object-cover shadow-md border border-slate-50 group-hover:scale-105 transition-transform" alt="" />
                     <button 
                       onClick={() => toggleCompare(product)}
                       className="absolute -top-2 -right-2 p-2 bg-white text-slate-400 hover:text-red-500 rounded-xl shadow-lg border border-slate-100 transition-all active:scale-90"
@@ -112,7 +112,6 @@ export const ComparePage: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {/* Price Row */}
             <tr>
               <td className="p-6 bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-widest">Price</td>
               {compareList.map(p => (
@@ -122,20 +121,18 @@ export const ComparePage: React.FC = () => {
               ))}
             </tr>
 
-            {/* Rating Row */}
             <tr>
               <td className="p-6 bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-widest">Rating</td>
               {compareList.map(p => (
                 <td key={p.id} className="p-6">
                   <div className="flex items-center justify-center gap-1.5">
                     <Star className="text-yellow-500 fill-yellow-500" size={12} />
-                    <span className="font-black text-slate-900 text-xs">{p.rating}</span>
+                    <span className="font-black text-slate-900 text-xs">{p.rating || 0}</span>
                   </div>
                 </td>
               ))}
             </tr>
 
-            {/* Dynamic Features Rows */}
             {allFeatures.map(feature => (
               <tr key={feature}>
                 <td className="p-6 bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-widest leading-tight break-words">{feature}</td>
@@ -151,7 +148,6 @@ export const ComparePage: React.FC = () => {
               </tr>
             ))}
 
-            {/* Action Row */}
             <tr className="bg-slate-50/20">
               <td className="p-6"></td>
               {compareList.map(p => (

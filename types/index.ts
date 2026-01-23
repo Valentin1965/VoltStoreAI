@@ -35,8 +35,6 @@ export interface KitComponent {
   alternatives: Alternative[];
 }
 
-// Updated Product interface: made optional fields optional (?) to satisfy TypeScript 
-// when these fields are missing in mock data, AI-generated components, or partial records.
 export interface Product {
   id: string;
   name: string;
@@ -56,7 +54,7 @@ export interface Product {
   specs?: string | null; // JSON string or text
   detailed_tech_specs?: string | null;
   docs?: string | null; // JSON string or text
-  kitComponents?: KitComponent[]; // Keep for UI logic of kits
+  kitComponents?: KitComponent[]; 
   created_at?: string;
 }
 
