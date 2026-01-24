@@ -9,7 +9,7 @@ export enum AppView {
   COMPARE = 'compare'
 }
 
-export type Category = 'Generators' | 'Inverters' | 'Batteries' | 'Solar Panels' | 'Kits';
+export type Category = 'Charging Stations' | 'Inverters' | 'Batteries' | 'Solar Panels' | 'Kits';
 
 export interface ProductDoc {
   title: string;
@@ -25,6 +25,7 @@ export interface Alternative {
   id: string;
   name: string;
   price: number;
+  quantity: number;
 }
 
 export interface KitComponent {
@@ -51,9 +52,9 @@ export interface Product {
   is_new?: boolean | null;
   on_sale?: boolean | null;
   features?: string[] | null;
-  specs?: string | null; // JSON string or text
+  specs?: string | null; 
   detailed_tech_specs?: string | null;
-  docs?: string | null; // JSON string or text
+  docs?: string | null;
   kitComponents?: KitComponent[]; 
   created_at?: string;
 }

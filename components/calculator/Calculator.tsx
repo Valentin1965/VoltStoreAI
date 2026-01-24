@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useCart } from '../../contexts/CartContext';
+import { useProducts } from '../../contexts/ProductsContext';
 import { 
   Sparkles, 
   RotateCcw, 
@@ -18,7 +19,7 @@ import {
   Wallet
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
-import { KitComponent, Alternative } from '../../types';
+import { KitComponent, Alternative, Product } from '../../types';
 
 const OFFLINE_TEMPLATES = {
   optimal: {
@@ -28,14 +29,14 @@ const OFFLINE_TEMPLATES = {
       { 
         id: 'inv-deye-5', name: 'Гібридний інвертор Deye 5кВт', price: 42000, quantity: 1, 
         alternatives: [
-          { id: 'inv-lux-5', name: 'Luxpower SNA5000 Eco', price: 34500 },
-          { id: 'inv-must-5', name: 'Must PH18-5248 PRO', price: 22800 }
+          { id: 'inv-lux-5', name: 'Luxpower SNA5000 Eco', price: 34500, quantity: 1 },
+          { id: 'inv-must-5', name: 'Must PH18-5248 PRO', price: 22800, quantity: 1 }
         ]
       },
       { 
         id: 'bat-pylon-5', name: 'АКБ Pylontech US5000 4.8кВт', price: 68000, quantity: 1,
         alternatives: [
-          { id: 'bat-dyn-5', name: 'Dyness A48100 4.8кВт', price: 59500 }
+          { id: 'bat-dyn-5', name: 'Dyness A48100 4.8кВт', price: 59500, quantity: 1 }
         ]
       }
     ]
@@ -55,6 +56,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
   
   const { addNotification } = useNotification();
   const { addItem } = useCart();
+  const { products } = useProducts();
   
   const [config, setConfig] = useState({
     objectType: 'Приватний будинок',
@@ -72,24 +74,32 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
   const handleCalculate = async () => {
     setLoading(true);
     try {
+      const inventoryContext = products
+        .filter(p => (p.stock || 0) > 0)
+        .map(p => `ID: ${p.id}, Назва: ${p.name}, Категорія: ${p.category}, Ціна: ${p.price}`)
+        .join('\n');
+
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Ви енергетичний експерт. Створіть оптимальний набір обладнання для: 
+      const prompt = `Ви енергетичний експерт VoltStore. Створіть оптимальний набір обладнання для: 
       Об'єкт: ${config.objectType}, 
       Місячне споживання: ${config.monthlyUsage}, 
       Мета: ${config.purpose}, 
       Бюджет: ${config.budget}.
       
+      ВИКОРИСТОВУЙТЕ ТІЛЬКИ ЦІ ТОВАРИ З НАШОГО СКЛАДУ:
+      ${inventoryContext}
+      
       Поверніть ТІЛЬКИ чистий JSON без Markdown: {
-        "title": "Персональна система", 
-        "description": "Опис на основі обраних параметрів", 
+        "title": "Назва системи", 
+        "description": "Чому ці товари підходять під запит", 
         "components": [
           {
-            "id": "ai-inv-1", 
-            "name": "Назва товару", 
-            "price": 50000, 
+            "id": "реальний_id_з_контексту", 
+            "name": "реальна_назва", 
+            "price": число_ціна, 
             "quantity": 1, 
             "alternatives": [
-              {"id": "alt-1", "name": "Аналог", "price": 45000}
+              {"id": "id_аналога", "name": "назва_аналога", "price": ціна_аналога, "quantity": 1}
             ]
           }
         ]
@@ -108,7 +118,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
       setResult({ title: data.title || 'Система живлення', description: data.description || '' });
       setActiveComponents(data.components || []);
       setStep(3);
-      addNotification('AI сформував пропозицію', 'success');
+      addNotification('AI Architect розрахував систему на основі складу', 'success');
     } catch (err) {
       console.error("AI Error:", err);
       useFallback();
@@ -128,9 +138,16 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
   const replaceComponent = (componentId: string, alt: Alternative) => {
     setActiveComponents(prev => prev.map(comp => {
       if (comp.id === componentId) {
-        const currentAsAlt = { id: comp.id, name: comp.name, price: comp.price };
+        const currentAsAlt = { id: comp.id, name: comp.name, price: comp.price, quantity: comp.quantity };
         const newAlts = [currentAsAlt, ...comp.alternatives.filter(a => a.id !== alt.id)];
-        return { ...comp, id: alt.id, name: alt.name, price: alt.price, alternatives: newAlts };
+        return { 
+          ...comp, 
+          id: alt.id, 
+          name: alt.name, 
+          price: alt.price, 
+          quantity: alt.quantity || comp.quantity, 
+          alternatives: newAlts 
+        };
       }
       return comp;
     }));
@@ -183,7 +200,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
             <Loader2 className="text-yellow-500 animate-spin" size={56} />
             <div className="text-center">
               <p className="text-xs font-black text-slate-900 uppercase tracking-[0.3em] animate-pulse">Проектування системи...</p>
-              <p className="text-[9px] text-slate-400 uppercase mt-2 tracking-widest">Аналізуємо ринок та сумісність</p>
+              <p className="text-[9px] text-slate-400 uppercase mt-2 tracking-widest">Аналізуємо склад та підбираємо сумісні пристрої</p>
             </div>
           </div>
         )}
@@ -291,16 +308,19 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
 
                       {editingCompId === c.id && c.alternatives && (
                         <div className="mx-4 p-4 bg-slate-50/50 rounded-3xl border border-slate-100 animate-fade-in space-y-2 shadow-inner">
-                          <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2 px-2">Рекомендовані заміни:</div>
+                          <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2 px-2">Рекомендовані заміни (наявні на складі):</div>
                           {c.alternatives.map(alt => (
                             <button 
                               key={alt.id}
                               onClick={() => replaceComponent(c.id, alt)}
                               className="w-full flex justify-between items-center bg-white p-3.5 rounded-2xl border border-slate-200 hover:border-yellow-400 transition-all text-left group"
                             >
-                              <span className="text-[10px] font-bold text-slate-800 uppercase tracking-tight group-hover:text-yellow-600">{alt.name}</span>
+                              <div className="flex-1">
+                                <span className="text-[10px] font-bold text-slate-800 uppercase tracking-tight group-hover:text-yellow-600">{alt.name}</span>
+                              </div>
                               <div className="flex items-center gap-3">
                                 <span className="text-[10px] font-black text-slate-900">₴{formatPrice(alt.price)}</span>
+                                <span className="text-[9px] font-bold text-slate-400">x{alt.quantity}</span>
                                 <ChevronRight size={14} className="text-slate-200 group-hover:translate-x-1 transition-transform" />
                               </div>
                             </button>
@@ -319,6 +339,13 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
                        <div className="text-4xl font-black text-yellow-400 mb-8 tracking-tighter">₴{formatPrice(totalPrice)}</div>
                        <button 
                          onClick={() => {
+                           const selectedParts = activeComponents.map(ac => ({
+                             id: ac.id,
+                             name: ac.name,
+                             price: ac.price,
+                             quantity: ac.quantity
+                           }));
+
                            addItem({
                              id: 'ai-kit-' + Date.now(),
                              name: result.title,
@@ -328,7 +355,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
                              image: 'https://images.unsplash.com/photo-1509391366360-fe5bb58583bb?auto=format&fit=crop&w=800',
                              stock: 1,
                              features: activeComponents.map(ac => ac.name)
-                           }, activeComponents.map(ac => ({ id: ac.id, name: ac.name, price: ac.price, quantity: ac.quantity })));
+                           }, selectedParts);
                            addNotification('Систему додано до кошика', 'success');
                          }}
                          className="w-full bg-yellow-400 text-yellow-950 py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white transition-all shadow-xl active:scale-95"
@@ -343,9 +370,9 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
                       <Activity size={18} />
                     </div>
                     <div>
-                      <span className="font-black text-[9px] text-emerald-900 uppercase tracking-widest block mb-1">Аналіз AI</span>
+                      <span className="font-black text-[9px] text-emerald-900 uppercase tracking-widest block mb-1">Грунтування на складі</span>
                       <p className="text-[9px] text-emerald-700 font-bold leading-relaxed uppercase">
-                        Ця конфігурація оптимальна для об'єкта "{config.objectType}" при бюджеті "{config.budget}".
+                        AI врахував технічні параметри ${products.length} товарів для підбору сумісного обладнання.
                       </p>
                     </div>
                   </div>

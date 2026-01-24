@@ -24,7 +24,7 @@ interface ProductCardProps {
 const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSelect, onAddToCart }) => {
   const images = Array.isArray(product.images) && product.images.length > 0 
     ? product.images.filter(img => img && img.trim() !== '') 
-    : [product.image].filter(img => img && img.trim() !== '');
+    : [product.image].filter(img => img !== null && img !== undefined && img.trim() !== '');
     
   const displayImage = images[0] || IMAGE_FALLBACK;
 
@@ -255,10 +255,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
-              {/* Image & Buy Module side-by-side */}
               <div className="flex flex-col lg:flex-row gap-10 mb-12">
-                
-                {/* Left: Image Gallery */}
                 <div className="lg:w-[58%] space-y-4">
                   <div className="aspect-video bg-slate-50 rounded-3xl overflow-hidden border border-slate-100 relative group/img p-6 flex items-center justify-center">
                     <img src={productImages[activeImageIdx] || IMAGE_FALLBACK} className="max-w-full max-h-full object-contain" alt="" onError={(e) => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }} />
@@ -280,19 +277,15 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                   )}
                 </div>
 
-                {/* Right: Buy Box (Top Right position relative to frame) */}
                 <div className="lg:w-[42%] flex flex-col gap-6">
                   <div className="bg-slate-50/50 rounded-3xl border border-slate-100 p-8 flex flex-col gap-6 shadow-sm">
-                    {/* Identification */}
                     <div className="space-y-1">
                       <h3 className="font-black text-slate-900 text-sm uppercase tracking-tight leading-tight mb-2">{selectedProduct.name}</h3>
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Артикул: {selectedProduct.id?.slice(0, 8).toUpperCase()}</span>
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">EAN: 5905515{Math.floor(100000 + Math.random() * 900000)}</span>
                       </div>
                     </div>
 
-                    {/* Pricing Block */}
                     <div className="space-y-0.5">
                       <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tighter">
                         {formatPrice(Math.round(selectedProduct.price / 1.2))} ₴ <span className="text-[8px] opacity-60 font-black">ex VAT</span>
@@ -302,7 +295,6 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                       </div>
                     </div>
 
-                    {/* Industrial Details: Stock and Delivery */}
                     <div className="space-y-4 py-6 border-y border-slate-200/60">
                       <div className="flex items-center justify-between">
                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Наявність:</span>
@@ -321,13 +313,10 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                             <div className="text-[10px] text-slate-500 font-bold mt-0.5">
                                {new Date(Date.now() + 86400000 * 3).toLocaleDateString('uk-UA', { weekday: 'long', day: 'numeric', month: 'long' })}
                             </div>
-                            <div className="text-[9px] font-black text-emerald-600 mt-1 uppercase tracking-widest flex items-center gap-1">₴0.00 • Безкоштовно</div>
                          </div>
                       </div>
-                      <button className="text-[8px] font-black text-blue-600 uppercase tracking-widest hover:text-blue-800 transition-colors text-left">Розрахувати вартість доставки</button>
                     </div>
 
-                    {/* Interactive Buy Block */}
                     <div className="flex gap-3">
                       <div className="w-16 h-14 bg-white rounded-xl border border-slate-200 flex items-center justify-center font-black text-sm shadow-inner">1</div>
                       <button 
@@ -339,28 +328,11 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                         Додати в кошик
                       </button>
                     </div>
-
-                    {/* Trust/Methods Badges */}
-                    <div className="flex items-center justify-between px-2 pt-2 border-t border-slate-100/50">
-                      <div className="flex flex-col items-center gap-1.5 opacity-40 grayscale hover:grayscale-0 transition-all cursor-default">
-                         <CreditCard size={16} />
-                         <span className="text-[7px] font-black uppercase tracking-tighter">Оплата</span>
-                      </div>
-                      <div className="flex flex-col items-center gap-1.5 opacity-40 grayscale hover:grayscale-0 transition-all cursor-default">
-                         <Package size={16} />
-                         <span className="text-[7px] font-black uppercase tracking-tighter">UPS / FedEx</span>
-                      </div>
-                      <div className="flex flex-col items-center gap-1.5 opacity-40 grayscale hover:grayscale-0 transition-all cursor-default">
-                         <ShieldCheck size={16} />
-                         <span className="text-[7px] font-black uppercase tracking-tighter">10р Гарантія</span>
-                      </div>
-                    </div>
                   </div>
                   <button onClick={() => setSelectedProduct(null)} className="w-full py-4 rounded-2xl bg-slate-100 text-slate-500 font-black text-[9px] uppercase tracking-widest hover:bg-slate-200 transition-all">Закрити</button>
                 </div>
               </div>
 
-              {/* Lower Section: Industrial Specs and Docs */}
               <div className="max-w-4xl space-y-16 pb-20">
                 {selectedProduct.description && (
                   <div className="space-y-4">
@@ -384,26 +356,6 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{spec.label}</span>
                           <span className="text-[10px] font-bold text-slate-800 uppercase text-right">{spec.value}</span>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {filteredDocs.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                      <FileText size={16} className="text-yellow-500" />
-                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Файли та інструкції</h4>
-                    </div>
-                    <div className="flex flex-wrap gap-4">
-                      {filteredDocs.map((doc, idx) => (
-                        <a key={idx} href={doc.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-6 py-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-yellow-400 transition-all group shadow-sm">
-                          <div className="bg-white p-2 rounded-lg group-hover:bg-yellow-400 transition-colors shadow-sm">
-                            <FileText size={16} className="text-slate-400 group-hover:text-yellow-900" />
-                          </div>
-                          <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight group-hover:text-slate-900">{doc.title}</span>
-                          <ExternalLink size={12} className="text-slate-300" />
-                        </a>
                       ))}
                     </div>
                   </div>

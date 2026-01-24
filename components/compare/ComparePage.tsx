@@ -3,7 +3,7 @@ import React from 'react';
 import { useCompare } from '../../contexts/CompareContext';
 import { useCart } from '../../contexts/CartContext';
 import { useProducts } from '../../contexts/ProductsContext';
-import { Scale, Trash2, ShoppingCart, Star, Zap, X, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Scale, ShoppingCart, Star, Zap, X, CheckCircle2 } from 'lucide-react';
 
 const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?q=80&w=400&auto=format&fit=crop';
 
@@ -12,15 +12,13 @@ export const ComparePage: React.FC = () => {
   const { addItem } = useCart();
   const { products } = useProducts();
 
-  // Recommendations for comparison
   const recommendations = products.slice(0, 4);
 
   if (compareList.length === 0) {
     return (
       <div className="animate-fade-in space-y-12 max-w-6xl mx-auto">
-        {/* Compact Empty State */}
         <div className="text-center py-12 bg-white rounded-[2.5rem] border border-slate-100 shadow-lg overflow-hidden">
-          <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-50">
+          <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-100">
             <Scale className="text-slate-300" size={32} />
           </div>
           <h2 className="text-2xl font-black text-slate-900 mb-3 uppercase tracking-tighter break-words px-6">Товари для порівняння не обрані</h2>
@@ -29,7 +27,6 @@ export const ComparePage: React.FC = () => {
           </p>
         </div>
 
-        {/* Stable Recommendations */}
         <div className="space-y-6">
           <div className="flex items-center justify-between px-2">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-tighter flex items-center gap-2">
@@ -41,16 +38,11 @@ export const ComparePage: React.FC = () => {
             {recommendations.map((item) => (
               <div key={item.id} className="group bg-white border border-slate-100 rounded-3xl p-5 hover:shadow-lg transition-all flex flex-col border-b-2 border-transparent hover:border-b-yellow-400 h-full">
                 <div className="aspect-square rounded-2xl overflow-hidden mb-4 bg-slate-50 relative border border-slate-50">
-                  <img src={item.image || IMAGE_FALLBACK} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/5 transition-colors pointer-events-none"></div>
+                  <img src={item.image ?? IMAGE_FALLBACK} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-[8px] font-black text-yellow-600 uppercase tracking-widest mb-1">{item.category}</div>
                   <h4 className="font-bold text-slate-900 text-[11px] mb-2 line-clamp-1 uppercase tracking-tight leading-snug">{item.name}</h4>
-                  <div className="flex items-center gap-1.5 mb-4">
-                    <Star className="text-yellow-400 fill-yellow-400" size={10} />
-                    <span className="text-[10px] font-black text-slate-400">{item.rating || 0} ({item.reviews_count || 0})</span>
-                  </div>
                 </div>
                 <div className="space-y-3">
                   <div className="text-base font-black text-slate-900">₴{(item.price ?? 0).toLocaleString()}</div>
@@ -97,7 +89,7 @@ export const ComparePage: React.FC = () => {
               {compareList.map(product => (
                 <th key={product.id} className="p-6 min-w-[200px] group">
                   <div className="relative mb-4">
-                    <img src={product.image || IMAGE_FALLBACK} className="w-32 h-32 mx-auto rounded-2xl object-cover shadow-md border border-slate-50 group-hover:scale-105 transition-transform" alt="" />
+                    <img src={product.image ?? IMAGE_FALLBACK} className="w-32 h-32 mx-auto rounded-2xl object-cover shadow-md border border-slate-50 group-hover:scale-105 transition-transform" alt="" />
                     <button 
                       onClick={() => toggleCompare(product)}
                       className="absolute -top-2 -right-2 p-2 bg-white text-slate-400 hover:text-red-500 rounded-xl shadow-lg border border-slate-100 transition-all active:scale-90"
@@ -117,18 +109,6 @@ export const ComparePage: React.FC = () => {
               {compareList.map(p => (
                 <td key={p.id} className="p-6 text-center">
                   <div className="text-lg font-black text-slate-900 tracking-tighter">₴{(p.price ?? 0).toLocaleString()}</div>
-                </td>
-              ))}
-            </tr>
-
-            <tr>
-              <td className="p-6 bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-widest">Rating</td>
-              {compareList.map(p => (
-                <td key={p.id} className="p-6">
-                  <div className="flex items-center justify-center gap-1.5">
-                    <Star className="text-yellow-500 fill-yellow-500" size={12} />
-                    <span className="font-black text-slate-900 text-xs">{p.rating || 0}</span>
-                  </div>
                 </td>
               ))}
             </tr>

@@ -109,7 +109,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const contextValue: ProductsContextType = {
     products,
     isLoading,
-    categories: ['Generators', 'Inverters', 'Batteries', 'Solar Panels', 'Kits'],
+    categories: ['Charging Stations', 'Inverters', 'Batteries', 'Solar Panels', 'Kits'],
     selectedCategory,
     setSelectedCategory,
     searchQuery,
