@@ -8,7 +8,7 @@ import { useNotification } from '../../contexts/NotificationContext';
 import { 
   ShoppingCart, X, Heart, Loader2, Zap, 
   Sparkles, Scale, Layers, ChevronLeft, ChevronRight, Info, List, FileText, ExternalLink,
-  Truck, CreditCard, ShieldCheck, Box, Package
+  Truck, CreditCard, ShieldCheck, Box, Package, FileDown
 } from 'lucide-react';
 import { Product, ProductSpec, ProductDoc } from '../../types';
 
@@ -318,11 +318,10 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                     </div>
 
                     <div className="flex gap-3">
-                      <div className="w-16 h-14 bg-white rounded-xl border border-slate-200 flex items-center justify-center font-black text-sm shadow-inner">1</div>
                       <button 
                         disabled={selectedProduct.stock === 0}
                         onClick={() => { addItem(selectedProduct); addNotification('Товар додано', 'success'); }}
-                        className="flex-1 bg-slate-900 hover:bg-yellow-400 text-white hover:text-yellow-950 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 active:scale-95 group"
+                        className="flex-1 bg-slate-900 hover:bg-yellow-400 text-white hover:text-yellow-950 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg py-5 flex items-center justify-center gap-3 active:scale-95 group"
                       >
                         <ShoppingCart size={18} className="group-hover:rotate-12 transition-transform" /> 
                         Додати в кошик
@@ -356,6 +355,37 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{spec.label}</span>
                           <span className="text-[10px] font-bold text-slate-800 uppercase text-right">{spec.value}</span>
                         </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* PDF Documentation Display */}
+                {filteredDocs.length > 0 && (
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                      <FileDown size={16} className="text-yellow-500" />
+                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Документація та файли</h4>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {filteredDocs.map((doc, i) => (
+                        <a 
+                          key={i} 
+                          href={doc.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100 hover:border-yellow-400 hover:bg-white transition-all group"
+                        >
+                          <div className="p-3 bg-white rounded-xl text-slate-400 group-hover:text-yellow-600 shadow-sm border border-slate-50 transition-colors">
+                            <FileText size={20} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[10px] font-black text-slate-900 uppercase tracking-tight truncate">{doc.title}</div>
+                            <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 flex items-center gap-1">
+                               Скачати PDF <ExternalLink size={8} />
+                            </div>
+                          </div>
+                        </a>
                       ))}
                     </div>
                   </div>

@@ -21,12 +21,31 @@ export interface ProductsContextType {
 
 const ProductsContext = createContext<ProductsContextType | undefined>(undefined);
 
+// Допоміжна функція для очищення об'єкта перед записом у БД
+const sanitizeForDb = (product: any) => {
+  const { kitComponents, id, created_at, ...cleanProduct } = product;
+  // Перетворюємо specs та docs на рядки, якщо вони є масивами
+  if (typeof cleanProduct.specs !== 'string') cleanProduct.specs = JSON.stringify(cleanProduct.specs || []);
+  if (typeof cleanProduct.docs !== 'string') cleanProduct.docs = JSON.stringify(cleanProduct.docs || []);
+  return cleanProduct;
+};
+
 export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [dbProducts, setDbProducts] = useState<Product[]>([]);
+  const [localKits, setLocalKits] = useState<Product[]>(() => {
+    const saved = localStorage.getItem('voltstore_local_kits');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const { addNotification } = useNotification();
+
+  const products = useMemo(() => [...localKits, ...dbProducts], [localKits, dbProducts]);
+
+  useEffect(() => {
+    localStorage.setItem('voltstore_local_kits', JSON.stringify(localKits));
+  }, [localKits]);
 
   const fetchProducts = async () => {
     setIsLoading(true);
@@ -37,7 +56,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setProducts(data || []);
+      setDbProducts(data || []);
     } catch (err: any) {
       console.error('Fetch error:', err);
       addNotification('Помилка завантаження товарів.', 'error');
@@ -54,44 +73,65 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return products.filter(p => {
       const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
       const productName = p.name || '';
-      const productDesc = p.description || '';
-      const matchesSearch = productName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                           productDesc.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = productName.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     });
   }, [selectedCategory, searchQuery, products]);
 
   const addProduct = async (newProduct: Omit<Product, 'id'>) => {
+    if (newProduct.category === 'Kits') {
+      const kitWithId = { ...newProduct, id: 'KIT-' + Math.random().toString(36).substr(2, 9).toUpperCase() } as Product;
+      setLocalKits(prev => [kitWithId, ...prev]);
+      addNotification('Комплект збережено локально', 'success');
+      return;
+    }
+
     try {
+      const cleanData = sanitizeForDb(newProduct);
       const { data, error } = await supabase
         .from('products')
-        .insert([newProduct])
+        .insert([cleanData])
         .select();
 
       if (error) throw error;
-      if (data) setProducts(prev => [data[0], ...prev]);
-      addNotification('Товар додано успішно', 'success');
+      if (data) setDbProducts(prev => [data[0], ...prev]);
+      addNotification('Товар додано в базу', 'success');
     } catch (err: any) {
-      addNotification('Помилка: ' + err.message, 'error');
+      console.error('DB Add Error:', err);
+      addNotification('Помилка БД: ' + err.message, 'error');
     }
   };
 
   const updateProduct = async (updatedProduct: Product) => {
+    if (String(updatedProduct.id).startsWith('KIT-')) {
+      setLocalKits(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+      addNotification('Комплект оновлено локально', 'success');
+      return;
+    }
+
     try {
+      const cleanData = sanitizeForDb(updatedProduct);
       const { error } = await supabase
         .from('products')
-        .update(updatedProduct)
+        .update(cleanData)
         .eq('id', updatedProduct.id);
 
       if (error) throw error;
-      setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
-      addNotification('Дані оновлено', 'success');
+      setDbProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+      addNotification('Товар оновлено в базі', 'success');
     } catch (err: any) {
-      addNotification('Помилка: ' + err.message, 'error');
+      console.error('DB Update Error:', err);
+      addNotification('Помилка оновлення: ' + err.message, 'error');
     }
   };
 
   const deleteProduct = async (id: string) => {
+    if (String(id).startsWith('KIT-')) {
+      setLocalKits(prev => prev.filter(p => p.id !== id));
+      addNotification('Комплект видалено', 'info');
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('products')
@@ -99,10 +139,11 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         .eq('id', id);
 
       if (error) throw error;
-      setProducts(prev => prev.filter(p => p.id !== id));
-      addNotification('Товар видалено', 'info');
+      setDbProducts(prev => prev.filter(p => p.id !== id));
+      addNotification('Товар видалено з бази', 'info');
     } catch (err: any) {
-      addNotification('Помилка: ' + err.message, 'error');
+      console.error('DB Delete Error:', err);
+      addNotification('Помилка видалення: ' + err.message, 'error');
     }
   };
 
@@ -130,8 +171,6 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
 export const useProducts = (): ProductsContextType => {
   const context = useContext(ProductsContext);
-  if (!context) {
-    throw new Error('useProducts must be used within ProductsProvider');
-  }
+  if (!context) throw new Error('useProducts must be used within ProductsProvider');
   return context;
 };
