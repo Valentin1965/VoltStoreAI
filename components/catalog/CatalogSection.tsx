@@ -8,7 +8,8 @@ import { useNotification } from '../../contexts/NotificationContext';
 import { 
   ShoppingCart, X, Heart, Loader2, Zap, 
   Sparkles, Scale, Layers, ChevronLeft, ChevronRight, Info, List, FileText, ExternalLink,
-  Truck, CreditCard, ShieldCheck, Box, Package, FileDown
+  Truck, CreditCard, ShieldCheck, Box, Package, FileDown,
+  Clock
 } from 'lucide-react';
 import { Product, ProductSpec, ProductDoc } from '../../types';
 
@@ -33,6 +34,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSelect, onA
   
   const isReserved = isInWishlist(product.id);
   const isComparing = isInCompare(product.id);
+  const isOutOfStock = product.stock === 0 || product.stock === null;
 
   const formatPrice = (price: any) => {
     if (price === null || price === undefined) return '0';
@@ -72,6 +74,11 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSelect, onA
           {product.on_sale && (
             <span className="bg-red-500 text-white text-[7px] font-black uppercase px-2 py-1 rounded-md shadow-lg">Sale</span>
           )}
+          {isOutOfStock && (
+            <span className="bg-slate-500 text-white text-[7px] font-black uppercase px-2 py-1 rounded-md shadow-lg flex items-center gap-1">
+              <Clock size={8} /> Очікується
+            </span>
+          )}
         </div>
 
         <div className="absolute top-12 left-3 flex flex-col gap-2 -translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 z-10">
@@ -100,15 +107,21 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSelect, onA
         
         <div className="mt-auto flex items-center justify-between">
           <div className="flex items-center gap-1">
-             <div className="w-1 h-1 rounded-full bg-emerald-500"></div>
-             <span className="text-[7px] font-black text-slate-400 uppercase">Склад</span>
+             <div className={`w-1 h-1 rounded-full ${isOutOfStock ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
+             <span className="text-[7px] font-black text-slate-400 uppercase">
+               {isOutOfStock ? 'Під замовлення' : 'На складі'}
+             </span>
           </div>
           <button 
-            disabled={product.stock === 0}
             onClick={(e) => onAddToCart(e, product)}
-            className="bg-slate-900 hover:bg-yellow-400 text-white hover:text-yellow-950 p-2.5 rounded-lg transition-all shadow-xl active:scale-90"
+            className={`p-2.5 rounded-lg transition-all shadow-xl active:scale-90 flex items-center gap-2 ${
+              isOutOfStock 
+                ? 'bg-slate-100 text-slate-500 hover:bg-yellow-100 hover:text-yellow-700' 
+                : 'bg-slate-900 hover:bg-yellow-400 text-white hover:text-yellow-950'
+            }`}
           >
             <ShoppingCart size={14} />
+            {isOutOfStock && <span className="text-[8px] font-black uppercase">Замовити</span>}
           </button>
         </div>
       </div>
@@ -189,6 +202,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
 
   const filteredSpecs = selectedProduct ? parseSpecs(selectedProduct.specs).filter(s => s.label?.trim() && s.value?.trim()) : [];
   const filteredDocs = selectedProduct ? parseDocs(selectedProduct.docs).filter(d => d.title?.trim() && d.url?.trim()) : [];
+  const isSelectedOutOfStock = selectedProduct ? (selectedProduct.stock === 0 || selectedProduct.stock === null) : false;
 
   return (
     <div className="space-y-24">
@@ -235,7 +249,17 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
           {filteredProducts.map((p, idx) => (
-            <ProductCard key={p.id} product={p} index={idx} onSelect={setSelectedProduct} onAddToCart={(e, p) => { e.stopPropagation(); addItem(p); addNotification('Товар додано', 'success'); }} />
+            <ProductCard 
+              key={p.id} 
+              product={p} 
+              index={idx} 
+              onSelect={setSelectedProduct} 
+              onAddToCart={(e, p) => { 
+                e.stopPropagation(); 
+                addItem(p); 
+                addNotification(p.stock === 0 ? 'Передзамовлення додано' : 'Товар додано', 'success'); 
+              }} 
+            />
           ))}
         </div>
       </div>
@@ -299,19 +323,23 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                       <div className="flex items-center justify-between">
                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Наявність:</span>
                          <div className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm"></div>
-                            <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">11-20 шт</span>
+                            <div className={`w-2 h-2 rounded-full shadow-sm ${isSelectedOutOfStock ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
+                            <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">
+                              {isSelectedOutOfStock ? 'Під замовлення (доставка 7-14 днів)' : 'В наявності (11-20 шт)'}
+                            </span>
                          </div>
                       </div>
 
                       <div className="bg-white p-4 rounded-2xl border border-slate-100 flex items-start gap-4">
-                         <div className="shrink-0 p-2 bg-blue-50 text-blue-600 rounded-xl">
+                         <div className={`shrink-0 p-2 rounded-xl ${isSelectedOutOfStock ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'}`}>
                             <Truck size={16} />
                          </div>
                          <div className="flex-1">
-                            <div className="text-[10px] font-black text-slate-900 uppercase tracking-tight">Доставка</div>
+                            <div className="text-[10px] font-black text-slate-900 uppercase tracking-tight">
+                              {isSelectedOutOfStock ? 'Очікувана поставка' : 'Доставка'}
+                            </div>
                             <div className="text-[10px] text-slate-500 font-bold mt-0.5">
-                               {new Date(Date.now() + 86400000 * 3).toLocaleDateString('uk-UA', { weekday: 'long', day: 'numeric', month: 'long' })}
+                               {new Date(Date.now() + 86400000 * (isSelectedOutOfStock ? 10 : 3)).toLocaleDateString('uk-UA', { weekday: 'long', day: 'numeric', month: 'long' })}
                             </div>
                          </div>
                       </div>
@@ -319,12 +347,18 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
 
                     <div className="flex gap-3">
                       <button 
-                        disabled={selectedProduct.stock === 0}
-                        onClick={() => { addItem(selectedProduct); addNotification('Товар додано', 'success'); }}
-                        className="flex-1 bg-slate-900 hover:bg-yellow-400 text-white hover:text-yellow-950 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg py-5 flex items-center justify-center gap-3 active:scale-95 group"
+                        onClick={() => { 
+                          addItem(selectedProduct); 
+                          addNotification(isSelectedOutOfStock ? 'Предмет додано для замовлення' : 'Товар додано', 'success'); 
+                        }}
+                        className={`flex-1 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg py-5 flex items-center justify-center gap-3 active:scale-95 group ${
+                          isSelectedOutOfStock 
+                            ? 'bg-amber-500 hover:bg-amber-600 text-white' 
+                            : 'bg-slate-900 hover:bg-yellow-400 text-white hover:text-yellow-950'
+                        }`}
                       >
                         <ShoppingCart size={18} className="group-hover:rotate-12 transition-transform" /> 
-                        Додати в кошик
+                        {isSelectedOutOfStock ? 'Замовити' : 'Додати в кошик'}
                       </button>
                     </div>
                   </div>
