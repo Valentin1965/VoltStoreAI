@@ -26,11 +26,15 @@ const ProductsContext = createContext<ProductsContextType | undefined>(undefined
 const sanitizeForDb = (product: any) => {
   const { kitComponents, id, created_at, ...cleanProduct } = product;
   
-  // Перетворюємо specs та docs на рядки, якщо вони є масивами
-  if (typeof cleanProduct.specs !== 'string') cleanProduct.specs = JSON.stringify(cleanProduct.specs || []);
-  if (typeof cleanProduct.docs !== 'string') cleanProduct.docs = JSON.stringify(cleanProduct.docs || []);
+  // Якщо база даних jsonb, ми можемо передавати масиви прямо. 
+  // Але для надійності переконуємось, що це або масив, або розпарсений об'єкт.
+  if (typeof cleanProduct.specs === 'string') {
+    try { cleanProduct.specs = JSON.parse(cleanProduct.specs); } catch { cleanProduct.specs = []; }
+  }
+  if (typeof cleanProduct.docs === 'string') {
+    try { cleanProduct.docs = JSON.parse(cleanProduct.docs); } catch { cleanProduct.docs = []; }
+  }
   
-  // Якщо is_active не задано, за замовчуванням true
   if (cleanProduct.is_active === undefined || cleanProduct.is_active === null) {
     cleanProduct.is_active = true;
   }
@@ -78,19 +82,23 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     fetchProducts();
   }, []);
 
-  const getLocalizedValue = (val: any, lang: string) => {
+  const getLocalizedValue = (val: any, lang: string): string => {
     if (!val) return "";
     if (typeof val === 'string') return val;
-    return val[lang] || val['en'] || Object.values(val)[0] || "";
+    if (typeof val === 'object') {
+      return val[lang] || val['en'] || Object.values(val)[0] as string || "";
+    }
+    return String(val);
   };
 
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
-      // Показуємо лише активні товари в каталозі
       const isActive = p.is_active !== false;
       const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
+      
       const productName = getLocalizedValue(p.name, language);
       const matchesSearch = productName.toLowerCase().includes(searchQuery.toLowerCase());
+      
       return isActive && matchesCategory && matchesSearch;
     });
   }, [selectedCategory, searchQuery, products, language]);

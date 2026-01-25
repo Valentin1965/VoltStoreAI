@@ -63,14 +63,22 @@ export const AdminPanel: React.FC = () => {
   const handleOpenModal = (product?: Product, defaultCategory: Category = 'Inverters') => {
     if (product) {
       setEditingProduct(product);
+      
+      // Допоміжна функція для приведення specs/docs до рядка JSON для редактора
+      const stringifyField = (field: any) => {
+        if (!field) return '[]';
+        if (typeof field === 'string') return field;
+        return JSON.stringify(field);
+      };
+
       setFormData({ 
         ...product, 
         name: typeof product.name === 'string' ? { en: product.name } : product.name,
         description: typeof product.description === 'string' ? { en: product.description } : product.description,
         images: Array.isArray(product.images) ? [...product.images, '', '', ''].slice(0, 3) : [product.image || '', '', ''].slice(0, 3),
         features: Array.isArray(product.features) ? product.features : [],
-        specs: product.specs || '[]',
-        docs: product.docs || '[]',
+        specs: stringifyField(product.specs),
+        docs: stringifyField(product.docs),
         kitComponents: product.kitComponents || [],
         is_active: product.is_active !== false
       });

@@ -173,10 +173,11 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
     return isNaN(num) ? '0' : num.toLocaleString();
   };
 
-  const parseJsonData = (dataStr: string | null | undefined): any[] => {
-    if (!dataStr) return [];
+  const parseJsonData = (data: any): any[] => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
     try {
-      return typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
+      return typeof data === 'string' ? JSON.parse(data) : [];
     } catch { return []; }
   };
 
