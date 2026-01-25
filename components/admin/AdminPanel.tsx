@@ -2,20 +2,23 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Plus, Edit, Trash2, X, 
-  Layers, Save, Cpu, ImageIcon, List, FileText, 
-  Package, RefreshCw, Hash, ArrowUpRight,
-  TrendingUp,
-  Table as TableIcon,
+  Layers, Save, Cpu, ImageIcon, 
+  Package, Table as TableIcon,
   FileDown,
   Eye,
   EyeOff,
-  ToggleLeft as ToggleIcon
+  CornerDownRight,
+  Globe,
+  List,
+  FileText,
+  Link as LinkIcon
 } from 'lucide-react';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { Product, Category, ProductSpec, ProductDoc, KitComponent, Alternative } from '../../types';
 
 const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?q=80&w=400&auto=format&fit=crop';
+const LANGUAGES = ['en', 'da', 'no', 'sv'] as const;
 
 export const AdminPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'kits' | 'products'>('kits');
@@ -29,8 +32,8 @@ export const AdminPanel: React.FC = () => {
   
   const [formData, setFormData] = useState<Partial<Product>>({
     id: '',
-    name: '', 
-    description: '', 
+    name: { en: '' }, 
+    description: { en: '' }, 
     price: 0, 
     category: 'Inverters', 
     sub_category: '',
@@ -62,6 +65,8 @@ export const AdminPanel: React.FC = () => {
       setEditingProduct(product);
       setFormData({ 
         ...product, 
+        name: typeof product.name === 'string' ? { en: product.name } : product.name,
+        description: typeof product.description === 'string' ? { en: product.description } : product.description,
         images: Array.isArray(product.images) ? [...product.images, '', '', ''].slice(0, 3) : [product.image || '', '', ''].slice(0, 3),
         features: Array.isArray(product.features) ? product.features : [],
         specs: product.specs || '[]',
@@ -73,12 +78,30 @@ export const AdminPanel: React.FC = () => {
       setEditingProduct(null);
       setFormData({ 
         id: defaultCategory === 'Kits' ? 'KIT-' + Math.random().toString(36).substr(2, 6).toUpperCase() : '',
-        name: '', description: '', price: 0, category: defaultCategory, sub_category: '',
+        name: { en: '', da: '', no: '', sv: '' }, 
+        description: { en: '', da: '', no: '', sv: '' }, 
+        price: 0, category: defaultCategory, sub_category: '',
         image: '', images: ['', '', ''], stock: 10, is_new: true, on_sale: false, is_active: true, features: [], 
         specs: '[]', docs: '[]', kitComponents: []
       });
     }
     setIsModalOpen(true);
+  };
+
+  const safeFormatPrice = (price: any) => {
+    const num = Number(price || 0);
+    return isNaN(num) ? '0' : num.toLocaleString();
+  };
+
+  const getSafeImage = (img: string | null | undefined) => {
+    if (!img || typeof img !== 'string' || img.trim() === '') return null;
+    return img;
+  };
+
+  const getDisplayValue = (val: any) => {
+    if (!val) return '—';
+    if (typeof val === 'string') return val;
+    return val.en || val.da || val.no || val.sv || '—';
   };
 
   const handleJsonListAdd = (field: 'specs' | 'docs', newItem: any) => {
@@ -154,7 +177,12 @@ export const AdminPanel: React.FC = () => {
                 <div key={kit.id} className={`p-8 border-b border-slate-50 flex items-center justify-between hover:bg-slate-50 transition-colors ${kitIsHidden ? 'opacity-50 grayscale' : ''}`}>
                   <div className="flex items-center gap-6">
                     <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden relative">
-                      {kit.image ? <img src={kit.image} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full bg-slate-200 flex items-center justify-center"><ImageIcon size={16} className="text-slate-400"/></div>}
+                      <img 
+                        src={getSafeImage(kit.image) || IMAGE_FALLBACK} 
+                        className="w-full h-full object-cover" 
+                        alt="" 
+                        onError={(e) => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }}
+                      />
                       {kitIsHidden && (
                         <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center text-white">
                           <EyeOff size={12}/>
@@ -163,14 +191,14 @@ export const AdminPanel: React.FC = () => {
                     </div>
                     <div>
                       <h4 className="font-black text-slate-900 uppercase text-sm tracking-tight flex items-center gap-2">
-                        {kit.name}
+                        {getDisplayValue(kit.name)}
                         {kitIsHidden && <span className="bg-slate-200 text-slate-600 text-[8px] px-2 py-0.5 rounded-full uppercase">Неактивний</span>}
                       </h4>
                       <span className="text-[9px] font-bold text-slate-400 uppercase">{kit.id}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-8">
-                    <div className="text-right"><div className="text-xl font-black text-slate-900 tracking-tighter">₴{kit.price?.toLocaleString()}</div></div>
+                    <div className="text-right"><div className="text-xl font-black text-slate-900 tracking-tighter">₴{safeFormatPrice(kit.price)}</div></div>
                     <div className="flex gap-2">
                       <button onClick={() => handleOpenModal(kit)} className="p-3 bg-slate-100 text-slate-500 hover:bg-slate-900 hover:text-white rounded-xl transition-all shadow-sm"><Edit size={16} /></button>
                       <button onClick={() => deleteProduct(kit.id)} className="p-3 bg-slate-100 text-slate-500 hover:bg-red-500 hover:text-white rounded-xl transition-all shadow-sm"><Trash2 size={16} /></button>
@@ -207,10 +235,15 @@ export const AdminPanel: React.FC = () => {
                       <tr key={p.id} className={`hover:bg-slate-50 transition-colors ${isHidden ? 'bg-slate-50/30' : ''}`}>
                         <td className="px-10 py-5 flex items-center gap-4">
                           <div className="relative">
-                            {p.image ? <img src={p.image} className={`w-8 h-8 rounded-lg object-cover border border-slate-100 ${isHidden ? 'grayscale' : ''}`} alt="" /> : <div className="w-8 h-8 bg-slate-100 rounded-lg"/>}
+                            <img 
+                              src={getSafeImage(p.image) || IMAGE_FALLBACK} 
+                              className={`w-8 h-8 rounded-lg object-cover border border-slate-100 ${isHidden ? 'grayscale' : ''}`} 
+                              alt="" 
+                              onError={(e) => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }}
+                            />
                             {isHidden && <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center text-white rounded-lg"><EyeOff size={10}/></div>}
                           </div>
-                          <span className={`font-black text-slate-900 text-xs uppercase truncate max-w-[250px] ${isHidden ? 'text-slate-400' : ''}`}>{p.name}</span>
+                          <span className={`font-black text-slate-900 text-xs uppercase truncate max-w-[250px] ${isHidden ? 'text-slate-400' : ''}`}>{getDisplayValue(p.name)}</span>
                         </td>
                         <td className="px-10 py-5"><span className="text-[9px] font-bold uppercase text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{p.category}</span></td>
                         <td className="px-10 py-5">
@@ -219,7 +252,7 @@ export const AdminPanel: React.FC = () => {
                             {isHidden ? 'Неактивний' : 'Активний'}
                           </span>
                         </td>
-                        <td className="px-10 py-5 font-black text-slate-900">₴{p.price?.toLocaleString()}</td>
+                        <td className="px-10 py-5 font-black text-slate-900">₴{safeFormatPrice(p.price)}</td>
                         <td className="px-10 py-5 text-right flex justify-end gap-2">
                           <button onClick={() => handleOpenModal(p)} className="p-2 text-slate-300 hover:text-slate-900 transition-colors"><Edit size={16}/></button>
                           <button onClick={() => deleteProduct(p.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
@@ -250,65 +283,185 @@ export const AdminPanel: React.FC = () => {
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-12 bg-slate-50/30">
               <form onSubmit={handleSubmit} className="space-y-12">
-                
-                {/* --- HEADER FIELDS --- */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-                  <div className="space-y-2">
+                  <div className="space-y-6">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex justify-between">
-                      Назва активу
+                      Мультимовна Назва
                       <button 
                         type="button" 
                         onClick={() => setFormData(prev => ({...prev, is_active: !prev.is_active}))}
                         className={`flex items-center gap-2 px-3 py-1 rounded-full text-[8px] font-black uppercase transition-all ${formData.is_active ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-500'}`}
                       >
-                        <span className="shrink-0">
-                          {formData.is_active ? <Eye size={10}/> : <EyeOff size={10}/>}
-                        </span>
-                        <span>{formData.is_active ? 'Активний в каталозі' : 'Прихований (Чернетка)'}</span>
+                        {formData.is_active ? <Eye size={10}/> : <EyeOff size={10}/>}
+                        <span>{formData.is_active ? 'Активний' : 'Прихований'}</span>
                       </button>
                     </label>
-                    <input required value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} className="input-premium" placeholder="Назва для клієнта" />
+                    <div className="space-y-3">
+                      {LANGUAGES.map(lang => (
+                        <div key={`name-${lang}`} className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-300 uppercase">{lang}</span>
+                          <input 
+                            required={lang === 'en'}
+                            value={(formData.name as any)?.[lang] || ''} 
+                            onChange={e => {
+                              const newName = { ...(formData.name as any), [lang]: e.target.value };
+                              setFormData({...formData, name: newName});
+                            }} 
+                            className="w-full bg-white border border-slate-200 rounded-2xl pl-12 pr-6 py-4 text-xs font-bold uppercase" 
+                            placeholder={`Назва (${lang.toUpperCase()})`} 
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex justify-between">
-                       Вартість (₴)
-                       {isKitMode && <span className="text-emerald-500 lowercase text-[8px] animate-pulse">автоматичний розрахунок</span>}
-                    </label>
-                    <input 
-                      type="number" 
-                      required 
-                      value={formData.price || 0} 
-                      onChange={e => setFormData({...formData, price: Number(e.target.value)})} 
-                      readOnly={isKitMode}
-                      className={`input-premium ${isKitMode ? 'bg-slate-100/50 cursor-not-allowed text-slate-500' : ''}`} 
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Категорія</label>
-                    <select value={formData.category || 'Inverters'} onChange={e => setFormData({...formData, category: e.target.value as Category})} className="input-premium appearance-none">
-                      {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Stock (Наявність)</label>
-                    <input type="number" value={formData.stock || 0} onChange={e => setFormData({...formData, stock: Number(e.target.value)})} className="input-premium" />
+                  <div className="space-y-8">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Вартість (₴)</label>
+                      <input 
+                        type="number" 
+                        required 
+                        value={formData.price || 0} 
+                        onChange={e => setFormData({...formData, price: Number(e.target.value)})} 
+                        readOnly={isKitMode}
+                        className={`input-premium ${isKitMode ? 'bg-slate-100/50 cursor-not-allowed text-slate-500' : ''}`} 
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Категорія</label>
+                        <select value={formData.category || 'Inverters'} onChange={e => setFormData({...formData, category: e.target.value as Category})} className="input-premium appearance-none">
+                          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Stock</label>
+                        <input type="number" value={formData.stock || 0} onChange={e => setFormData({...formData, stock: Number(e.target.value)})} className="input-premium" />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {isKitMode ? (
-                  <div key="kit-fields-container" className="space-y-10 animate-fade-in">
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+                <div className="space-y-6">
+                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">Мультимовний Опис</label>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {LANGUAGES.map(lang => (
+                        <div key={`desc-${lang}`} className="space-y-2">
+                          <label className="text-[8px] font-black text-slate-300 uppercase px-2 tracking-widest">{lang.toUpperCase()} DESCRIPTION</label>
+                          <textarea 
+                            value={(formData.description as any)?.[lang] || ''} 
+                            onChange={e => {
+                              const newDesc = { ...(formData.description as any), [lang]: e.target.value };
+                              setFormData({...formData, description: newDesc});
+                            }} 
+                            className="input-premium h-40 resize-none pt-4 text-xs font-medium leading-relaxed" 
+                            placeholder={`Опис на ${lang.toUpperCase()} мові...`} 
+                          />
+                        </div>
+                      ))}
+                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12 border-t border-slate-100 pt-10">
+                  {/* Technical Specifications Editor */}
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                        <List size={16} className="text-yellow-500" /> Технічні характеристики
+                      </h4>
+                      <button 
+                        type="button" 
+                        onClick={() => handleJsonListAdd('specs', { label: '', value: '' })}
+                        className="p-2 bg-slate-100 text-slate-500 hover:bg-slate-900 hover:text-white rounded-lg transition-all"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      {JSON.parse(formData.specs || '[]').map((spec: ProductSpec, idx: number) => (
+                        <div key={idx} className="flex gap-2 items-center">
+                          <input 
+                            value={spec.label} 
+                            onChange={e => handleJsonListUpdate('specs', idx, 'label', e.target.value)}
+                            placeholder="Назва (напр. Вага)"
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-bold uppercase"
+                          />
+                          <input 
+                            value={spec.value} 
+                            onChange={e => handleJsonListUpdate('specs', idx, 'value', e.target.value)}
+                            placeholder="Значення (напр. 5 кг)"
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-bold"
+                          />
+                          <button 
+                            type="button" 
+                            onClick={() => handleJsonListRemove('specs', idx)}
+                            className="p-2 text-slate-300 hover:text-red-500"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Documentation Editor */}
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                        <FileText size={16} className="text-red-500" /> Документація (PDF)
+                      </h4>
+                      <button 
+                        type="button" 
+                        onClick={() => handleJsonListAdd('docs', { title: '', url: '' })}
+                        className="p-2 bg-slate-100 text-slate-500 hover:bg-slate-900 hover:text-white rounded-lg transition-all"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      {JSON.parse(formData.docs || '[]').map((doc: ProductDoc, idx: number) => (
+                        <div key={idx} className="space-y-2 p-4 bg-slate-50 rounded-2xl border border-slate-100 relative group/doc">
+                          <button 
+                            type="button" 
+                            onClick={() => handleJsonListRemove('docs', idx)}
+                            className="absolute top-2 right-2 p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover/doc:opacity-100 transition-opacity"
+                          >
+                            <X size={12} />
+                          </button>
+                          <div className="flex items-center gap-2">
+                            <FileText size={12} className="text-slate-400" />
+                            <input 
+                              value={doc.title} 
+                              onChange={e => handleJsonListUpdate('docs', idx, 'title', e.target.value)}
+                              placeholder="Назва файлу (напр. Datasheet)"
+                              className="w-full bg-transparent border-none p-0 text-[10px] font-black uppercase outline-none"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <LinkIcon size={12} className="text-slate-400" />
+                            <input 
+                              value={doc.url} 
+                              onChange={e => handleJsonListUpdate('docs', idx, 'url', e.target.value)}
+                              placeholder="URL посилання (https://...)"
+                              className="w-full bg-transparent border-none p-0 text-[9px] text-slate-400 font-medium outline-none"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {isKitMode && (
+                  <div className="space-y-10 border-t border-slate-100 pt-10">
+                    <div className="flex items-center justify-between">
                       <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2"><Cpu size={16}/> Склад комплекту</h4>
                       <button type="button" onClick={() => {
                          const newComp: KitComponent = { id: 'COMP-' + Math.random().toString(36).substr(2, 9), name: '', price: 0, quantity: 1, alternatives: [] };
                          setFormData({ ...formData, kitComponents: [...(formData.kitComponents || []), newComp] });
                       }} className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-yellow-400 transition-all">+ Додати вузол</button>
                     </div>
-
-                    <div className="space-y-8">
+                    <div className="space-y-6">
                        {(formData.kitComponents || []).map((comp, compIdx) => (
                          <div key={comp.id || compIdx} className="bg-white rounded-[2.5rem] border-2 border-slate-100 overflow-hidden shadow-sm">
                             <div className="p-8 bg-slate-50/50 flex flex-wrap items-end gap-6 border-b border-slate-100">
@@ -318,28 +471,20 @@ export const AdminPanel: React.FC = () => {
                                      const comps = [...(formData.kitComponents || [])];
                                      comps[compIdx].name = e.target.value;
                                      setFormData({...formData, kitComponents: comps});
-                                  }} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-[11px] font-black uppercase" />
+                                  }} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-[11px] font-black uppercase" placeholder="Гібридний інвертор" />
                                </div>
                                <div className="w-32">
-                                  <label className="text-[7px] font-black text-slate-400 uppercase block mb-2">Ціна од. (₴)</label>
+                                  <label className="text-[7px] font-black text-slate-400 uppercase block mb-2">Ціна (₴)</label>
                                   <input type="number" value={comp.price} onChange={e => {
                                      const comps = [...(formData.kitComponents || [])];
                                      comps[compIdx].price = Number(e.target.value);
                                      setFormData({...formData, kitComponents: comps});
                                   }} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold" />
                                </div>
-                               <div className="w-20">
-                                  <label className="text-[7px] font-black text-slate-400 uppercase block mb-2">К-ть</label>
-                                  <input type="number" value={comp.quantity} onChange={e => {
-                                     const comps = [...(formData.kitComponents || [])];
-                                     comps[compIdx].quantity = Number(e.target.value);
-                                     setFormData({...formData, kitComponents: comps});
-                                  }} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-center" />
-                               </div>
                                <button type="button" onClick={() => {
                                   const comps = [...(formData.kitComponents || [])];
                                   const newAlt: Alternative = { id: 'ALT-' + Math.random().toString(36).substr(2, 9), name: '', price: 0, quantity: 1 };
-                                  comps[compIdx].alternatives = [...comps[compIdx].alternatives, newAlt];
+                                  comps[compIdx].alternatives = [...(comps[compIdx].alternatives || []), newAlt];
                                   setFormData({...formData, kitComponents: comps});
                                }} className="px-4 py-3 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 text-[8px] font-black uppercase">+ Аналог</button>
                                <button type="button" onClick={() => setFormData({...formData, kitComponents: (formData.kitComponents || []).filter((_, i) => i !== compIdx)})} className="p-3 text-slate-300 hover:text-red-500"><Trash2 size={18}/></button>
@@ -348,9 +493,10 @@ export const AdminPanel: React.FC = () => {
                        ))}
                     </div>
                   </div>
-                ) : (
-                  <div key="product-fields-container" className="space-y-16 animate-fade-in">
-                    {/* Media Gallery */}
+                )}
+
+                {!isKitMode && (
+                  <div className="space-y-16 pt-10 border-t border-slate-100">
                     <div className="bg-white p-10 rounded-[3rem] border border-slate-100 space-y-8">
                        <div className="flex items-center gap-3 border-b border-slate-100 pb-4"><ImageIcon size={18} className="text-yellow-500"/><h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Галерея зображень</h4></div>
                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -362,59 +508,19 @@ export const AdminPanel: React.FC = () => {
                                 setFormData({...formData, images: imgs});
                              }} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[10px] outline-none" placeholder={`URL фото ${idx + 1}`} />
                              <div className="aspect-square bg-slate-50 rounded-[2rem] overflow-hidden border border-slate-100 flex items-center justify-center">
-                                {(formData.images || [])[idx] ? <img src={(formData.images || [])[idx] || undefined} className="w-full h-full object-contain" alt="" /> : <ImageIcon className="text-slate-200" size={32}/>}
+                                <img 
+                                  src={getSafeImage((formData.images || [])[idx]) || IMAGE_FALLBACK} 
+                                  className="w-full h-full object-contain" 
+                                  alt="" 
+                                  onError={(e) => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }}
+                                />
                              </div>
                            </div>
                          ))}
                        </div>
                     </div>
-
-                    {/* Specs Matrix */}
-                    <div className="bg-white p-10 rounded-[3rem] border border-slate-100 space-y-8">
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                         <div className="flex items-center gap-3"><TableIcon size={18} className="text-yellow-500"/><h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Технічні характеристики</h4></div>
-                         <button type="button" onClick={() => handleJsonListAdd('specs', {label: '', value: ''})} className="text-[9px] font-black text-yellow-600 uppercase tracking-widest hover:underline">+ Додати рядок</button>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
-                        {JSON.parse(formData.specs || '[]').map((spec: ProductSpec, i: number) => (
-                          <div key={`spec-${i}`} className="flex items-center gap-4 bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                             <input value={spec.label} onChange={e => handleJsonListUpdate('specs', i, 'label', e.target.value)} className="flex-1 bg-transparent border-none text-[10px] font-black uppercase p-0 focus:ring-0" placeholder="Параметр" />
-                             <input value={spec.value} onChange={e => handleJsonListUpdate('specs', i, 'value', e.target.value)} className="flex-1 bg-transparent border-none text-[10px] font-bold text-slate-500 p-0 focus:ring-0" placeholder="Значення" />
-                             <button type="button" onClick={() => handleJsonListRemove('specs', i)} className="text-slate-300 hover:text-red-500"><Trash2 size={14}/></button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* PDF Documentation Section */}
-                    <div className="bg-white p-10 rounded-[3rem] border border-slate-100 space-y-8">
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                         <div className="flex items-center gap-3"><FileDown size={18} className="text-yellow-500"/><h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Документація (PDF)</h4></div>
-                         <button type="button" onClick={() => handleJsonListAdd('docs', {title: '', url: ''})} className="text-[9px] font-black text-yellow-600 uppercase tracking-widest hover:underline">+ Додати документ</button>
-                      </div>
-                      <div className="space-y-4">
-                        {JSON.parse(formData.docs || '[]').map((doc: ProductDoc, i: number) => (
-                          <div key={`doc-${i}`} className="flex items-center gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                             <div className="flex-[2]">
-                                <label className="text-[7px] font-black text-slate-400 uppercase block mb-1 px-1">Назва (напр. "Інструкція PDF")</label>
-                                <input value={doc.title} onChange={e => handleJsonListUpdate('docs', i, 'title', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-[10px] font-black uppercase" />
-                             </div>
-                             <div className="flex-[3]">
-                                <label className="text-[7px] font-black text-slate-400 uppercase block mb-1 px-1">URL посилання на файл</label>
-                                <input value={doc.url} onChange={e => handleJsonListUpdate('docs', i, 'url', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-[10px] font-mono" placeholder="https://example.com/manual.pdf" />
-                             </div>
-                             <button type="button" onClick={() => handleJsonListRemove('docs', i)} className="mt-4 p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
                   </div>
                 )}
-
-                <div className="space-y-4">
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2"><List size={14}/> Опис</label>
-                   <textarea value={formData.description || ''} onChange={e => setFormData({...formData, description: e.target.value})} className="input-premium h-40 resize-none pt-4" placeholder="Детальний опис..." />
-                </div>
               </form>
             </div>
 

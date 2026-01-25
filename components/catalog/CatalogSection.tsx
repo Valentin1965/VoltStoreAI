@@ -1,19 +1,28 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useCart } from '../../contexts/CartContext';
 import { useWishlist } from '../../contexts/WishlistContext';
 import { useCompare } from '../../contexts/CompareContext';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { 
   ShoppingCart, X, Heart, Loader2, Zap, 
-  Sparkles, Scale, Layers, ChevronLeft, ChevronRight, Info, List, FileText, ExternalLink,
-  Truck, CreditCard, ShieldCheck, Box, Package, FileDown,
-  Clock
+  Sparkles, Scale, Layers, ChevronLeft, ChevronRight, Info, List, 
+  Truck, Clock, FileText, Download
 } from 'lucide-react';
-import { Product, ProductSpec, ProductDoc } from '../../types';
+import { Product, ProductSpec, ProductDoc, LocalizedText } from '../../types';
 
 const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?q=80&w=400&auto=format&fit=crop';
+
+const useLocalizedText = () => {
+  const { language } = useLanguage();
+  return (text: LocalizedText | null | undefined): string => {
+    if (!text) return "";
+    if (typeof text === 'string') return text;
+    return text[language] || text['en'] || Object.values(text)[0] || "";
+  };
+};
 
 interface ProductCardProps {
   product: Product;
@@ -23,12 +32,19 @@ interface ProductCardProps {
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSelect, onAddToCart }) => {
-  const images = Array.isArray(product.images) && product.images.length > 0 
-    ? product.images.filter(img => img && img.trim() !== '') 
-    : [product.image].filter(img => img !== null && img !== undefined && img.trim() !== '');
-    
-  const displayImage = images[0] || IMAGE_FALLBACK;
+  const { t } = useLanguage();
+  const getLoc = useLocalizedText();
+  
+  const getDisplayImage = () => {
+    if (Array.isArray(product.images) && product.images.length > 0) {
+      const firstValid = product.images.find(img => img && typeof img === 'string' && img.trim() !== '');
+      if (firstValid) return firstValid;
+    }
+    if (product.image && typeof product.image === 'string' && product.image.trim() !== '') return product.image;
+    return null;
+  };
 
+  const displayImage = getDisplayImage();
   const { toggleWishlist, isInWishlist } = useWishlist();
   const { toggleCompare, isInCompare } = useCompare();
   
@@ -37,14 +53,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSelect, onA
   const isOutOfStock = product.stock === 0 || product.stock === null;
 
   const formatPrice = (price: any) => {
-    if (price === null || price === undefined) return '0';
-    const num = typeof price === 'number' ? price : parseFloat(price);
-    if (isNaN(num)) return '0';
-    try {
-      return num.toLocaleString('uk-UA');
-    } catch (e) {
-      return num.toString();
-    }
+    const num = Number(price || 0);
+    return isNaN(num) ? '0' : num.toLocaleString();
   };
 
   return (
@@ -55,8 +65,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSelect, onA
     >
       <div className="relative h-52 w-full overflow-hidden bg-slate-50/50 p-2 flex items-center justify-center">
         <img 
-          src={displayImage} 
-          alt={product.name || 'Обладнання'}
+          src={displayImage ? displayImage : (IMAGE_FALLBACK || null)} 
+          alt={getLoc(product.name)}
           className="max-w-full max-h-full object-contain transition-all duration-700 group-hover:scale-110"
           onError={(e) => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }}
         />
@@ -76,7 +86,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSelect, onA
           )}
           {isOutOfStock && (
             <span className="bg-slate-500 text-white text-[7px] font-black uppercase px-2 py-1 rounded-md shadow-lg flex items-center gap-1">
-              <Clock size={8} /> Очікується
+              <Clock size={8} /> {t('out_of_stock')}
             </span>
           )}
         </div>
@@ -103,25 +113,25 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSelect, onA
 
       <div className="p-5 flex flex-col flex-1 bg-white">
         <div className="text-[8px] font-black text-yellow-600 uppercase tracking-widest mb-1">{product.category}</div>
-        <h3 className="font-bold text-slate-800 text-[10px] leading-tight group-hover:text-yellow-600 transition-colors line-clamp-2 uppercase tracking-tight mb-4">{product.name}</h3>
+        <h3 className="font-bold text-slate-800 text-[10px] leading-tight group-hover:text-yellow-600 transition-colors line-clamp-2 uppercase tracking-tight mb-4">{getLoc(product.name)}</h3>
         
         <div className="mt-auto flex items-center justify-between">
           <div className="flex items-center gap-1">
              <div className={`w-1 h-1 rounded-full ${isOutOfStock ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
              <span className="text-[7px] font-black text-slate-400 uppercase">
-               {isOutOfStock ? 'Під замовлення' : 'На складі'}
+               {isOutOfStock ? t('out_of_stock') : t('in_stock')}
              </span>
           </div>
           <button 
             onClick={(e) => onAddToCart(e, product)}
             className={`p-2.5 rounded-lg transition-all shadow-xl active:scale-90 flex items-center gap-2 ${
               isOutOfStock 
-                ? 'bg-slate-100 text-slate-500 hover:bg-yellow-100 hover:text-yellow-700' 
+                ? 'bg-amber-500 hover:bg-amber-600 text-white' 
                 : 'bg-slate-900 hover:bg-yellow-400 text-white hover:text-yellow-950'
             }`}
           >
             <ShoppingCart size={14} />
-            {isOutOfStock && <span className="text-[8px] font-black uppercase">Замовити</span>}
+            <span className="text-[8px] font-black uppercase">{isOutOfStock ? t('order_now') : t('add_to_cart')}</span>
           </button>
         </div>
       </div>
@@ -130,6 +140,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSelect, onA
 };
 
 export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSelectSystem }) => {
+  const { t } = useLanguage();
+  const getLoc = useLocalizedText();
   const { filteredProducts, categories, selectedCategory, setSelectedCategory, isLoading } = useProducts();
   const { addItem } = useCart();
   const { addNotification } = useNotification();
@@ -157,66 +169,48 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
   };
 
   const formatPrice = (price: any) => {
-    if (price === null || price === undefined) return '0';
-    const num = typeof price === 'number' ? price : parseFloat(price);
-    if (isNaN(num)) return '0';
-    try {
-      return num.toLocaleString('uk-UA');
-    } catch (e) {
-      return num.toString();
-    }
+    const num = Number(price || 0);
+    return isNaN(num) ? '0' : num.toLocaleString();
   };
 
-  const parseSpecs = (specsStr: string | null | undefined): ProductSpec[] => {
-    if (!specsStr) return [];
+  const parseJsonData = (dataStr: string | null | undefined): any[] => {
+    if (!dataStr) return [];
     try {
-      const parsed = typeof specsStr === 'string' ? JSON.parse(specsStr) : specsStr;
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  };
-
-  const parseDocs = (docsStr: string | null | undefined): ProductDoc[] => {
-    if (!docsStr) return [];
-    try {
-      const parsed = typeof docsStr === 'string' ? JSON.parse(docsStr) : docsStr;
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+      return typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
+    } catch { return []; }
   };
 
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-60 space-y-8">
         <Loader2 className="text-yellow-400 animate-spin" size={60} />
-        <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.5em]">Завантаження...</p>
       </div>
     );
   }
 
-  const productImages = selectedProduct && Array.isArray(selectedProduct.images) && selectedProduct.images.length > 0 
-    ? selectedProduct.images.filter(img => img && img.trim() !== '') 
-    : (selectedProduct?.image ? [selectedProduct.image] : [IMAGE_FALLBACK]);
+  const productImages = selectedProduct 
+    ? (Array.isArray(selectedProduct.images) && selectedProduct.images.length > 0
+        ? selectedProduct.images.filter(img => img && typeof img === 'string' && img.trim() !== '')
+        : (selectedProduct.image && typeof selectedProduct.image === 'string' && selectedProduct.image.trim() !== '' ? [selectedProduct.image] : [IMAGE_FALLBACK]))
+    : [IMAGE_FALLBACK];
 
-  const filteredSpecs = selectedProduct ? parseSpecs(selectedProduct.specs).filter(s => s.label?.trim() && s.value?.trim()) : [];
-  const filteredDocs = selectedProduct ? parseDocs(selectedProduct.docs).filter(d => d.title?.trim() && d.url?.trim()) : [];
+  const filteredSpecs = selectedProduct ? parseJsonData(selectedProduct.specs).filter((s: ProductSpec) => s.label?.trim() && s.value?.trim()) : [];
+  const productDocs = selectedProduct ? parseJsonData(selectedProduct.docs).filter((d: ProductDoc) => d.title?.trim() && d.url?.trim()) : [];
   const isSelectedOutOfStock = selectedProduct ? (selectedProduct.stock === 0 || selectedProduct.stock === null) : false;
 
   return (
     <div className="space-y-24">
-      <div className="relative rounded-[4rem] bg-white overflow-hidden min-h-[550px] flex items-center shadow-[0_32px_120px_-20px_rgba(0,0,0,0.05)] border border-slate-100">
+      <div className="relative rounded-[4rem] bg-white overflow-hidden min-h-[550px] flex items-center shadow-xl border border-slate-100">
         <div className="absolute inset-0 bg-gradient-to-r from-white via-white/80 to-transparent z-10"></div>
         <img 
           src="https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?q=80&w=2000&auto=format&fit=crop" 
           className="absolute right-0 top-0 w-3/4 h-full object-cover animate-slow-zoom opacity-10" 
-          alt="Energy" 
+          alt="" 
         />
         
         <div className="relative z-20 px-12 md:px-24 max-w-4xl py-20">
           <div className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest mb-10 shadow-xl">
-            <Sparkles size={14} className="text-yellow-400" /> Твоя енергонезалежність
+            <Sparkles size={14} className="text-yellow-400" /> {t('hero_tagline')}
           </div>
           <h1 className="text-6xl md:text-8xl font-black text-slate-900 mb-10 leading-[0.85] tracking-tighter uppercase">
             ENERGY <br/>
@@ -225,10 +219,10 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
           
           <div className="flex flex-wrap gap-6">
             <button onClick={onSelectSystem} className="btn-action bg-slate-900 text-white hover:bg-yellow-400 hover:text-slate-900 group">
-              AI ARCHITECT <Sparkles size={18} className="group-hover:rotate-12 transition-transform" />
+              {t('nav_architect')} <Sparkles size={18} className="group-hover:rotate-12 transition-transform" />
             </button>
             <button onClick={handleSelectKits} className="px-10 py-5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-900 font-black text-[11px] uppercase tracking-widest hover:bg-white hover:shadow-xl transition-all">
-              ГОТОВІ КОМПЛЕКТИ <Layers size={18} className="ml-3 inline-block text-yellow-500" />
+              {t('ready_kits')} <Layers size={18} className="ml-3 inline-block text-yellow-500" />
             </button>
           </div>
         </div>
@@ -237,13 +231,13 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
       <div className="space-y-12">
         <div ref={productsRef} className="flex items-center justify-between border-b border-slate-200 pb-8 scroll-mt-32">
            <div className="flex gap-4 overflow-x-auto scrollbar-hide">
-            <button onClick={() => setSelectedCategory('All')} className={`px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedCategory === 'All' ? 'bg-slate-900 text-white shadow-xl translate-y-[-4px]' : 'bg-white text-slate-400 border border-slate-100'}`}>Всі товари</button>
+            <button onClick={() => setSelectedCategory('All')} className={`px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedCategory === 'All' ? 'bg-slate-900 text-white shadow-xl translate-y-[-4px]' : 'bg-white text-slate-400 border border-slate-100'}`}>{t('all_products')}</button>
             {categories.map((cat) => (
               <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedCategory === cat ? 'bg-slate-900 text-white shadow-xl translate-y-[-4px]' : 'bg-white text-slate-400 border border-slate-100'}`}>{cat}</button>
             ))}
           </div>
           <div className="hidden md:block text-[10px] font-black text-slate-400 uppercase tracking-widest">
-            {filteredProducts.length} товарів знайдено
+            {filteredProducts.length} {t('items_found')}
           </div>
         </div>
 
@@ -257,7 +251,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
               onAddToCart={(e, p) => { 
                 e.stopPropagation(); 
                 addItem(p); 
-                addNotification(p.stock === 0 ? 'Передзамовлення додано' : 'Товар додано', 'success'); 
+                addNotification(p.stock === 0 ? t('preorder_added') : t('item_added'), 'success'); 
               }} 
             />
           ))}
@@ -273,7 +267,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                 <div className="bg-slate-900 p-2 rounded-xl">
                   <Zap size={18} className="text-yellow-400" />
                 </div>
-                <h2 className="text-lg font-black text-slate-900 uppercase tracking-tighter leading-none">{selectedProduct.name}</h2>
+                <h2 className="text-lg font-black text-slate-900 uppercase tracking-tighter leading-none">{getLoc(selectedProduct.name)}</h2>
               </div>
               <button onClick={() => setSelectedProduct(null)} className="p-2 hover:bg-slate-100 rounded-xl transition-all"><X size={20} /></button>
             </div>
@@ -282,7 +276,11 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
               <div className="flex flex-col lg:flex-row gap-10 mb-12">
                 <div className="lg:w-[58%] space-y-4">
                   <div className="aspect-video bg-slate-50 rounded-3xl overflow-hidden border border-slate-100 relative group/img p-6 flex items-center justify-center">
-                    <img src={productImages[activeImageIdx] || IMAGE_FALLBACK} className="max-w-full max-h-full object-contain" alt="" onError={(e) => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }} />
+                    <img 
+                      src={(productImages[activeImageIdx] ? productImages[activeImageIdx] : (IMAGE_FALLBACK || null)) as any} 
+                      className="max-w-full max-h-full object-contain" 
+                      alt={getLoc(selectedProduct.name)} 
+                    />
                     {productImages.length > 1 && (
                       <div className="absolute inset-0 flex items-center justify-between px-3 opacity-0 group-hover/img:opacity-100 transition-opacity">
                         <button onClick={() => setActiveImageIdx(prev => (prev > 0 ? prev - 1 : productImages.length - 1))} className="p-2 bg-white/80 rounded-xl shadow-md"><ChevronLeft size={18}/></button>
@@ -290,42 +288,45 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                       </div>
                     )}
                   </div>
-                  {productImages.length > 1 && (
-                    <div className="flex gap-2 overflow-x-auto scrollbar-hide justify-center">
-                      {productImages.map((img, i) => (
-                        <button key={i} onClick={() => setActiveImageIdx(i)} className={`w-14 h-14 rounded-xl overflow-hidden border-2 shrink-0 p-1 bg-slate-50 ${activeImageIdx === i ? 'border-yellow-400' : 'border-transparent opacity-60'}`}>
-                          <img src={img || IMAGE_FALLBACK} className="w-full h-full object-contain" alt="" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                    {productImages.map((img, idx) => (
+                      <button 
+                        key={idx} 
+                        onClick={() => setActiveImageIdx(idx)}
+                        className={`w-20 h-20 rounded-xl overflow-hidden border-2 shrink-0 transition-all ${activeImageIdx === idx ? 'border-yellow-400 scale-95' : 'border-slate-100 opacity-60 hover:opacity-100'}`}
+                      >
+                        <img src={img || IMAGE_FALLBACK} className="w-full h-full object-cover" alt="" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="lg:w-[42%] flex flex-col gap-6">
                   <div className="bg-slate-50/50 rounded-3xl border border-slate-100 p-8 flex flex-col gap-6 shadow-sm">
                     <div className="space-y-1">
-                      <h3 className="font-black text-slate-900 text-sm uppercase tracking-tight leading-tight mb-2">{selectedProduct.name}</h3>
+                      <h3 className="font-black text-slate-900 text-sm uppercase tracking-tight leading-tight mb-2">{getLoc(selectedProduct.name)}</h3>
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Артикул: {selectedProduct.id?.slice(0, 8).toUpperCase()}</span>
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('sku')}: {selectedProduct.id?.slice(0, 8).toUpperCase()}</span>
                       </div>
                     </div>
 
                     <div className="space-y-0.5">
                       <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tighter">
-                        {formatPrice(Math.round(selectedProduct.price / 1.2))} ₴ <span className="text-[8px] opacity-60 font-black">ex VAT</span>
+                        {formatPrice(Math.round(selectedProduct.price / 1.2))} ₴ <span className="text-[8px] opacity-60 font-black">{t('ex_vat')}</span>
                       </div>
                       <div className="text-3xl font-black text-slate-900 tracking-tighter">
-                        {formatPrice(selectedProduct.price)} ₴ <span className="text-[10px] text-slate-400 uppercase font-black tracking-widest ml-1">inc VAT</span>
+                        {formatPrice(selectedProduct.price)} ₴ <span className="text-[10px] text-slate-400 uppercase font-black tracking-widest ml-1">{t('inc_vat')}</span>
                       </div>
                     </div>
 
                     <div className="space-y-4 py-6 border-y border-slate-200/60">
                       <div className="flex items-center justify-between">
-                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Наявність:</span>
+                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('availability')}:</span>
                          <div className="flex items-center gap-1.5">
                             <div className={`w-2 h-2 rounded-full shadow-sm ${isSelectedOutOfStock ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
                             <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">
-                              {isSelectedOutOfStock ? 'Під замовлення (доставка 7-14 днів)' : 'В наявності (11-20 шт)'}
+                              {isSelectedOutOfStock ? t('out_of_stock') : t('in_stock')}
                             </span>
                          </div>
                       </div>
@@ -336,10 +337,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                          </div>
                          <div className="flex-1">
                             <div className="text-[10px] font-black text-slate-900 uppercase tracking-tight">
-                              {isSelectedOutOfStock ? 'Очікувана поставка' : 'Доставка'}
-                            </div>
-                            <div className="text-[10px] text-slate-500 font-bold mt-0.5">
-                               {new Date(Date.now() + 86400000 * (isSelectedOutOfStock ? 10 : 3)).toLocaleDateString('uk-UA', { weekday: 'long', day: 'numeric', month: 'long' })}
+                              {isSelectedOutOfStock ? t('expected_delivery') : t('delivery')}
                             </div>
                          </div>
                       </div>
@@ -349,7 +347,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                       <button 
                         onClick={() => { 
                           addItem(selectedProduct); 
-                          addNotification(isSelectedOutOfStock ? 'Предмет додано для замовлення' : 'Товар додано', 'success'); 
+                          addNotification(isSelectedOutOfStock ? t('preorder_added') : t('item_added'), 'success'); 
                         }}
                         className={`flex-1 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg py-5 flex items-center justify-center gap-3 active:scale-95 group ${
                           isSelectedOutOfStock 
@@ -358,11 +356,11 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                         }`}
                       >
                         <ShoppingCart size={18} className="group-hover:rotate-12 transition-transform" /> 
-                        {isSelectedOutOfStock ? 'Замовити' : 'Додати в кошик'}
+                        {isSelectedOutOfStock ? t('order_now') : t('add_to_cart')}
                       </button>
                     </div>
                   </div>
-                  <button onClick={() => setSelectedProduct(null)} className="w-full py-4 rounded-2xl bg-slate-100 text-slate-500 font-black text-[9px] uppercase tracking-widest hover:bg-slate-200 transition-all">Закрити</button>
+                  <button onClick={() => setSelectedProduct(null)} className="w-full py-4 rounded-2xl bg-slate-100 text-slate-500 font-black text-[9px] uppercase tracking-widest hover:bg-slate-200 transition-all">{t('close')}</button>
                 </div>
               </div>
 
@@ -371,9 +369,9 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                       <Info size={16} className="text-yellow-500" />
-                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Про продукт</h4>
+                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{t('about_product')}</h4>
                     </div>
-                    <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-wrap">{selectedProduct.description}</p>
+                    <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-wrap">{getLoc(selectedProduct.description)}</p>
                   </div>
                 )}
 
@@ -381,10 +379,10 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                       <List size={16} className="text-yellow-500" />
-                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Технічні характеристики</h4>
+                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{t('specs')}</h4>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
-                      {filteredSpecs.map((spec, i) => (
+                      {filteredSpecs.map((spec: ProductSpec, i: number) => (
                         <div key={i} className="flex justify-between border-b border-slate-50 py-3">
                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{spec.label}</span>
                           <span className="text-[10px] font-bold text-slate-800 uppercase text-right">{spec.value}</span>
@@ -394,31 +392,28 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                   </div>
                 )}
 
-                {/* PDF Documentation Display */}
-                {filteredDocs.length > 0 && (
-                  <div className="space-y-6">
+                {productDocs.length > 0 && (
+                  <div className="space-y-4">
                     <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                      <FileDown size={16} className="text-yellow-500" />
-                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Документація та файли</h4>
+                      <FileText size={16} className="text-yellow-500" />
+                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{t('docs_and_files')}</h4>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {filteredDocs.map((doc, i) => (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {productDocs.map((doc: ProductDoc, i: number) => (
                         <a 
                           key={i} 
                           href={doc.url} 
                           target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100 hover:border-yellow-400 hover:bg-white transition-all group"
+                          rel="noopener noreferrer" 
+                          className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
                         >
-                          <div className="p-3 bg-white rounded-xl text-slate-400 group-hover:text-yellow-600 shadow-sm border border-slate-50 transition-colors">
-                            <FileText size={20} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-[10px] font-black text-slate-900 uppercase tracking-tight truncate">{doc.title}</div>
-                            <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 flex items-center gap-1">
-                               Скачати PDF <ExternalLink size={8} />
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-white rounded-xl text-red-500 shadow-sm">
+                              <FileText size={16} />
                             </div>
+                            <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight line-clamp-1">{doc.title}</span>
                           </div>
+                          <Download size={14} className="text-slate-400 group-hover:text-yellow-500 transition-colors" />
                         </a>
                       ))}
                     </div>

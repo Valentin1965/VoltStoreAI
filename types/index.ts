@@ -36,10 +36,12 @@ export interface KitComponent {
   alternatives: Alternative[];
 }
 
+export type LocalizedText = string | Record<string, string>;
+
 export interface Product {
   id: string;
-  name: string;
-  description: string | null;
+  name: LocalizedText;
+  description: LocalizedText | null;
   price: number;
   old_price?: number | null;
   category: Category;

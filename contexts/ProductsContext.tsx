@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useMemo, useEffect } from '
 import { Product, Category } from '../types';
 import { supabase } from '../services/supabase';
 import { useNotification } from './NotificationContext';
+import { useLanguage } from './LanguageContext';
 
 export interface ProductsContextType {
   products: Product[];
@@ -24,6 +25,7 @@ const ProductsContext = createContext<ProductsContextType | undefined>(undefined
 // Допоміжна функція для очищення об'єкта перед записом у БД
 const sanitizeForDb = (product: any) => {
   const { kitComponents, id, created_at, ...cleanProduct } = product;
+  
   // Перетворюємо specs та docs на рядки, якщо вони є масивами
   if (typeof cleanProduct.specs !== 'string') cleanProduct.specs = JSON.stringify(cleanProduct.specs || []);
   if (typeof cleanProduct.docs !== 'string') cleanProduct.docs = JSON.stringify(cleanProduct.docs || []);
@@ -46,6 +48,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const { addNotification } = useNotification();
+  const { language } = useLanguage();
 
   const products = useMemo(() => [...localKits, ...dbProducts], [localKits, dbProducts]);
 
@@ -75,16 +78,22 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     fetchProducts();
   }, []);
 
+  const getLocalizedValue = (val: any, lang: string) => {
+    if (!val) return "";
+    if (typeof val === 'string') return val;
+    return val[lang] || val['en'] || Object.values(val)[0] || "";
+  };
+
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       // Показуємо лише активні товари в каталозі
       const isActive = p.is_active !== false;
       const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
-      const productName = p.name || '';
+      const productName = getLocalizedValue(p.name, language);
       const matchesSearch = productName.toLowerCase().includes(searchQuery.toLowerCase());
       return isActive && matchesCategory && matchesSearch;
     });
-  }, [selectedCategory, searchQuery, products]);
+  }, [selectedCategory, searchQuery, products, language]);
 
   const addProduct = async (newProduct: Omit<Product, 'id'>) => {
     if (newProduct.category === 'Kits') {

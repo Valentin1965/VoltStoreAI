@@ -71,6 +71,14 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
     }
   }, [initialStep]);
 
+  const useFallback = () => {
+    const template = OFFLINE_TEMPLATES.optimal;
+    setResult({ title: template.title, description: template.description });
+    setActiveComponents(template.components as any);
+    setStep(3);
+    addNotification('Використано стандартний шаблон', 'info');
+  };
+
   const handleCalculate = async () => {
     setLoading(true);
     try {
@@ -79,7 +87,12 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
         .map(p => `ID: ${p.id}, Назва: ${p.name}, Категорія: ${p.category}, Ціна: ${p.price}`)
         .join('\n');
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = process.env.API_KEY;
+      if (!apiKey || apiKey === 'undefined') {
+        throw new Error("Missing API Key");
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       const prompt = `Ви енергетичний експерт VoltStore. Створіть оптимальний набір обладнання для: 
       Об'єкт: ${config.objectType}, 
       Місячне споживання: ${config.monthlyUsage}, 
@@ -119,20 +132,21 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
       setActiveComponents(data.components || []);
       setStep(3);
       addNotification('AI Architect розрахував систему на основі складу', 'success');
-    } catch (err) {
+    } catch (err: any) {
       console.error("AI Error:", err);
+      const errStr = String(err).toLowerCase();
+      const errBody = err.error ? JSON.stringify(err.error).toLowerCase() : "";
+      
+      if (errStr.includes('403') || errBody.includes('403')) {
+        addNotification("БЕЗПЕКА: API ключ заблоковано. Створіть новий у Google AI Studio.", "error");
+      } else if (errStr.includes('503') || errBody.includes('503') || errStr.includes('overloaded')) {
+        addNotification("СЕРВЕР ПЕРЕВАНТАЖЕНО: Використовуємо офлайн-шаблон.", "info");
+      }
+      
       useFallback();
     } finally {
       setLoading(false);
     }
-  };
-
-  const useFallback = () => {
-    const template = OFFLINE_TEMPLATES.optimal;
-    setResult({ title: template.title, description: template.description });
-    setActiveComponents(template.components as any);
-    setStep(3);
-    addNotification('Використано стандартний шаблон', 'info');
   };
 
   const replaceComponent = (componentId: string, alt: Alternative) => {
@@ -372,7 +386,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
                     <div>
                       <span className="font-black text-[9px] text-emerald-900 uppercase tracking-widest block mb-1">Грунтування на складі</span>
                       <p className="text-[9px] text-emerald-700 font-bold leading-relaxed uppercase">
-                        AI врахував технічні параметри ${products.length} товарів для підбору сумісного обладнання.
+                        AI врахував технічні параметри {products.length} товарів для підбору сумісного обладнання.
                       </p>
                     </div>
                   </div>

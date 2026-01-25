@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { Mic, MicOff, X, Zap, Loader2 } from 'lucide-react';
+import { useNotification } from '../../contexts/NotificationContext';
 
 function decode(base64: string) {
   const binaryString = atob(base64);
@@ -58,6 +59,7 @@ export const LiveAssistant: React.FC = () => {
   const [isActive, setIsActive] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [transcription, setTranscription] = useState<string[]>([]);
+  const { addNotification } = useNotification();
   
   const audioContextsRef = useRef<{ input: AudioContext; output: AudioContext } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -97,7 +99,8 @@ export const LiveAssistant: React.FC = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = process.env.API_KEY;
+      const ai = new GoogleGenAI({ apiKey });
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
@@ -145,7 +148,16 @@ export const LiveAssistant: React.FC = () => {
               nextStartTimeRef.current = 0;
             }
           },
-          onerror: () => stopSession(),
+          onerror: (e: any) => {
+            console.error("Live AI Error:", e);
+            const errStr = JSON.stringify(e).toLowerCase();
+            if (errStr.includes('403') || errStr.includes('leaked') || errStr.includes('permission_denied')) {
+              addNotification("SECURITY: Ваш ключ Gemini заблоковано через витік. Перевірте консоль.", "error");
+            } else if (errStr.includes('503') || errStr.includes('overloaded') || errStr.includes('unavailable')) {
+              addNotification("AI OVERLOADED: Голосовий сервер перевантажено. Спробуйте пізніше.", "error");
+            }
+            stopSession();
+          },
           onclose: () => stopSession(),
         },
         config: {
@@ -159,8 +171,14 @@ export const LiveAssistant: React.FC = () => {
       });
 
       sessionRef.current = await sessionPromise;
-    } catch (err) {
-      console.error("Failed to connect:", err);
+    } catch (err: any) {
+      console.error("Failed to connect Live Assistant:", err);
+      const errStr = String(err).toLowerCase();
+      if (errStr.includes('403') || errStr.includes('leaked') || errStr.includes('permission_denied')) {
+        addNotification("ПОМИЛКА КЛЮЧА: API ключ Gemini позначено як скомпрометований.", "error");
+      } else if (errStr.includes('503') || errStr.includes('overloaded') || errStr.includes('unavailable')) {
+        addNotification("СЕРВЕР ПЕРЕВАНТАЖЕНО: Голосовий AI наразі недоступний.", "error");
+      }
       stopSession();
     }
   };

@@ -1,9 +1,11 @@
+
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
+  // Fix: Cast process to any to resolve 'cwd' property error
+  const env = loadEnv(mode, (process as any).cwd(), '');
 
   return {
     plugins: [react()],
@@ -14,7 +16,8 @@ export default defineConfig(({ mode }) => {
     },
     resolve: {
       alias: {
-        '@': path.resolve(process.cwd()),
+        // Fix: Cast process to any to resolve 'cwd' property error
+        '@': path.resolve((process as any).cwd()),
       },
       extensions: ['.tsx', '.ts', '.jsx', '.js', '.json']
     },

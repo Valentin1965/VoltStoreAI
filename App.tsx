@@ -14,6 +14,7 @@ import { CartProvider } from './contexts/CartContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { WishlistProvider } from './contexts/WishlistContext';
 import { CompareProvider } from './contexts/CompareContext';
+import { LanguageProvider } from './contexts/LanguageContext';
 import { AppView } from './types';
 
 const App: React.FC = () => {
@@ -46,20 +47,22 @@ const App: React.FC = () => {
   };
 
   return (
-    <NotificationProvider>
-      <ProductsProvider>
-        <CartProvider>
-          <WishlistProvider>
-            <CompareProvider>
-              <Layout currentView={currentView} setView={setCurrentView}>
-                {renderView()}
-              </Layout>
-              <LiveAssistant />
-            </CompareProvider>
-          </WishlistProvider>
-        </CartProvider>
-      </ProductsProvider>
-    </NotificationProvider>
+    <LanguageProvider>
+      <NotificationProvider>
+        <ProductsProvider>
+          <CartProvider>
+            <WishlistProvider>
+              <CompareProvider>
+                <Layout currentView={currentView} setView={setCurrentView}>
+                  {renderView()}
+                </Layout>
+                <LiveAssistant />
+              </CompareProvider>
+            </WishlistProvider>
+          </CartProvider>
+        </ProductsProvider>
+      </NotificationProvider>
+    </LanguageProvider>
   );
 };
 
