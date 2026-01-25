@@ -27,6 +27,12 @@ const sanitizeForDb = (product: any) => {
   // Перетворюємо specs та docs на рядки, якщо вони є масивами
   if (typeof cleanProduct.specs !== 'string') cleanProduct.specs = JSON.stringify(cleanProduct.specs || []);
   if (typeof cleanProduct.docs !== 'string') cleanProduct.docs = JSON.stringify(cleanProduct.docs || []);
+  
+  // Якщо is_active не задано, за замовчуванням true
+  if (cleanProduct.is_active === undefined || cleanProduct.is_active === null) {
+    cleanProduct.is_active = true;
+  }
+  
   return cleanProduct;
 };
 
@@ -71,16 +77,22 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
+      // Показуємо лише активні товари в каталозі
+      const isActive = p.is_active !== false;
       const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
       const productName = p.name || '';
       const matchesSearch = productName.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
+      return isActive && matchesCategory && matchesSearch;
     });
   }, [selectedCategory, searchQuery, products]);
 
   const addProduct = async (newProduct: Omit<Product, 'id'>) => {
     if (newProduct.category === 'Kits') {
-      const kitWithId = { ...newProduct, id: 'KIT-' + Math.random().toString(36).substr(2, 9).toUpperCase() } as Product;
+      const kitWithId = { 
+        ...newProduct, 
+        id: 'KIT-' + Math.random().toString(36).substr(2, 9).toUpperCase(),
+        is_active: newProduct.is_active ?? true
+      } as Product;
       setLocalKits(prev => [kitWithId, ...prev]);
       addNotification('Комплект збережено локально', 'success');
       return;

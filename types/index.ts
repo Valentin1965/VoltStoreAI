@@ -51,6 +51,7 @@ export interface Product {
   stock?: number | null;
   is_new?: boolean | null;
   on_sale?: boolean | null;
+  is_active?: boolean | null;
   features?: string[] | null;
   specs?: string | null; 
   detailed_tech_specs?: string | null;

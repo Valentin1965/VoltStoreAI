@@ -6,7 +6,10 @@ import {
   Package, RefreshCw, Hash, ArrowUpRight,
   TrendingUp,
   Table as TableIcon,
-  FileDown
+  FileDown,
+  Eye,
+  EyeOff,
+  ToggleLeft as ToggleIcon
 } from 'lucide-react';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -22,6 +25,7 @@ export const AdminPanel: React.FC = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   const kits = useMemo(() => products.filter(p => p.category === 'Kits'), [products]);
+  const dbProductsList = useMemo(() => products.filter(p => p.category !== 'Kits'), [products]);
   
   const [formData, setFormData] = useState<Partial<Product>>({
     id: '',
@@ -35,6 +39,7 @@ export const AdminPanel: React.FC = () => {
     stock: 10, 
     is_new: true,
     on_sale: false,
+    is_active: true,
     features: [], 
     specs: '[]',
     docs: '[]',
@@ -61,14 +66,15 @@ export const AdminPanel: React.FC = () => {
         features: Array.isArray(product.features) ? product.features : [],
         specs: product.specs || '[]',
         docs: product.docs || '[]',
-        kitComponents: product.kitComponents || []
+        kitComponents: product.kitComponents || [],
+        is_active: product.is_active !== false
       });
     } else {
       setEditingProduct(null);
       setFormData({ 
         id: defaultCategory === 'Kits' ? 'KIT-' + Math.random().toString(36).substr(2, 6).toUpperCase() : '',
         name: '', description: '', price: 0, category: defaultCategory, sub_category: '',
-        image: '', images: ['', '', ''], stock: 10, is_new: true, on_sale: false, features: [], 
+        image: '', images: ['', '', ''], stock: 10, is_new: true, on_sale: false, is_active: true, features: [], 
         specs: '[]', docs: '[]', kitComponents: []
       });
     }
@@ -99,7 +105,8 @@ export const AdminPanel: React.FC = () => {
     const dataToSave = { 
       ...formData, 
       images: cleanImages, 
-      image: cleanImages[0] || formData.image || '' 
+      image: cleanImages[0] || formData.image || '',
+      is_active: formData.is_active ?? true
     };
     
     if (editingProduct) {
@@ -126,7 +133,7 @@ export const AdminPanel: React.FC = () => {
       </div>
 
       {activeTab === 'kits' && (
-        <div key="kits-view" className="space-y-12 animate-fade-in">
+        <div className="space-y-12 animate-fade-in">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="bg-slate-900 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
               <Layers className="text-yellow-400 mb-6" size={32} />
@@ -141,32 +148,43 @@ export const AdminPanel: React.FC = () => {
           <div className="bg-white rounded-[3.5rem] border border-slate-100 overflow-hidden shadow-sm">
             {kits.length === 0 ? (
               <div className="p-20 text-center text-slate-300 font-black uppercase text-[10px] tracking-widest">Немає збережених комплектів</div>
-            ) : kits.map(kit => (
-              <div key={kit.id} className="p-8 border-b border-slate-50 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                <div className="flex items-center gap-6">
-                  <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden">
-                    {kit.image ? <img src={kit.image} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full bg-slate-200 flex items-center justify-center"><ImageIcon size={16} className="text-slate-400"/></div>}
+            ) : kits.map(kit => {
+              const kitIsHidden = kit.is_active === false;
+              return (
+                <div key={kit.id} className={`p-8 border-b border-slate-50 flex items-center justify-between hover:bg-slate-50 transition-colors ${kitIsHidden ? 'opacity-50 grayscale' : ''}`}>
+                  <div className="flex items-center gap-6">
+                    <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden relative">
+                      {kit.image ? <img src={kit.image} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full bg-slate-200 flex items-center justify-center"><ImageIcon size={16} className="text-slate-400"/></div>}
+                      {kitIsHidden && (
+                        <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center text-white">
+                          <EyeOff size={12}/>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-900 uppercase text-sm tracking-tight flex items-center gap-2">
+                        {kit.name}
+                        {kitIsHidden && <span className="bg-slate-200 text-slate-600 text-[8px] px-2 py-0.5 rounded-full uppercase">Неактивний</span>}
+                      </h4>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase">{kit.id}</span>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="font-black text-slate-900 uppercase text-sm tracking-tight">{kit.name}</h4>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase">{kit.id}</span>
+                  <div className="flex items-center gap-8">
+                    <div className="text-right"><div className="text-xl font-black text-slate-900 tracking-tighter">₴{kit.price?.toLocaleString()}</div></div>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleOpenModal(kit)} className="p-3 bg-slate-100 text-slate-500 hover:bg-slate-900 hover:text-white rounded-xl transition-all shadow-sm"><Edit size={16} /></button>
+                      <button onClick={() => deleteProduct(kit.id)} className="p-3 bg-slate-100 text-slate-500 hover:bg-red-500 hover:text-white rounded-xl transition-all shadow-sm"><Trash2 size={16} /></button>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-8">
-                  <div className="text-right"><div className="text-xl font-black text-slate-900 tracking-tighter">₴{kit.price?.toLocaleString()}</div></div>
-                  <div className="flex gap-2">
-                    <button onClick={() => handleOpenModal(kit)} className="p-3 bg-slate-100 text-slate-500 hover:bg-slate-900 hover:text-white rounded-xl transition-all shadow-sm"><Edit size={16} /></button>
-                    <button onClick={() => deleteProduct(kit.id)} className="p-3 bg-slate-100 text-slate-500 hover:bg-red-500 hover:text-white rounded-xl transition-all shadow-sm"><Trash2 size={16} /></button>
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
 
       {activeTab === 'products' && (
-        <div key="products-view" className="bg-white rounded-[3.5rem] border border-slate-100 overflow-hidden shadow-sm animate-fade-in">
+        <div className="bg-white rounded-[3.5rem] border border-slate-100 overflow-hidden shadow-sm animate-fade-in">
           <div className="p-10 border-b border-slate-100 flex justify-between items-center bg-slate-50/20">
              <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Склад (База Supabase)</h3>
              <button onClick={() => handleOpenModal()} className="bg-slate-900 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-yellow-400 hover:text-yellow-950 transition-all shadow-lg">Додати товар</button>
@@ -174,23 +192,41 @@ export const AdminPanel: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left">
                <thead className="bg-slate-50/50 text-[9px] font-black uppercase text-slate-400">
-                  <tr><th className="px-10 py-5">Товар</th><th className="px-10 py-5">Категорія</th><th className="px-10 py-5">Ціна</th><th className="px-10 py-5 text-right">Дії</th></tr>
+                  <tr>
+                    <th className="px-10 py-5">Товар</th>
+                    <th className="px-10 py-5">Категорія</th>
+                    <th className="px-10 py-5">Статус</th>
+                    <th className="px-10 py-5">Ціна</th>
+                    <th className="px-10 py-5 text-right">Дії</th>
+                  </tr>
                </thead>
                <tbody className="divide-y divide-slate-50">
-                  {products.filter(p => p.category !== 'Kits').map(p => (
-                    <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-10 py-5 flex items-center gap-4">
-                        {p.image ? <img src={p.image} className="w-8 h-8 rounded-lg object-cover border border-slate-100" alt="" /> : <div className="w-8 h-8 bg-slate-100 rounded-lg"/>}
-                        <span className="font-black text-slate-900 text-xs uppercase truncate max-w-[250px]">{p.name}</span>
-                      </td>
-                      <td className="px-10 py-5"><span className="text-[9px] font-bold uppercase text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{p.category}</span></td>
-                      <td className="px-10 py-5 font-black text-slate-900">₴{p.price?.toLocaleString()}</td>
-                      <td className="px-10 py-5 text-right flex justify-end gap-2">
-                        <button onClick={() => handleOpenModal(p)} className="p-2 text-slate-300 hover:text-slate-900 transition-colors"><Edit size={16}/></button>
-                        <button onClick={() => deleteProduct(p.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
-                      </td>
-                    </tr>
-                  ))}
+                  {dbProductsList.map(p => {
+                    const isHidden = p.is_active === false;
+                    return (
+                      <tr key={p.id} className={`hover:bg-slate-50 transition-colors ${isHidden ? 'bg-slate-50/30' : ''}`}>
+                        <td className="px-10 py-5 flex items-center gap-4">
+                          <div className="relative">
+                            {p.image ? <img src={p.image} className={`w-8 h-8 rounded-lg object-cover border border-slate-100 ${isHidden ? 'grayscale' : ''}`} alt="" /> : <div className="w-8 h-8 bg-slate-100 rounded-lg"/>}
+                            {isHidden && <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center text-white rounded-lg"><EyeOff size={10}/></div>}
+                          </div>
+                          <span className={`font-black text-slate-900 text-xs uppercase truncate max-w-[250px] ${isHidden ? 'text-slate-400' : ''}`}>{p.name}</span>
+                        </td>
+                        <td className="px-10 py-5"><span className="text-[9px] font-bold uppercase text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{p.category}</span></td>
+                        <td className="px-10 py-5">
+                          <span className={`flex items-center gap-1.5 text-[8px] font-black uppercase ${isHidden ? 'text-slate-400' : 'text-emerald-600'}`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${isHidden ? 'bg-slate-300' : 'bg-emerald-500'}`}></div> 
+                            {isHidden ? 'Неактивний' : 'Активний'}
+                          </span>
+                        </td>
+                        <td className="px-10 py-5 font-black text-slate-900">₴{p.price?.toLocaleString()}</td>
+                        <td className="px-10 py-5 text-right flex justify-end gap-2">
+                          <button onClick={() => handleOpenModal(p)} className="p-2 text-slate-300 hover:text-slate-900 transition-colors"><Edit size={16}/></button>
+                          <button onClick={() => deleteProduct(p.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                </tbody>
             </table>
           </div>
@@ -218,7 +254,19 @@ export const AdminPanel: React.FC = () => {
                 {/* --- HEADER FIELDS --- */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Назва активу</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex justify-between">
+                      Назва активу
+                      <button 
+                        type="button" 
+                        onClick={() => setFormData(prev => ({...prev, is_active: !prev.is_active}))}
+                        className={`flex items-center gap-2 px-3 py-1 rounded-full text-[8px] font-black uppercase transition-all ${formData.is_active ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-500'}`}
+                      >
+                        <span className="shrink-0">
+                          {formData.is_active ? <Eye size={10}/> : <EyeOff size={10}/>}
+                        </span>
+                        <span>{formData.is_active ? 'Активний в каталозі' : 'Прихований (Чернетка)'}</span>
+                      </button>
+                    </label>
                     <input required value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} className="input-premium" placeholder="Назва для клієнта" />
                   </div>
                   
@@ -255,14 +303,14 @@ export const AdminPanel: React.FC = () => {
                     <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                       <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2"><Cpu size={16}/> Склад комплекту</h4>
                       <button type="button" onClick={() => {
-                         const newComp: KitComponent = { id: Math.random().toString(36).substr(2, 9), name: '', price: 0, quantity: 1, alternatives: [] };
+                         const newComp: KitComponent = { id: 'COMP-' + Math.random().toString(36).substr(2, 9), name: '', price: 0, quantity: 1, alternatives: [] };
                          setFormData({ ...formData, kitComponents: [...(formData.kitComponents || []), newComp] });
                       }} className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-yellow-400 transition-all">+ Додати вузол</button>
                     </div>
 
                     <div className="space-y-8">
                        {(formData.kitComponents || []).map((comp, compIdx) => (
-                         <div key={comp.id} className="bg-white rounded-[2.5rem] border-2 border-slate-100 overflow-hidden shadow-sm">
+                         <div key={comp.id || compIdx} className="bg-white rounded-[2.5rem] border-2 border-slate-100 overflow-hidden shadow-sm">
                             <div className="p-8 bg-slate-50/50 flex flex-wrap items-end gap-6 border-b border-slate-100">
                                <div className="flex-1 min-w-[200px]">
                                   <label className="text-[7px] font-black text-slate-400 uppercase block mb-2">Назва компонента</label>
@@ -290,11 +338,11 @@ export const AdminPanel: React.FC = () => {
                                </div>
                                <button type="button" onClick={() => {
                                   const comps = [...(formData.kitComponents || [])];
-                                  const newAlt: Alternative = { id: Math.random().toString(36).substr(2, 9), name: '', price: 0, quantity: 1 };
+                                  const newAlt: Alternative = { id: 'ALT-' + Math.random().toString(36).substr(2, 9), name: '', price: 0, quantity: 1 };
                                   comps[compIdx].alternatives = [...comps[compIdx].alternatives, newAlt];
                                   setFormData({...formData, kitComponents: comps});
                                }} className="px-4 py-3 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 text-[8px] font-black uppercase">+ Аналог</button>
-                               <button type="button" onClick={() => setFormData({...formData, kitComponents: formData.kitComponents?.filter((_, i) => i !== compIdx)})} className="p-3 text-slate-300 hover:text-red-500"><Trash2 size={18}/></button>
+                               <button type="button" onClick={() => setFormData({...formData, kitComponents: (formData.kitComponents || []).filter((_, i) => i !== compIdx)})} className="p-3 text-slate-300 hover:text-red-500"><Trash2 size={18}/></button>
                             </div>
                          </div>
                        ))}
