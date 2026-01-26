@@ -23,13 +23,8 @@ const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1581092160562-40aa08e7
 
 export const CartPage: React.FC<CartPageProps> = ({ onCheckout }) => {
   const { items, updateQuantity, removeItem, totalPrice } = useCart();
-  const { t } = useLanguage();
+  const { t, formatPrice } = useLanguage();
   const getLoc = useLocalizedText();
-
-  const safeFormatPrice = (price: any) => {
-    const num = Number(price || 0);
-    return isNaN(num) ? '0' : num.toLocaleString();
-  };
 
   const getSafeImage = (img: string | null | undefined) => {
     if (!img || typeof img !== 'string' || img.trim() === '') return null;
@@ -63,7 +58,6 @@ export const CartPage: React.FC<CartPageProps> = ({ onCheckout }) => {
               <div className="w-16 h-16 bg-slate-50 rounded-2xl overflow-hidden shrink-0 border border-slate-100 flex items-center justify-center p-1">
                 <img 
                   src={getSafeImage(item.image) || IMAGE_FALLBACK} 
-                  /* Fix: Use getLoc to resolve LocalizedText to string for alt attribute */
                   alt={getLoc(item.name) || 'Product'} 
                   className="max-w-full max-h-full object-contain group-hover/item:scale-110 transition-transform" 
                   onError={(e) => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }}
@@ -72,7 +66,6 @@ export const CartPage: React.FC<CartPageProps> = ({ onCheckout }) => {
               
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  /* Fix: Use getLoc to resolve LocalizedText to string for React element child */
                   <h3 className="font-black text-slate-900 truncate text-[11px] uppercase tracking-tighter">{getLoc(item.name)}</h3>
                   {item.parts && (
                     <span className="bg-yellow-400 text-yellow-950 text-[7px] font-black uppercase px-2 py-0.5 rounded-full shrink-0 shadow-sm">{t('bundle')}</span>
@@ -100,7 +93,7 @@ export const CartPage: React.FC<CartPageProps> = ({ onCheckout }) => {
               </div>
               
               <div className="text-right">
-                <div className="text-sm font-black text-slate-900 tracking-tighter">₴{safeFormatPrice((item.price ?? 0) * item.quantity)}</div>
+                <div className="text-sm font-black text-slate-900 tracking-tighter">{formatPrice((item.price ?? 0) * item.quantity)}</div>
                 <button 
                   onClick={() => removeItem(item.id)}
                   className="text-slate-300 hover:text-red-500 p-2 transition-colors mt-2 bg-slate-50 rounded-lg border border-slate-100"
@@ -123,7 +116,7 @@ export const CartPage: React.FC<CartPageProps> = ({ onCheckout }) => {
             </div>
             <div className="pt-6 border-t border-slate-100 flex flex-col gap-1">
               <span className="font-black text-slate-400 uppercase text-[8px] tracking-widest">{t('cart_total_value')}</span>
-              <span className="text-2xl font-black text-slate-900 tracking-tighter">₴{safeFormatPrice(totalPrice ?? 0)}</span>
+              <span className="text-2xl font-black text-slate-900 tracking-tighter">{formatPrice(totalPrice ?? 0)}</span>
             </div>
           </div>
           <button 

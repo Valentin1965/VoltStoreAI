@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useCart } from '../../contexts/CartContext';
 import { useProducts } from '../../contexts/ProductsContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { 
   Sparkles, 
   RotateCcw, 
@@ -23,23 +24,22 @@ import { KitComponent, Alternative, Product } from '../../types';
 
 const OFFLINE_TEMPLATES = {
   optimal: {
-    title: "Оптимальна Енергосистема Pro",
-    description: "На основі вашого профілю ми зібрали надійний комплект. Ви можете замінити будь-який компонент на аналог від іншого бренду.",
-    components: [
-      { 
-        id: 'inv-deye-5', name: 'Гібридний інвертор Deye 5кВт', price: 42000, quantity: 1, 
-        alternatives: [
-          { id: 'inv-lux-5', name: 'Luxpower SNA5000 Eco', price: 34500, quantity: 1 },
-          { id: 'inv-must-5', name: 'Must PH18-5248 PRO', price: 22800, quantity: 1 }
-        ]
-      },
-      { 
-        id: 'bat-pylon-5', name: 'АКБ Pylontech US5000 4.8кВт', price: 68000, quantity: 1,
-        alternatives: [
-          { id: 'bat-dyn-5', name: 'Dyness A48100 4.8кВт', price: 59500, quantity: 1 }
-        ]
-      }
-    ]
+    en: {
+      title: "Optimal Energy System Pro",
+      description: "Based on your profile, we have assembled a reliable set. You can replace any component with an analogue from another brand.",
+    },
+    da: {
+      title: "Optimalt Energisystem Pro",
+      description: "Baseret på din profil har vi samlet et pålideligt sæt. Du kan udskifte enhver komponent med en analog fra et andet mærke.",
+    },
+    sv: {
+      title: "Optimalt Energisystem Pro",
+      description: "Baserat på din profil har vi sammanställt en pålitlig uppsättning. Du kan ersätta vilken komponent som helst med en motsvarighet från ett annat märke.",
+    },
+    no: {
+      title: "Optimalt Energisystem Pro",
+      description: "Basert på profilen din har vi satt sammen et pålitelig sett. Du kan bytte ut hvilken som helst komponent med en analog fra et annet merke.",
+    }
   }
 };
 
@@ -57,12 +57,13 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
   const { addNotification } = useNotification();
   const { addItem } = useCart();
   const { products } = useProducts();
+  const { formatPrice, t, language } = useLanguage();
   
   const [config, setConfig] = useState({
-    objectType: 'Приватний будинок',
-    monthlyUsage: '300-600 кВт·місяць (~0.4-0.8 кВт·год)',
-    purpose: 'Резервне живлення',
-    budget: 'Оптимальний'
+    objectType: 'Private House',
+    monthlyUsage: '300-600 kWh/month',
+    purpose: 'Backup Power',
+    budget: 'Optimal'
   });
 
   useEffect(() => {
@@ -72,11 +73,26 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
   }, [initialStep]);
 
   const useFallback = () => {
-    const template = OFFLINE_TEMPLATES.optimal;
+    const langKey = language as keyof typeof OFFLINE_TEMPLATES.optimal;
+    const template = OFFLINE_TEMPLATES.optimal[langKey] || OFFLINE_TEMPLATES.optimal.en;
     setResult({ title: template.title, description: template.description });
-    setActiveComponents(template.components as any);
+    setActiveComponents([
+      { 
+        id: 'inv-deye-5', name: 'Hybrid Inverter Deye 5kW', price: 1200, quantity: 1, 
+        alternatives: []
+      }
+    ]);
     setStep(3);
-    addNotification('Використано стандартний шаблон', 'info');
+    addNotification('Using default template', 'info');
+  };
+
+  const getFullLanguageName = (langCode: string) => {
+    switch (langCode) {
+      case 'da': return 'Danish (Dansk)';
+      case 'no': return 'Norwegian (Norsk)';
+      case 'sv': return 'Swedish (Svenska)';
+      default: return 'English';
+    }
   };
 
   const handleCalculate = async () => {
@@ -84,7 +100,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
     try {
       const inventoryContext = products
         .filter(p => (p.stock || 0) > 0)
-        .map(p => `ID: ${p.id}, Назва: ${p.name}, Категорія: ${p.category}, Ціна: ${p.price}`)
+        .map(p => `ID: ${p.id}, Name: ${p.name}, Category: ${p.category}, Price: ${p.price}`)
         .join('\n');
 
       const apiKey = process.env.API_KEY;
@@ -93,26 +109,30 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
       }
 
       const ai = new GoogleGenAI({ apiKey });
-      const prompt = `Ви енергетичний експерт VoltStore. Створіть оптимальний набір обладнання для: 
-      Об'єкт: ${config.objectType}, 
-      Місячне споживання: ${config.monthlyUsage}, 
-      Мета: ${config.purpose}, 
-      Бюджет: ${config.budget}.
+      const currentFullLang = getFullLanguageName(language);
+
+      const prompt = `You are an energy expert for VoltStore. Create an optimal equipment set for: 
+      Object: ${config.objectType}, 
+      Monthly Usage: ${config.monthlyUsage}, 
+      Goal: ${config.purpose}, 
+      Budget: ${config.budget}.
       
-      ВИКОРИСТОВУЙТЕ ТІЛЬКИ ЦІ ТОВАРИ З НАШОГО СКЛАДУ:
+      CRITICAL: You MUST respond and provide all text (title, description, names) in ${currentFullLang} language.
+      
+      USE ONLY THESE PRODUCTS FROM OUR WAREHOUSE:
       ${inventoryContext}
       
-      Поверніть ТІЛЬКИ чистий JSON без Markdown: {
-        "title": "Назва системи", 
-        "description": "Чому ці товари підходять під запит", 
+      Return ONLY clean JSON without Markdown: {
+        "title": "System Name in ${currentFullLang}", 
+        "description": "Explanation why this fits in ${currentFullLang}", 
         "components": [
           {
-            "id": "реальний_id_з_контексту", 
-            "name": "реальна_назва", 
-            "price": число_ціна, 
+            "id": "real_id_from_context", 
+            "name": "real_name_translated_to_${currentFullLang}_if_needed", 
+            "price": price_number, 
             "quantity": 1, 
             "alternatives": [
-              {"id": "id_аналога", "name": "назва_аналога", "price": ціна_аналога, "quantity": 1}
+              {"id": "alt_id", "name": "alt_name", "price": alt_price, "quantity": 1}
             ]
           }
         ]
@@ -128,21 +148,12 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
 
       const textResult = response.text || '{}';
       const data = JSON.parse(textResult);
-      setResult({ title: data.title || 'Система живлення', description: data.description || '' });
+      setResult({ title: data.title || 'Power System', description: data.description || '' });
       setActiveComponents(data.components || []);
       setStep(3);
-      addNotification('AI Architect розрахував систему на основі складу', 'success');
+      addNotification('AI Architect generated your solution', 'success');
     } catch (err: any) {
       console.error("AI Error:", err);
-      const errStr = String(err).toLowerCase();
-      const errBody = err.error ? JSON.stringify(err.error).toLowerCase() : "";
-      
-      if (errStr.includes('403') || errBody.includes('403')) {
-        addNotification("БЕЗПЕКА: API ключ заблоковано. Створіть новий у Google AI Studio.", "error");
-      } else if (errStr.includes('503') || errBody.includes('503') || errStr.includes('overloaded')) {
-        addNotification("СЕРВЕР ПЕРЕВАНТАЖЕНО: Використовуємо офлайн-шаблон.", "info");
-      }
-      
       useFallback();
     } finally {
       setLoading(false);
@@ -166,11 +177,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
       return comp;
     }));
     setEditingCompId(null);
-    addNotification('Компонент замінено', 'success');
-  };
-
-  const formatPrice = (price: number) => {
-    return price?.toLocaleString('uk-UA') || '0';
+    addNotification('Component replaced', 'success');
   };
 
   const totalPrice = useMemo(() => 
@@ -204,7 +211,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
           <Cpu size={14} className="animate-pulse" /> Energy Architect
         </div>
         <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter uppercase mb-4 leading-none">
-          Параметри системи
+          System Parameters
         </h1>
       </div>
 
@@ -213,8 +220,8 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
           <div className="absolute inset-0 z-[60] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center gap-6 animate-fade-in">
             <Loader2 className="text-yellow-500 animate-spin" size={56} />
             <div className="text-center">
-              <p className="text-xs font-black text-slate-900 uppercase tracking-[0.3em] animate-pulse">Проектування системи...</p>
-              <p className="text-[9px] text-slate-400 uppercase mt-2 tracking-widest">Аналізуємо склад та підбираємо сумісні пристрої</p>
+              <p className="text-xs font-black text-slate-900 uppercase tracking-[0.3em] animate-pulse">{t('ai_generating')}</p>
+              <p className="text-[9px] text-slate-400 uppercase mt-2 tracking-widest">Analyzing inventory and matching components</p>
             </div>
           </div>
         )}
@@ -224,35 +231,35 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
             <div className="space-y-10 animate-fade-in">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <Selector 
-                  label="Тип об'єкта" 
+                  label="Object Type" 
                   icon={Settings2} 
                   value={config.objectType} 
-                  options={['Приватний будинок', 'Квартира / Офіс', 'Бізнес']} 
+                  options={['Private House', 'Apartment / Office', 'Business']} 
                   onChange={(v: any) => setConfig({...config, objectType: v})}
                 />
                 <Selector 
-                  label="Споживання" 
+                  label="Consumption" 
                   icon={Activity} 
                   value={config.monthlyUsage} 
                   options={[
-                    '< 300 кВт·місяць (~0.4 кВт·год)', 
-                    '300-600 кВт·місяць (~0.4-0.8 кВт·год)', 
-                    '600+ кВт·місяць (>0.8 кВт·год)'
+                    '< 300 kWh/month', 
+                    '300-600 kWh/month', 
+                    '600+ kWh/month'
                   ]} 
                   onChange={(v: any) => setConfig({...config, monthlyUsage: v})}
                 />
                 <Selector 
-                  label="Мета" 
+                  label="Goal" 
                   icon={Target} 
                   value={config.purpose} 
-                  options={['Резервне живлення', 'Автономність', 'Економія']} 
+                  options={['Backup Power', 'Autonomy', 'Savings']} 
                   onChange={(v: any) => setConfig({...config, purpose: v})}
                 />
                 <Selector 
-                  label="Бюджет" 
+                  label="Budget" 
                   icon={Wallet} 
                   value={config.budget} 
-                  options={['Економ', 'Оптимальний', 'Преміум']} 
+                  options={['Economy', 'Optimal', 'Premium']} 
                   onChange={(v: any) => setConfig({...config, budget: v})}
                 />
               </div>
@@ -262,7 +269,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
                   onClick={handleCalculate} 
                   className="w-full max-w-lg bg-slate-900 text-white py-6 rounded-[2rem] font-black flex items-center justify-center gap-4 hover:bg-yellow-400 hover:text-yellow-950 transition-all shadow-2xl group uppercase tracking-widest text-[13px]"
                 >
-                  Згенерувати рішення <Sparkles size={20} className="group-hover:rotate-12 transition-transform" />
+                  {t('generate_solution')} <Sparkles size={20} className="group-hover:rotate-12 transition-transform" />
                 </button>
               </div>
             </div>
@@ -279,7 +286,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
                   onClick={() => setStep(1)} 
                   className="px-6 py-3 bg-slate-50 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-yellow-600 hover:bg-yellow-50 transition-all shadow-sm flex items-center gap-2"
                 >
-                  <RotateCcw size={16}/> Змінити параметри
+                  <RotateCcw size={16}/> Back to parameters
                 </button>
               </div>
               
@@ -287,7 +294,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
                 <div className="lg:col-span-2 space-y-4">
                   <div className="flex items-center gap-2 mb-2 px-2">
                     <ShieldCheck className="text-emerald-500" size={16} />
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Конфігурація активів</span>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Selected Assets</span>
                   </div>
                   
                   {activeComponents.map(c => (
@@ -300,7 +307,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
                           <div>
                             <div className="font-black text-slate-900 text-[11px] uppercase truncate max-w-[200px] tracking-tight">{c.name}</div>
                             <div className="text-[9px] text-slate-400 font-bold uppercase tracking-tight mt-0.5">
-                              {c.quantity} шт • ₴{formatPrice(c.price)}
+                              {c.quantity} units • {formatPrice(c.price)}
                             </div>
                           </div>
                         </div>
@@ -313,16 +320,16 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
                               }`}
                             >
                               <RefreshCw size={12} className={editingCompId === c.id ? 'animate-spin' : ''} />
-                              {editingCompId === c.id ? 'Закрити' : 'Змінити'}
+                              {editingCompId === c.id ? 'Close' : 'Replace'}
                             </button>
                           )}
-                          <div className="font-black text-slate-900 text-right w-24 text-[13px] tracking-tighter">₴{formatPrice(c.price * c.quantity)}</div>
+                          <div className="font-black text-slate-900 text-right w-24 text-[13px] tracking-tighter">{formatPrice(c.price * c.quantity)}</div>
                         </div>
                       </div>
 
                       {editingCompId === c.id && c.alternatives && (
                         <div className="mx-4 p-4 bg-slate-50/50 rounded-3xl border border-slate-100 animate-fade-in space-y-2 shadow-inner">
-                          <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2 px-2">Рекомендовані заміни (наявні на складі):</div>
+                          <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2 px-2">Available Substitutes:</div>
                           {c.alternatives.map(alt => (
                             <button 
                               key={alt.id}
@@ -333,7 +340,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
                                 <span className="text-[10px] font-bold text-slate-800 uppercase tracking-tight group-hover:text-yellow-600">{alt.name}</span>
                               </div>
                               <div className="flex items-center gap-3">
-                                <span className="text-[10px] font-black text-slate-900">₴{formatPrice(alt.price)}</span>
+                                <span className="text-[10px] font-black text-slate-900">{formatPrice(alt.price)}</span>
                                 <span className="text-[9px] font-bold text-slate-400">x{alt.quantity}</span>
                                 <ChevronRight size={14} className="text-slate-200 group-hover:translate-x-1 transition-transform" />
                               </div>
@@ -349,8 +356,8 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
                   <div className="bg-slate-950 p-10 rounded-[3rem] text-center text-white shadow-2xl relative overflow-hidden group">
                     <div className="absolute top-0 right-0 w-40 h-40 bg-yellow-400/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
                     <div className="relative z-10">
-                       <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] mb-4">Загальний бюджет</div>
-                       <div className="text-4xl font-black text-yellow-400 mb-8 tracking-tighter">₴{formatPrice(totalPrice)}</div>
+                       <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] mb-4">Total Budget</div>
+                       <div className="text-4xl font-black text-yellow-400 mb-8 tracking-tighter">{formatPrice(totalPrice)}</div>
                        <button 
                          onClick={() => {
                            const selectedParts = activeComponents.map(ac => ({
@@ -370,24 +377,12 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
                              stock: 1,
                              features: activeComponents.map(ac => ac.name)
                            }, selectedParts);
-                           addNotification('Систему додано до кошика', 'success');
+                           addNotification('System added to cart', 'success');
                          }}
                          className="w-full bg-yellow-400 text-yellow-950 py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white transition-all shadow-xl active:scale-95"
                        >
-                         У кошик
+                         Add System to Cart
                        </button>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-emerald-50 p-6 rounded-[2.5rem] border border-emerald-100 flex gap-4 items-start">
-                    <div className="bg-emerald-600 p-2.5 rounded-xl text-white shadow-lg">
-                      <Activity size={18} />
-                    </div>
-                    <div>
-                      <span className="font-black text-[9px] text-emerald-900 uppercase tracking-widest block mb-1">Грунтування на складі</span>
-                      <p className="text-[9px] text-emerald-700 font-bold leading-relaxed uppercase">
-                        AI врахував технічні параметри {products.length} товарів для підбору сумісного обладнання.
-                      </p>
                     </div>
                   </div>
                 </div>

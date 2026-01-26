@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Product, Category, ProductSpec, ProductDoc, KitComponent, Alternative } from '../../types';
 
 const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?q=80&w=400&auto=format&fit=crop';
@@ -24,6 +25,7 @@ export const AdminPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'kits' | 'products'>('kits');
   const { products, addProduct, updateProduct, deleteProduct, categories } = useProducts();
   const { addNotification } = useNotification();
+  const { formatPrice } = useLanguage();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
@@ -60,14 +62,35 @@ export const AdminPanel: React.FC = () => {
     }
   }, [formData.kitComponents, isKitMode]);
 
+  const safeJsonParse = (val: any) => {
+    if (val === null || val === undefined) return [];
+    if (Array.isArray(val)) return val;
+    if (typeof val !== 'string' || val.trim() === '') return [];
+    try { 
+      const parsed = JSON.parse(val);
+      return Array.isArray(parsed) ? parsed : [];
+    }
+    catch (e) { 
+      console.warn('[Admin Guard] Failed to parse JSON:', val);
+      return []; 
+    }
+  };
+
   const handleOpenModal = (product?: Product, defaultCategory: Category = 'Inverters') => {
     if (product) {
       setEditingProduct(product);
       
-      // Допоміжна функція для приведення specs/docs до рядка JSON для редактора
       const stringifyField = (field: any) => {
         if (!field) return '[]';
-        if (typeof field === 'string') return field;
+        if (typeof field === 'string') {
+          // If it's already a string, check if it's valid JSON
+          try { 
+            const parsed = JSON.parse(field); 
+            return Array.isArray(parsed) ? field : '[]';
+          } 
+          catch { return '[]'; }
+        }
+        // If it's an object/array, stringify it
         return JSON.stringify(field);
       };
 
@@ -96,11 +119,6 @@ export const AdminPanel: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const safeFormatPrice = (price: any) => {
-    const num = Number(price || 0);
-    return isNaN(num) ? '0' : num.toLocaleString();
-  };
-
   const getSafeImage = (img: string | null | undefined) => {
     if (!img || typeof img !== 'string' || img.trim() === '') return null;
     return img;
@@ -113,21 +131,25 @@ export const AdminPanel: React.FC = () => {
   };
 
   const handleJsonListAdd = (field: 'specs' | 'docs', newItem: any) => {
-    const list = JSON.parse(formData[field] || '[]');
+    const list = safeJsonParse(formData[field]);
     list.push(newItem);
     setFormData({ ...formData, [field]: JSON.stringify(list) });
   };
 
   const handleJsonListRemove = (field: 'specs' | 'docs', index: number) => {
-    const list = JSON.parse(formData[field] || '[]');
-    list.splice(index, 1);
-    setFormData({ ...formData, [field]: JSON.stringify(list) });
+    const list = safeJsonParse(formData[field]);
+    if (index >= 0 && index < list.length) {
+      list.splice(index, 1);
+      setFormData({ ...formData, [field]: JSON.stringify(list) });
+    }
   };
 
   const handleJsonListUpdate = (field: 'specs' | 'docs', index: number, key: string, val: string) => {
-    const list = JSON.parse(formData[field] || '[]');
-    list[index][key] = val;
-    setFormData({ ...formData, [field]: JSON.stringify(list) });
+    const list = safeJsonParse(formData[field]);
+    if (list[index]) {
+      list[index][key] = val;
+      setFormData({ ...formData, [field]: JSON.stringify(list) });
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -206,7 +228,7 @@ export const AdminPanel: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-8">
-                    <div className="text-right"><div className="text-xl font-black text-slate-900 tracking-tighter">₴{safeFormatPrice(kit.price)}</div></div>
+                    <div className="text-right"><div className="text-xl font-black text-slate-900 tracking-tighter">{formatPrice(kit.price || 0)}</div></div>
                     <div className="flex gap-2">
                       <button onClick={() => handleOpenModal(kit)} className="p-3 bg-slate-100 text-slate-500 hover:bg-slate-900 hover:text-white rounded-xl transition-all shadow-sm"><Edit size={16} /></button>
                       <button onClick={() => deleteProduct(kit.id)} className="p-3 bg-slate-100 text-slate-500 hover:bg-red-500 hover:text-white rounded-xl transition-all shadow-sm"><Trash2 size={16} /></button>
@@ -232,7 +254,7 @@ export const AdminPanel: React.FC = () => {
                     <th className="px-10 py-5">Товар</th>
                     <th className="px-10 py-5">Категорія</th>
                     <th className="px-10 py-5">Статус</th>
-                    <th className="px-10 py-5">Ціна</th>
+                    <th className="px-10 py-5">Ціна (Base: USD)</th>
                     <th className="px-10 py-5 text-right">Дії</th>
                   </tr>
                </thead>
@@ -260,7 +282,7 @@ export const AdminPanel: React.FC = () => {
                             {isHidden ? 'Неактивний' : 'Активний'}
                           </span>
                         </td>
-                        <td className="px-10 py-5 font-black text-slate-900">₴{safeFormatPrice(p.price)}</td>
+                        <td className="px-10 py-5 font-black text-slate-900">{formatPrice(p.price)}</td>
                         <td className="px-10 py-5 text-right flex justify-end gap-2">
                           <button onClick={() => handleOpenModal(p)} className="p-2 text-slate-300 hover:text-slate-900 transition-colors"><Edit size={16}/></button>
                           <button onClick={() => deleteProduct(p.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
@@ -325,7 +347,7 @@ export const AdminPanel: React.FC = () => {
                   
                   <div className="space-y-8">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Вартість (₴)</label>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Вартість (Base: USD)</label>
                       <input 
                         type="number" 
                         required 
@@ -371,7 +393,6 @@ export const AdminPanel: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 border-t border-slate-100 pt-10">
-                  {/* Technical Specifications Editor */}
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
                       <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
@@ -386,7 +407,7 @@ export const AdminPanel: React.FC = () => {
                       </button>
                     </div>
                     <div className="space-y-3">
-                      {JSON.parse(formData.specs || '[]').map((spec: ProductSpec, idx: number) => (
+                      {safeJsonParse(formData.specs).map((spec: ProductSpec, idx: number) => (
                         <div key={idx} className="flex gap-2 items-center">
                           <input 
                             value={spec.label} 
@@ -412,7 +433,6 @@ export const AdminPanel: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Documentation Editor */}
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
                       <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
@@ -427,7 +447,7 @@ export const AdminPanel: React.FC = () => {
                       </button>
                     </div>
                     <div className="space-y-3">
-                      {JSON.parse(formData.docs || '[]').map((doc: ProductDoc, idx: number) => (
+                      {safeJsonParse(formData.docs).map((doc: ProductDoc, idx: number) => (
                         <div key={idx} className="space-y-2 p-4 bg-slate-50 rounded-2xl border border-slate-100 relative group/doc">
                           <button 
                             type="button" 
@@ -482,7 +502,7 @@ export const AdminPanel: React.FC = () => {
                                   }} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-[11px] font-black uppercase" placeholder="Гібридний інвертор" />
                                </div>
                                <div className="w-32">
-                                  <label className="text-[7px] font-black text-slate-400 uppercase block mb-2">Ціна (₴)</label>
+                                  <label className="text-[7px] font-black text-slate-400 uppercase block mb-2">Ціна (USD)</label>
                                   <input type="number" value={comp.price} onChange={e => {
                                      const comps = [...(formData.kitComponents || [])];
                                      comps[compIdx].price = Number(e.target.value);

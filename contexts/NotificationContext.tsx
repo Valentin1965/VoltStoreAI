@@ -34,11 +34,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   return (
     <NotificationContext.Provider value={{ addNotification }}>
       {children}
-      <div className="fixed bottom-8 right-8 z-[10000] flex flex-col gap-4 max-w-md w-full">
+      <div className="fixed bottom-8 right-8 z-[10000] flex flex-col gap-4 max-w-md w-full pointer-events-none">
         {notifications.map(n => (
           <div
             key={n.id}
-            className={`flex items-center gap-4 p-5 rounded-3xl backdrop-blur-xl border shadow-[0_20px_50px_rgba(0,0,0,0.2)] animate-fade-in transition-all group ${
+            className={`flex items-center gap-4 p-5 rounded-3xl backdrop-blur-xl border shadow-[0_20px_50px_rgba(0,0,0,0.2)] animate-fade-in transition-all group pointer-events-auto ${
               n.type === 'success' 
                 ? 'bg-emerald-500/90 border-emerald-400/50 text-white' 
                 : n.type === 'error' 
@@ -67,6 +67,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
 export const useNotification = () => {
   const context = useContext(NotificationContext);
-  if (!context) throw new Error('useNotification must be used within NotificationProvider');
+  // Fail-safe mechanism: return a dummy function instead of crashing the app
+  if (!context) {
+    return {
+      addNotification: (message: string, type: NotificationType) => {
+        console.warn('[Notification Guard] Provider not ready yet. Notification deferred:', message);
+      }
+    };
+  }
   return context;
 };

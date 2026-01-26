@@ -6,7 +6,8 @@ export enum AppView {
   ADMIN = 'admin',
   CALCULATOR = 'calculator',
   WISHLIST = 'wishlist',
-  COMPARE = 'compare'
+  COMPARE = 'compare',
+  ABOUT = 'about'
 }
 
 export type Category = 'Charging Stations' | 'Inverters' | 'Batteries' | 'Solar Panels' | 'Kits';

@@ -1,8 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
-import { Mic, MicOff, X, Zap, Loader2 } from 'lucide-react';
+import { Mic, MicOff, X, Zap, Loader2, ShieldAlert } from 'lucide-react';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 function decode(base64: string) {
   const binaryString = atob(base64);
@@ -60,12 +61,22 @@ export const LiveAssistant: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [transcription, setTranscription] = useState<string[]>([]);
   const { addNotification } = useNotification();
+  const { isApiRestricted, language } = useLanguage();
   
   const audioContextsRef = useRef<{ input: AudioContext; output: AudioContext } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const nextStartTimeRef = useRef<number>(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const sessionRef = useRef<any>(null);
+
+  const getFullLanguageName = (langCode: string) => {
+    switch (langCode) {
+      case 'da': return 'Danish (Dansk)';
+      case 'no': return 'Norwegian (Norsk)';
+      case 'sv': return 'Swedish (Svenska)';
+      default: return 'English';
+    }
+  };
 
   const stopSession = () => {
     if (sessionRef.current) {
@@ -90,6 +101,11 @@ export const LiveAssistant: React.FC = () => {
   };
 
   const startSession = async () => {
+    if (isApiRestricted) {
+      addNotification("Service Restricted: AI Key unavailable.", "error");
+      return;
+    }
+
     setIsConnecting(true);
     try {
       const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
@@ -101,6 +117,8 @@ export const LiveAssistant: React.FC = () => {
 
       const apiKey = process.env.API_KEY;
       const ai = new GoogleGenAI({ apiKey });
+      const currentLangName = getFullLanguageName(language);
+
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
@@ -139,23 +157,8 @@ export const LiveAssistant: React.FC = () => {
               const text = message.serverContent.outputTranscription.text;
               setTranscription(prev => [...prev, text]);
             }
-
-            if (message.serverContent?.interrupted) {
-              for (const source of sourcesRef.current) {
-                try { source.stop(); } catch (e) {}
-              }
-              sourcesRef.current.clear();
-              nextStartTimeRef.current = 0;
-            }
           },
           onerror: (e: any) => {
-            console.error("Live AI Error:", e);
-            const errStr = JSON.stringify(e).toLowerCase();
-            if (errStr.includes('403') || errStr.includes('leaked') || errStr.includes('permission_denied')) {
-              addNotification("SECURITY: Ваш ключ Gemini заблоковано через витік. Перевірте консоль.", "error");
-            } else if (errStr.includes('503') || errStr.includes('overloaded') || errStr.includes('unavailable')) {
-              addNotification("AI OVERLOADED: Голосовий сервер перевантажено. Спробуйте пізніше.", "error");
-            }
             stopSession();
           },
           onclose: () => stopSession(),
@@ -166,19 +169,12 @@ export const LiveAssistant: React.FC = () => {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
           },
           outputAudioTranscription: {},
-          systemInstruction: 'You are an intelligent assistant for VoltStore. Help customers select the right energy equipment (inverters, batteries, solar panels). Respond in English.',
+          systemInstruction: `You are an intelligent assistant for VoltStore Solar Distribution. Help customers select the right energy equipment. IMPORTANT: ALWAYS respond in ${currentLangName} language. Even if they speak to you in another language, politely guide them using ${currentLangName}.`,
         }
       });
 
       sessionRef.current = await sessionPromise;
     } catch (err: any) {
-      console.error("Failed to connect Live Assistant:", err);
-      const errStr = String(err).toLowerCase();
-      if (errStr.includes('403') || errStr.includes('leaked') || errStr.includes('permission_denied')) {
-        addNotification("ПОМИЛКА КЛЮЧА: API ключ Gemini позначено як скомпрометований.", "error");
-      } else if (errStr.includes('503') || errStr.includes('overloaded') || errStr.includes('unavailable')) {
-        addNotification("СЕРВЕР ПЕРЕВАНТАЖЕНО: Голосовий AI наразі недоступний.", "error");
-      }
       stopSession();
     }
   };
@@ -192,10 +188,10 @@ export const LiveAssistant: React.FC = () => {
       {!isOpen ? (
         <button 
           onClick={() => setIsOpen(true)}
-          className="bg-slate-900 text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-all flex items-center gap-2 group"
+          className={`p-4 rounded-full shadow-2xl hover:scale-110 transition-all flex items-center gap-2 group ${isApiRestricted ? 'bg-slate-400' : 'bg-slate-900'} text-white`}
         >
-          <div className="bg-yellow-400 p-1.5 rounded-full group-hover:rotate-12 transition-transform">
-            <Zap size={18} className="text-yellow-950 fill-yellow-950" />
+          <div className={`${isApiRestricted ? 'bg-slate-300' : 'bg-yellow-400'} p-1.5 rounded-full group-hover:rotate-12 transition-transform`}>
+            {isApiRestricted ? <ShieldAlert size={18} className="text-slate-600" /> : <Zap size={18} className="text-yellow-950 fill-yellow-950" />}
           </div>
           <span className="font-bold text-xs pr-2">AI Assistant</span>
         </button>
@@ -212,31 +208,42 @@ export const LiveAssistant: React.FC = () => {
           </div>
           
           <div className="p-6 h-64 overflow-y-auto flex flex-col gap-3 bg-slate-50/50">
-            {transcription.length === 0 && !isConnecting && (
-              <p className="text-[10px] text-slate-400 text-center font-bold mt-12 px-4 leading-relaxed uppercase tracking-widest">
-                Hello! Click the button below to start a voice consultation.
-              </p>
+            {isApiRestricted ? (
+               <div className="flex flex-col items-center justify-center h-full text-center gap-4 px-4">
+                  <ShieldAlert className="text-slate-300" size={40} />
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
+                    AI features restricted.
+                  </p>
+               </div>
+            ) : (
+              <>
+                {transcription.length === 0 && !isConnecting && (
+                  <p className="text-[10px] text-slate-400 text-center font-bold mt-12 px-4 leading-relaxed uppercase tracking-widest">
+                    Hello! Click the button below to start a voice consultation in {getFullLanguageName(language)}.
+                  </p>
+                )}
+                {isConnecting && (
+                  <div className="flex flex-col items-center justify-center h-full gap-3">
+                    <Loader2 className="animate-spin text-yellow-500" size={24} />
+                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em]">Connecting...</p>
+                  </div>
+                )}
+                {transcription.map((t, i) => (
+                  <div key={i} className="bg-white p-4 rounded-2xl text-[11px] font-medium text-slate-700 shadow-sm border border-slate-100 animate-fade-in leading-relaxed">
+                    {t}
+                  </div>
+                ))}
+              </>
             )}
-            {isConnecting && (
-              <div className="flex flex-col items-center justify-center h-full gap-3">
-                <Loader2 className="animate-spin text-yellow-500" size={24} />
-                <p className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em]">Connecting...</p>
-              </div>
-            )}
-            {transcription.map((t, i) => (
-              <div key={i} className="bg-white p-4 rounded-2xl text-[11px] font-medium text-slate-700 shadow-sm border border-slate-100 animate-fade-in leading-relaxed">
-                {t}
-              </div>
-            ))}
           </div>
 
           <div className="p-6 bg-white border-t border-slate-100 flex justify-center">
             <button 
+              disabled={isConnecting || isApiRestricted}
               onClick={isActive ? stopSession : startSession}
-              disabled={isConnecting}
               className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-xl active:scale-90 ${
                 isActive ? 'bg-red-500 text-white animate-pulse' : 'bg-yellow-400 text-yellow-950 hover:bg-yellow-500'
-              } disabled:opacity-50`}
+              } disabled:opacity-30 disabled:grayscale`}
             >
               {isActive ? <MicOff size={20} /> : <Mic size={20} />}
             </button>

@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useCart } from '../../contexts/CartContext';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { ChevronLeft, Truck, CreditCard, CheckCircle2, MapPin, Loader2 } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 
@@ -13,6 +14,7 @@ interface CheckoutPageProps {
 export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrderSuccess }) => {
   const { items, totalPrice, totalItems, clearCart } = useCart();
   const { addNotification } = useNotification();
+  const { formatPrice } = useLanguage();
   const [step, setStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [formData, setFormData] = useState({
@@ -183,7 +185,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
                 <div className="relative z-10 flex justify-between items-center">
                   <div>
                     <div className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Total to Pay</div>
-                    <div className="text-4xl font-black text-yellow-400">₴{totalPrice.toLocaleString()}</div>
+                    <div className="text-4xl font-black text-yellow-400">{formatPrice(totalPrice)}</div>
                   </div>
                   <div className="text-right">
                     <div className="text-xs text-slate-400 font-black uppercase mb-1">Items</div>

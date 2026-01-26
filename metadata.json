@@ -1,6 +1,7 @@
+
 {
-  "name": "Voltstore Pro",
-  "description": "High-performance power equipment store featuring AI-driven tools and modern logistics.",
+  "name": "Green Light Solar",
+  "description": "Professional solar distribution group providing high-performance energy solutions and AI-driven support.",
   "requestFramePermissions": [
     "microphone"
   ]
