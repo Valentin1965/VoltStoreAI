@@ -4,6 +4,14 @@ import { translations, TranslationKey } from '../utils/translations';
 import { GoogleGenAI } from "@google/genai";
 import { useNotification } from './NotificationContext';
 
+declare global {
+  interface Window {
+    // Fix: Use 'any' to resolve "Subsequent property declarations must have the same type" error 
+    // when clashing with an existing global AIStudio type.
+    aistudio?: any;
+  }
+}
+
 export type Language = 'en' | 'da' | 'no' | 'sv';
 
 interface ExchangeRates {
@@ -20,7 +28,7 @@ const FALLBACK_RATES: ExchangeRates = {
   SEK: 10.42
 };
 
-interface LanguageContextType {
+export interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: (key: TranslationKey) => string;
@@ -30,6 +38,7 @@ interface LanguageContextType {
   isLoadingRates: boolean;
   refreshRates: () => Promise<void>;
   isApiRestricted: boolean;
+  checkAndPromptKey: () => Promise<boolean>;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -44,7 +53,22 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isApiRestricted, setIsApiRestricted] = useState(false);
   
   const isKeyBlocked = useRef(false);
-  const hasNotifiedSecurity = useRef(false);
+
+  const checkAndPromptKey = useCallback(async () => {
+    if (typeof window.aistudio?.hasSelectedApiKey === 'function') {
+      const hasKey = await window.aistudio.hasSelectedApiKey();
+      if (!hasKey) {
+        if (typeof window.aistudio?.openSelectKey === 'function') {
+          await window.aistudio.openSelectKey();
+          // Reset internal restricted state after prompting for a new key
+          setIsApiRestricted(false);
+          isKeyBlocked.current = false;
+          return true;
+        }
+      }
+    }
+    return true;
+  }, []);
 
   const fetchExchangeRates = useCallback(async () => {
     const apiKey = process.env.API_KEY;
@@ -77,18 +101,14 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const errStr = String(err).toLowerCase();
       console.warn('[Currency Service] AI fetch unavailable:', errStr);
       
-      if (errStr.includes('leaked') || errStr.includes('403') || errStr.includes('permission_denied')) {
+      if (errStr.includes('leaked') || errStr.includes('403') || errStr.includes('permission_denied') || errStr.includes('not found')) {
         isKeyBlocked.current = true;
         setIsApiRestricted(true);
-        if (!hasNotifiedSecurity.current) {
-          addNotification("Service: Using fixed exchange rates.", "info");
-          hasNotifiedSecurity.current = true;
-        }
       }
     } finally {
       setIsLoadingRates(false);
     }
-  }, [addNotification]);
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(fetchExchangeRates, 1500);
@@ -130,14 +150,15 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       currencyCode,
       isLoadingRates,
       refreshRates: fetchExchangeRates,
-      isApiRestricted
+      isApiRestricted,
+      checkAndPromptKey
     }}>
       {children}
     </LanguageContext.Provider>
   );
 };
 
-export const useLanguage = () => {
+export const useLanguage = (): LanguageContextType => {
   const context = useContext(LanguageContext);
   if (!context) throw new Error('useLanguage must be used within LanguageProvider');
   return context;
