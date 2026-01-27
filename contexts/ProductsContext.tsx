@@ -22,12 +22,9 @@ export interface ProductsContextType {
 
 const ProductsContext = createContext<ProductsContextType | undefined>(undefined);
 
-// Допоміжна функція для очищення об'єкта перед записом у БД
 const sanitizeForDb = (product: any) => {
   const { kitComponents, id, created_at, ...cleanProduct } = product;
   
-  // Якщо база даних jsonb, ми можемо передавати масиви прямо. 
-  // Але для надійності переконуємось, що це або масив, або розпарсений об'єкт.
   if (typeof cleanProduct.specs === 'string') {
     try { cleanProduct.specs = JSON.parse(cleanProduct.specs); } catch { cleanProduct.specs = []; }
   }
@@ -45,19 +42,24 @@ const sanitizeForDb = (product: any) => {
 export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [dbProducts, setDbProducts] = useState<Product[]>([]);
   const [localKits, setLocalKits] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('voltstore_local_kits');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('voltstore_local_kits');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
   });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  
   const { addNotification } = useNotification();
   const { language } = useLanguage();
 
   const products = useMemo(() => [...localKits, ...dbProducts], [localKits, dbProducts]);
 
   useEffect(() => {
-    localStorage.setItem('voltstore_local_kits', JSON.stringify(localKits));
+    try {
+      localStorage.setItem('voltstore_local_kits', JSON.stringify(localKits));
+    } catch (e) {}
   }, [localKits]);
 
   const fetchProducts = async () => {
@@ -95,10 +97,8 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return products.filter(p => {
       const isActive = p.is_active !== false;
       const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
-      
-      const productName = getLocalizedValue(p.name, language);
+      const productName = getLocalizedValue(p.name, language || 'en');
       const matchesSearch = productName.toLowerCase().includes(searchQuery.toLowerCase());
-      
       return isActive && matchesCategory && matchesSearch;
     });
   }, [selectedCategory, searchQuery, products, language]);
@@ -176,23 +176,21 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  const contextValue: ProductsContextType = {
-    products,
-    isLoading,
-    categories: ['Charging Stations', 'Inverters', 'Batteries', 'Solar Panels', 'Kits'],
-    selectedCategory,
-    setSelectedCategory,
-    searchQuery,
-    setSearchQuery,
-    filteredProducts,
-    fetchProducts,
-    addProduct,
-    updateProduct,
-    deleteProduct
-  };
-
   return (
-    <ProductsContext.Provider value={contextValue}>
+    <ProductsContext.Provider value={{
+      products,
+      isLoading,
+      categories: ['Charging Stations', 'Inverters', 'Batteries', 'Solar Panels', 'Kits'],
+      selectedCategory,
+      setSelectedCategory,
+      searchQuery,
+      setSearchQuery,
+      filteredProducts,
+      fetchProducts,
+      addProduct,
+      updateProduct,
+      deleteProduct
+    }}>
       {children}
     </ProductsContext.Provider>
   );

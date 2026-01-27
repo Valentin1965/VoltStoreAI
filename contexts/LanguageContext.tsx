@@ -5,14 +5,10 @@ import { GoogleGenAI } from "@google/genai";
 import { useNotification } from './NotificationContext';
 
 declare global {
-  /**
-   * AIStudio interface for global window object tracking.
-   */
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
   }
-
   interface Window {
     aistudio?: AIStudio;
   }
@@ -47,31 +43,55 @@ export interface LanguageContextType {
   checkAndPromptKey: () => Promise<boolean>;
 }
 
-const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
+// Повноцінний об'єкт за замовчуванням. 
+// Якщо хук викликається поза провайдером, додаток все одно працюватиме.
+const DEFAULT_VALUE: LanguageContextType = {
+  language: 'en',
+  setLanguage: () => console.warn('LanguageProvider not found'),
+  t: (key) => {
+    const translationSet = translations['en'] || {};
+    return (translationSet as any)[key] || key;
+  },
+  formatPrice: (p) => `$${(p || 0).toLocaleString()}`,
+  currencySymbol: '$',
+  currencyCode: 'USD',
+  isLoadingRates: false,
+  refreshRates: async () => {},
+  isApiRestricted: false,
+  checkAndPromptKey: async () => true
+};
+
+const LanguageContext = createContext<LanguageContextType>(DEFAULT_VALUE);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { addNotification } = useNotification();
+  const notification = useNotification();
   const [language, setLanguageState] = useState<Language>(() => {
-    return (localStorage.getItem('voltstore_lang') as Language) || 'en';
+    try {
+      return (localStorage.getItem('voltstore_lang') as Language) || 'en';
+    } catch {
+      return 'en';
+    }
   });
+  
   const [rates, setRates] = useState<ExchangeRates>(FALLBACK_RATES);
   const [isLoadingRates, setIsLoadingRates] = useState(false);
   const [isApiRestricted, setIsApiRestricted] = useState(false);
-  
   const isKeyBlocked = useRef(false);
 
-  // Fix: Triggering openSelectKey handles the mandatory step for user-selected keys
   const checkAndPromptKey = useCallback(async () => {
     if (typeof window.aistudio?.hasSelectedApiKey === 'function') {
-      const hasKey = await window.aistudio.hasSelectedApiKey();
-      if (!hasKey) {
-        if (typeof window.aistudio?.openSelectKey === 'function') {
-          await window.aistudio.openSelectKey();
-          // Reset internal restricted state after prompting for a new key
-          setIsApiRestricted(false);
-          isKeyBlocked.current = false;
-          return true;
+      try {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          if (typeof window.aistudio?.openSelectKey === 'function') {
+            await window.aistudio.openSelectKey();
+            setIsApiRestricted(false);
+            isKeyBlocked.current = false;
+            return true;
+          }
         }
+      } catch (e) {
+        console.error("API Key check error", e);
       }
     }
     return true;
@@ -85,7 +105,6 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     setIsLoadingRates(true);
     try {
-      // Create a new GoogleGenAI instance right before making an API call to ensure it uses the up-to-date key
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -96,7 +115,6 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       });
 
-      // Use the .text property directly instead of a method call
       const data = JSON.parse(response.text || '{}');
       if (data.DKK && data.NOK && data.SEK) {
         setRates({
@@ -108,9 +126,6 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     } catch (err: any) {
       const errStr = String(err).toLowerCase();
-      console.warn('[Currency Service] AI fetch unavailable:', errStr);
-      
-      // Handle cases where the entity was not found by prompting key selection again
       if (errStr.includes('leaked') || errStr.includes('403') || errStr.includes('permission_denied') || errStr.includes('not found')) {
         isKeyBlocked.current = true;
         setIsApiRestricted(true);
@@ -121,7 +136,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(fetchExchangeRates, 1500);
+    const timer = setTimeout(fetchExchangeRates, 2000);
     const interval = setInterval(fetchExchangeRates, 3600000);
     return () => {
       clearTimeout(timer);
@@ -131,19 +146,23 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem('voltstore_lang', lang);
+    try {
+      localStorage.setItem('voltstore_lang', lang);
+    } catch (e) {}
   };
 
   const t = (key: TranslationKey): string => {
-    return translations[language][key] || translations['en'][key] || key;
+    const translationSet = translations[language] || translations['en'];
+    return (translationSet as any)[key] || (translations['en'] as any)[key] || key;
   };
 
-  const currencyCode = translations[language].currency_code;
-  const currencySymbol = translations[language].currency_symbol;
+  const currentLangTranslations = translations[language] || translations['en'];
+  const currencyCode = currentLangTranslations.currency_code;
+  const currencySymbol = currentLangTranslations.currency_symbol;
   const currentRate = rates[currencyCode as keyof ExchangeRates] || FALLBACK_RATES[currencyCode as keyof ExchangeRates] || 1.0;
 
   const formatPrice = (priceInUSD: number): string => {
-    const converted = priceInUSD * currentRate;
+    const converted = (priceInUSD || 0) * currentRate;
     return `${currencySymbol}${converted.toLocaleString(language === 'en' ? 'en-US' : 'de-DE', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
@@ -168,8 +187,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   );
 };
 
+// Абсолютно безпечний хук: завжди повертає об'єкт, ніколи не викидає помилку
 export const useLanguage = (): LanguageContextType => {
-  const context = useContext(LanguageContext);
-  if (!context) throw new Error('useLanguage must be used within LanguageProvider');
-  return context;
+  return useContext(LanguageContext) || DEFAULT_VALUE;
 };
