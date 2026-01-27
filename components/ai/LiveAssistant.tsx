@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
-import { Mic, MicOff, X, Zap, Loader2, ShieldAlert } from 'lucide-react';
+import { Mic, MicOff, X, Zap, Loader2, ShieldAlert, Key, Send } from 'lucide-react';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -59,15 +59,24 @@ export const LiveAssistant: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isActive, setIsActive] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isGeneratingText, setIsGeneratingText] = useState(false);
+  const [textInput, setTextInput] = useState('');
   const [transcription, setTranscription] = useState<string[]>([]);
   const { addNotification } = useNotification();
-  const { isApiRestricted, language } = useLanguage();
+  const { isApiRestricted, language, checkAndPromptKey } = useLanguage();
   
   const audioContextsRef = useRef<{ input: AudioContext; output: AudioContext } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const nextStartTimeRef = useRef<number>(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const sessionRef = useRef<any>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [transcription]);
 
   const getFullLanguageName = (langCode: string) => {
     switch (langCode) {
@@ -75,6 +84,39 @@ export const LiveAssistant: React.FC = () => {
       case 'no': return 'Norwegian (Norsk)';
       case 'sv': return 'Swedish (Svenska)';
       default: return 'English';
+    }
+  };
+
+  const handleTextSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!textInput.trim() || isGeneratingText || isApiRestricted) return;
+
+    const userMsg = textInput.trim();
+    setTextInput('');
+    setTranscription(prev => [...prev, `Q: ${userMsg}`]);
+    setIsGeneratingText(true);
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const currentLangName = getFullLanguageName(language);
+      
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: userMsg,
+        config: {
+          systemInstruction: `You are an intelligent assistant for VoltStore Solar Distribution. Help customers select the right energy equipment. ALWAYS respond in ${currentLangName} language.`,
+        }
+      });
+
+      const aiText = response.text;
+      if (aiText) {
+        setTranscription(prev => [...prev, aiText]);
+      }
+    } catch (err) {
+      console.error("Text AI Error:", err);
+      addNotification("Помилка при відправці запиту", "error");
+    } finally {
+      setIsGeneratingText(false);
     }
   };
 
@@ -102,7 +144,8 @@ export const LiveAssistant: React.FC = () => {
 
   const startSession = async () => {
     if (isApiRestricted) {
-      addNotification("Service Restricted: AI Key unavailable.", "error");
+      addNotification("The current API key is restricted or leaked. Please select a valid key.", "error");
+      await checkAndPromptKey();
       return;
     }
 
@@ -159,6 +202,10 @@ export const LiveAssistant: React.FC = () => {
             }
           },
           onerror: (e: any) => {
+            const errStr = String(e).toLowerCase();
+            if (errStr.includes('leaked') || errStr.includes('403')) {
+               addNotification("API Key Blocked: Please select your own API Key.", "error");
+            }
             stopSession();
           },
           onclose: () => stopSession(),
@@ -175,6 +222,7 @@ export const LiveAssistant: React.FC = () => {
 
       sessionRef.current = await sessionPromise;
     } catch (err: any) {
+      console.error("Live AI Error:", err);
       stopSession();
     }
   };
@@ -188,65 +236,101 @@ export const LiveAssistant: React.FC = () => {
       {!isOpen ? (
         <button 
           onClick={() => setIsOpen(true)}
-          className={`p-4 rounded-full shadow-2xl hover:scale-110 transition-all flex items-center gap-2 group ${isApiRestricted ? 'bg-slate-400' : 'bg-slate-900'} text-white`}
+          className={`p-4 rounded-full shadow-2xl hover:scale-110 transition-all flex items-center gap-2 group ${isApiRestricted ? 'bg-rose-500' : 'bg-slate-900'} text-white`}
         >
-          <div className={`${isApiRestricted ? 'bg-slate-300' : 'bg-yellow-400'} p-1.5 rounded-full group-hover:rotate-12 transition-transform`}>
-            {isApiRestricted ? <ShieldAlert size={18} className="text-slate-600" /> : <Zap size={18} className="text-yellow-950 fill-yellow-950" />}
+          <div className={`${isApiRestricted ? 'bg-rose-100' : 'bg-yellow-400'} p-1.5 rounded-full group-hover:rotate-12 transition-transform`}>
+            {isApiRestricted ? <ShieldAlert size={18} className="text-rose-600" /> : <Zap size={18} className="text-yellow-950 fill-yellow-950" />}
           </div>
-          <span className="font-bold text-xs pr-2">AI Assistant</span>
+          <span className="font-bold text-xs pr-2">{isApiRestricted ? 'Блоковано' : 'Питання?'}</span>
         </button>
       ) : (
-        <div className="bg-white w-80 rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden animate-fade-in">
-          <div className="bg-slate-900 p-6 flex justify-between items-center text-white">
+        <div className="bg-white w-80 rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden animate-fade-in flex flex-col">
+          <div className="bg-slate-900 p-6 flex justify-between items-center text-white shrink-0">
             <div className="flex items-center gap-2">
               <div className="bg-yellow-400 p-1 rounded-lg">
                 <Zap size={14} className="text-slate-900 fill-slate-900" />
               </div>
-              <span className="font-black text-[10px] uppercase tracking-widest">Volt Voice AI</span>
+              <span className="font-black text-[10px] uppercase tracking-widest">Volt Assistant</span>
             </div>
             <button onClick={() => { stopSession(); setIsOpen(false); }} className="text-slate-400 hover:text-white transition-colors"><X size={18}/></button>
           </div>
           
-          <div className="p-6 h-64 overflow-y-auto flex flex-col gap-3 bg-slate-50/50">
+          <div ref={scrollRef} className="p-6 h-64 overflow-y-auto flex flex-col gap-3 bg-slate-50/50 custom-scrollbar">
             {isApiRestricted ? (
                <div className="flex flex-col items-center justify-center h-full text-center gap-4 px-4">
-                  <ShieldAlert className="text-slate-300" size={40} />
+                  <ShieldAlert className="text-rose-400" size={40} />
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
-                    AI features restricted.
+                    API ключ заблоковано. <br/>
+                    Використовуйте власний ключ.
                   </p>
+                  <button 
+                    onClick={() => checkAndPromptKey()}
+                    className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all"
+                  >
+                    <Key size={14} /> Обрати ключ
+                  </button>
                </div>
             ) : (
               <>
-                {transcription.length === 0 && !isConnecting && (
+                {transcription.length === 0 && !isConnecting && !isGeneratingText && (
                   <p className="text-[10px] text-slate-400 text-center font-bold mt-12 px-4 leading-relaxed uppercase tracking-widest">
-                    Hello! Click the button below to start a voice consultation in {getFullLanguageName(language)}.
+                    Вітаю! Напишіть запитання або скористайтеся голосовим зв'язком.
                   </p>
                 )}
                 {isConnecting && (
                   <div className="flex flex-col items-center justify-center h-full gap-3">
                     <Loader2 className="animate-spin text-yellow-500" size={24} />
-                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em]">Connecting...</p>
+                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em]">З'єднання...</p>
                   </div>
                 )}
                 {transcription.map((t, i) => (
-                  <div key={i} className="bg-white p-4 rounded-2xl text-[11px] font-medium text-slate-700 shadow-sm border border-slate-100 animate-fade-in leading-relaxed">
-                    {t}
+                  <div key={i} className={`p-4 rounded-2xl text-[11px] font-medium shadow-sm border animate-fade-in leading-relaxed ${
+                    t.startsWith('Q: ') ? 'bg-emerald-50 border-emerald-100 text-emerald-900 ml-4' : 'bg-white border-slate-100 text-slate-700 mr-4'
+                  }`}>
+                    {t.replace(/^Q: /, '')}
                   </div>
                 ))}
+                {isGeneratingText && (
+                  <div className="bg-white p-4 rounded-2xl border border-slate-100 animate-pulse flex items-center gap-2">
+                    <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce"></div>
+                    <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                    <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                  </div>
+                )}
               </>
             )}
           </div>
 
-          <div className="p-6 bg-white border-t border-slate-100 flex justify-center">
-            <button 
-              disabled={isConnecting || isApiRestricted}
-              onClick={isActive ? stopSession : startSession}
-              className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-xl active:scale-90 ${
-                isActive ? 'bg-red-500 text-white animate-pulse' : 'bg-yellow-400 text-yellow-950 hover:bg-yellow-500'
-              } disabled:opacity-30 disabled:grayscale`}
-            >
-              {isActive ? <MicOff size={20} /> : <Mic size={20} />}
-            </button>
+          <div className="p-4 bg-white border-t border-slate-100 space-y-4">
+            <form onSubmit={handleTextSubmit} className="relative group">
+              <input 
+                type="text" 
+                value={textInput}
+                disabled={isApiRestricted || isGeneratingText}
+                onChange={(e) => setTextInput(e.target.value)}
+                placeholder="Напишіть запитання..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-4 pr-12 py-3 text-[11px] font-medium outline-none focus:border-emerald-400 focus:bg-white transition-all disabled:opacity-50"
+              />
+              <button 
+                type="submit"
+                disabled={!textInput.trim() || isGeneratingText}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-emerald-500 disabled:opacity-30 transition-colors"
+              >
+                <Send size={16} />
+              </button>
+            </form>
+
+            <div className="flex justify-center">
+              <button 
+                disabled={isConnecting || isApiRestricted || isGeneratingText}
+                onClick={isActive ? stopSession : startSession}
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-xl active:scale-90 ${
+                  isActive ? 'bg-red-500 text-white animate-pulse' : 'bg-yellow-400 text-yellow-950 hover:bg-yellow-500'
+                } disabled:opacity-30 disabled:grayscale`}
+              >
+                {isActive ? <MicOff size={18} /> : <Mic size={18} />}
+              </button>
+            </div>
           </div>
         </div>
       )}
