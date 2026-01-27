@@ -5,10 +5,16 @@ import { GoogleGenAI } from "@google/genai";
 import { useNotification } from './NotificationContext';
 
 declare global {
+  /**
+   * AIStudio interface for global window object tracking.
+   */
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
   interface Window {
-    // Fix: Use 'any' to resolve "Subsequent property declarations must have the same type" error 
-    // when clashing with an existing global AIStudio type.
-    aistudio?: any;
+    aistudio?: AIStudio;
   }
 }
 
@@ -54,6 +60,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   
   const isKeyBlocked = useRef(false);
 
+  // Fix: Triggering openSelectKey handles the mandatory step for user-selected keys
   const checkAndPromptKey = useCallback(async () => {
     if (typeof window.aistudio?.hasSelectedApiKey === 'function') {
       const hasKey = await window.aistudio.hasSelectedApiKey();
@@ -78,7 +85,8 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     setIsLoadingRates(true);
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      // Create a new GoogleGenAI instance right before making an API call to ensure it uses the up-to-date key
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: 'Return approximate exchange rates for 1 USD to: DKK, NOK, SEK. ONLY JSON: {"DKK": number, "NOK": number, "SEK": number}',
@@ -88,6 +96,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       });
 
+      // Use the .text property directly instead of a method call
       const data = JSON.parse(response.text || '{}');
       if (data.DKK && data.NOK && data.SEK) {
         setRates({
@@ -101,6 +110,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const errStr = String(err).toLowerCase();
       console.warn('[Currency Service] AI fetch unavailable:', errStr);
       
+      // Handle cases where the entity was not found by prompting key selection again
       if (errStr.includes('leaked') || errStr.includes('403') || errStr.includes('permission_denied') || errStr.includes('not found')) {
         isKeyBlocked.current = true;
         setIsApiRestricted(true);

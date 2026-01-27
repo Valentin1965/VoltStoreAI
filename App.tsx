@@ -9,6 +9,7 @@ import { Calculator } from './components/calculator/Calculator';
 import { WishlistPage } from './components/wishlist/WishlistPage';
 import { ComparePage } from './components/compare/ComparePage';
 import { AboutPage } from './components/about/AboutPage';
+import { ClientCabinet } from './components/cabinet/ClientCabinet';
 import { LiveAssistant } from './components/ai/LiveAssistant';
 import { ProductsProvider } from './contexts/ProductsContext';
 import { CartProvider } from './contexts/CartContext';
@@ -102,7 +103,13 @@ const AppContent: React.FC = () => {
       case AppView.CART:
         return <CartPage onCheckout={() => handleSetView(AppView.CHECKOUT)} />;
       case AppView.CHECKOUT:
-        return <CheckoutPage onBackToCart={() => handleSetView(AppView.CART)} onOrderSuccess={() => handleSetView(AppView.CATALOG)} />;
+        return (
+          <CheckoutPage 
+            onBackToCart={() => handleSetView(AppView.CART)} 
+            onOrderSuccess={() => handleSetView(AppView.CATALOG)} 
+            setView={handleSetView}
+          />
+        );
       case AppView.ADMIN:
         return <AdminPanel />;
       case AppView.CALCULATOR:
@@ -113,6 +120,8 @@ const AppContent: React.FC = () => {
         return <ComparePage />;
       case AppView.ABOUT:
         return <AboutPage />;
+      case AppView.CABINET:
+        return <ClientCabinet />;
       default:
         return <CatalogSection onSelectSystem={() => { setCalcMode(1); handleSetView(AppView.CALCULATOR); }} />;
     }

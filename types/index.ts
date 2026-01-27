@@ -7,7 +7,8 @@ export enum AppView {
   CALCULATOR = 'calculator',
   WISHLIST = 'wishlist',
   COMPARE = 'compare',
-  ABOUT = 'about'
+  ABOUT = 'about',
+  CABINET = 'cabinet'
 }
 
 export type Category = 'Charging Stations' | 'Inverters' | 'Batteries' | 'Solar Panels' | 'Kits';
@@ -79,15 +80,20 @@ export interface CartItem extends Product {
 
 export interface Order {
   id: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  city: string;
+  department: string;
+  total_price: number;
   items: CartItem[];
-  total: number;
-  status: 'pending' | 'shipped' | 'delivered' | 'cancelled';
-  date: string;
-  customer: {
-    name: string;
-    email: string;
-    phone: string;
-    city: string;
-    department: string;
-  };
+  payment_method: string;
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  created_at: string;
+}
+
+export interface UserStats {
+  energyGenerated: number;
+  co2Saved: number;
+  independenceScore: number;
 }
