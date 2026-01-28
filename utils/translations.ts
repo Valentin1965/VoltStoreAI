@@ -103,7 +103,8 @@ export const translations = {
     checkout_payment_delivery: "Payment & Delivery",
     checkout_saved_card: "Saved Card",
     checkout_new_address: "Custom Delivery Address",
-    checkout_profile_address: "Profile Address"
+    checkout_profile_address: "Profile Address",
+    sales_leader: "Bestseller"
   },
   da: {
     currency_symbol: "kr.",
@@ -208,7 +209,8 @@ export const translations = {
     checkout_payment_delivery: "Betaling og levering",
     checkout_saved_card: "Gemt kort",
     checkout_new_address: "Brugerdefineret adresse",
-    checkout_profile_address: "Profiladresse"
+    checkout_profile_address: "Profiladresse",
+    sales_leader: "Bedст sælgende"
   },
   no: {
     currency_symbol: "kr",
@@ -313,7 +315,8 @@ export const translations = {
     checkout_payment_delivery: "Betaling og levering",
     checkout_saved_card: "Lagret kort",
     checkout_new_address: "Egendefinert adresse",
-    checkout_profile_address: "Profiladresse"
+    checkout_profile_address: "Profiladresse",
+    sales_leader: "Bestselger"
   },
   sv: {
     currency_symbol: "kr",
@@ -418,7 +421,8 @@ export const translations = {
     checkout_payment_delivery: "Betalning och leverans",
     checkout_saved_card: "Sparat kort",
     checkout_new_address: "Egen adress",
-    checkout_profile_address: "Profiladress"
+    checkout_profile_address: "Profiladresse",
+    sales_leader: "Storsäljare"
   }
 };
 

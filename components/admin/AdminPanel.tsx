@@ -11,7 +11,9 @@ import {
   Globe,
   List,
   FileText,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Crown,
+  Flame
 } from 'lucide-react';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -25,7 +27,7 @@ export const AdminPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'kits' | 'products'>('kits');
   const { products, addProduct, updateProduct, deleteProduct, categories } = useProducts();
   const { addNotification } = useNotification();
-  const { formatPrice } = useLanguage();
+  const { formatPrice, t } = useLanguage();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
@@ -45,6 +47,7 @@ export const AdminPanel: React.FC = () => {
     is_new: true,
     on_sale: false,
     is_active: true,
+    is_leader: false,
     features: [], 
     specs: '[]',
     docs: '[]',
@@ -83,14 +86,12 @@ export const AdminPanel: React.FC = () => {
       const stringifyField = (field: any) => {
         if (!field) return '[]';
         if (typeof field === 'string') {
-          // If it's already a string, check if it's valid JSON
           try { 
             const parsed = JSON.parse(field); 
             return Array.isArray(parsed) ? field : '[]';
           } 
           catch { return '[]'; }
         }
-        // If it's an object/array, stringify it
         return JSON.stringify(field);
       };
 
@@ -103,7 +104,8 @@ export const AdminPanel: React.FC = () => {
         specs: stringifyField(product.specs),
         docs: stringifyField(product.docs),
         kitComponents: product.kitComponents || [],
-        is_active: product.is_active !== false
+        is_active: product.is_active !== false,
+        is_leader: product.is_leader === true
       });
     } else {
       setEditingProduct(null);
@@ -112,7 +114,7 @@ export const AdminPanel: React.FC = () => {
         name: { en: '', da: '', no: '', sv: '' }, 
         description: { en: '', da: '', no: '', sv: '' }, 
         price: 0, category: defaultCategory, sub_category: '',
-        image: '', images: ['', '', ''], stock: 10, is_new: true, on_sale: false, is_active: true, features: [], 
+        image: '', images: ['', '', ''], stock: 10, is_new: true, on_sale: false, is_active: true, is_leader: false, features: [], 
         specs: '[]', docs: '[]', kitComponents: []
       });
     }
@@ -159,7 +161,8 @@ export const AdminPanel: React.FC = () => {
       ...formData, 
       images: cleanImages, 
       image: cleanImages[0] || formData.image || '',
-      is_active: formData.is_active ?? true
+      is_active: formData.is_active ?? true,
+      is_leader: formData.is_leader ?? false
     };
     
     if (editingProduct) {
@@ -203,6 +206,7 @@ export const AdminPanel: React.FC = () => {
               <div className="p-20 text-center text-slate-300 font-black uppercase text-[10px] tracking-widest">Немає збережених комплектів</div>
             ) : kits.map(kit => {
               const kitIsHidden = kit.is_active === false;
+              const kitIsLeader = kit.is_leader === true;
               return (
                 <div key={kit.id} className={`p-8 border-b border-slate-50 flex items-center justify-between hover:bg-slate-50 transition-colors ${kitIsHidden ? 'opacity-50 grayscale' : ''}`}>
                   <div className="flex items-center gap-6">
@@ -218,13 +222,21 @@ export const AdminPanel: React.FC = () => {
                           <EyeOff size={12}/>
                         </div>
                       )}
+                      {kitIsLeader && (
+                         <div className="absolute top-1 right-1 bg-amber-400 text-yellow-950 p-1 rounded-md shadow-lg">
+                           <Crown size={10} className="fill-yellow-950" />
+                         </div>
+                      )}
                     </div>
                     <div>
                       <h4 className="font-black text-slate-900 uppercase text-sm tracking-tight flex items-center gap-2">
                         {getDisplayValue(kit.name)}
                         {kitIsHidden && <span className="bg-slate-200 text-slate-600 text-[8px] px-2 py-0.5 rounded-full uppercase">Неактивний</span>}
                       </h4>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase">{kit.id}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase">{kit.id}</span>
+                        {kitIsLeader && <span className="text-[8px] font-black text-amber-500 uppercase flex items-center gap-1"><Flame size={10} className="fill-amber-500"/> Лідер продажу</span>}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-8">
@@ -261,6 +273,7 @@ export const AdminPanel: React.FC = () => {
                <tbody className="divide-y divide-slate-50">
                   {dbProductsList.map(p => {
                     const isHidden = p.is_active === false;
+                    const isLeader = p.is_leader === true;
                     return (
                       <tr key={p.id} className={`hover:bg-slate-50 transition-colors ${isHidden ? 'bg-slate-50/30' : ''}`}>
                         <td className="px-10 py-5 flex items-center gap-4">
@@ -272,8 +285,12 @@ export const AdminPanel: React.FC = () => {
                               onError={(e) => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }}
                             />
                             {isHidden && <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center text-white rounded-lg"><EyeOff size={10}/></div>}
+                            {isLeader && <div className="absolute -top-1 -right-1 bg-amber-400 text-yellow-950 p-0.5 rounded shadow-sm"><Crown size={8} className="fill-yellow-950" /></div>}
                           </div>
-                          <span className={`font-black text-slate-900 text-xs uppercase truncate max-w-[250px] ${isHidden ? 'text-slate-400' : ''}`}>{getDisplayValue(p.name)}</span>
+                          <div className="flex flex-col">
+                             <span className={`font-black text-slate-900 text-xs uppercase truncate max-w-[250px] ${isHidden ? 'text-slate-400' : ''}`}>{getDisplayValue(p.name)}</span>
+                             {isLeader && <span className="text-[7px] font-black text-amber-500 uppercase tracking-widest mt-0.5 flex items-center gap-1"><Flame size={8} className="fill-amber-500"/> Лідер продажу</span>}
+                          </div>
                         </td>
                         <td className="px-10 py-5"><span className="text-[9px] font-bold uppercase text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{p.category}</span></td>
                         <td className="px-10 py-5">
@@ -317,14 +334,24 @@ export const AdminPanel: React.FC = () => {
                   <div className="space-y-6">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex justify-between">
                       Мультимовна Назва
-                      <button 
-                        type="button" 
-                        onClick={() => setFormData(prev => ({...prev, is_active: !prev.is_active}))}
-                        className={`flex items-center gap-2 px-3 py-1 rounded-full text-[8px] font-black uppercase transition-all ${formData.is_active ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-500'}`}
-                      >
-                        {formData.is_active ? <Eye size={10}/> : <EyeOff size={10}/>}
-                        <span>{formData.is_active ? 'Активний' : 'Прихований'}</span>
-                      </button>
+                      <div className="flex gap-2">
+                        <button 
+                          type="button" 
+                          onClick={() => setFormData(prev => ({...prev, is_leader: !prev.is_leader}))}
+                          className={`flex items-center gap-2 px-3 py-1 rounded-full text-[8px] font-black uppercase transition-all ${formData.is_leader ? 'bg-amber-100 text-amber-600 border border-amber-200' : 'bg-slate-100 text-slate-400 border border-slate-200'}`}
+                        >
+                          <Crown size={10} className={formData.is_leader ? 'fill-amber-600' : ''}/>
+                          <span>{t('sales_leader')}</span>
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => setFormData(prev => ({...prev, is_active: !prev.is_active}))}
+                          className={`flex items-center gap-2 px-3 py-1 rounded-full text-[8px] font-black uppercase transition-all ${formData.is_active ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-500'}`}
+                        >
+                          {formData.is_active ? <Eye size={10}/> : <EyeOff size={10}/>}
+                          <span>{formData.is_active ? 'Активний' : 'Прихований'}</span>
+                        </button>
+                      </div>
                     </label>
                     <div className="space-y-3">
                       {LANGUAGES.map(lang => (

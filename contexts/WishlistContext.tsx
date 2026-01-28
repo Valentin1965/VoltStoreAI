@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Product } from '../types';
 import { useNotification } from './NotificationContext';
 
@@ -22,19 +22,22 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem('voltstore_wishlist', JSON.stringify(wishlist));
   }, [wishlist]);
 
-  const toggleWishlist = (product: Product) => {
+  const toggleWishlist = useCallback((product: Product) => {
     setWishlist(prev => {
       const exists = prev.find(p => p.id === product.id);
       if (exists) {
-        addNotification('Бронювання скасовано', 'info');
+        setTimeout(() => addNotification('Бронювання скасовано', 'info'), 0);
         return prev.filter(p => p.id !== product.id);
+      } else {
+        setTimeout(() => addNotification('Обладнання успішно заброньовано', 'success'), 0);
+        return [...prev, product];
       }
-      addNotification('Обладнання успішно заброньовано', 'success');
-      return [...prev, product];
     });
-  };
+  }, [addNotification]);
 
-  const isInWishlist = (id: string) => wishlist.some(p => p.id === id);
+  const isInWishlist = useCallback((id: string) => 
+    wishlist.some(p => p.id === id), 
+  [wishlist]);
 
   return (
     <WishlistContext.Provider value={{ wishlist, toggleWishlist, isInWishlist }}>

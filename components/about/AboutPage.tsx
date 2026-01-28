@@ -1,10 +1,44 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Leaf, Users, Zap, Shield, Globe, Award, MapPin, Phone, Mail, CheckCircle2 } from 'lucide-react';
+import { useProducts } from '../../contexts/ProductsContext';
+import { useCart } from '../../contexts/CartContext';
+import { useNotification } from '../../contexts/NotificationContext';
+import { 
+  Leaf, Users, Zap, Shield, Globe, Award, MapPin, Phone, Mail, CheckCircle2,
+  Cpu, Battery, Sun, Layers, Flame, Crown, ShoppingCart
+} from 'lucide-react';
+import { AppView, Category, Product } from '../../types';
+import { ProductCard, useLocalizedText } from '../catalog/CatalogSection';
 
-export const AboutPage: React.FC = () => {
+interface AboutPageProps {
+  onNavigateToCatalog?: (view: AppView) => void;
+}
+
+export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => {
   const { t } = useLanguage();
+  const { products, setSelectedCategory } = useProducts();
+  const { addItem } = useCart();
+  const { addNotification } = useNotification();
+  const getLoc = useLocalizedText();
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  const leaders = products.filter(p => p.is_leader === true).slice(0, 4);
+
+  const categoryMenu = [
+    { id: 'Inverters' as Category, label: t('nav_catalog') === 'Catalog' ? 'Inverters' : 'Інвертори', icon: Cpu },
+    { id: 'Batteries' as Category, label: t('nav_catalog') === 'Catalog' ? 'Batteries' : 'Батареї', icon: Battery },
+    { id: 'Solar Panels' as Category, label: t('nav_catalog') === 'Catalog' ? 'Solar Panels' : 'Панелі', icon: Sun },
+    { id: 'Charging Stations' as Category, label: t('nav_catalog') === 'Catalog' ? 'Charging Stations' : 'Зарядні станції', icon: Zap },
+    { id: 'Kits' as Category, label: t('nav_catalog') === 'Catalog' ? 'Ready Kits' : 'Комплекти', icon: Layers },
+  ];
+
+  const handleCategoryClick = (cat: Category) => {
+    setSelectedCategory(cat);
+    if (onNavigateToCatalog) {
+      onNavigateToCatalog(AppView.CATALOG);
+    }
+  };
 
   const values = [
     { icon: Zap, title: "Innovation", desc: "We utilize latest AI technologies and engineering breakthroughs." },
@@ -15,16 +49,14 @@ export const AboutPage: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto animate-fade-in pb-24">
-      {/* Hero Section - REDUCED VERTICAL SIZE */}
-      <div className="relative rounded-[3rem] bg-emerald-950 overflow-hidden min-h-[450px] flex items-center shadow-2xl mb-16 border border-white/10">
-        {/* Пейзажне фото як фон - Cinematic Alps */}
+      {/* Hero Section */}
+      <div className="relative rounded-[3rem] bg-emerald-950 overflow-hidden min-h-[450px] flex items-center shadow-2xl mb-12 border border-white/10">
         <div className="absolute inset-0 z-0">
           <img 
             src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2000&auto=format&fit=crop" 
             className="w-full h-full object-cover animate-slow-zoom opacity-60" 
             alt="Majestic Mountains" 
           />
-          {/* Глибокий градієнт для фокусу на тексті */}
           <div className="absolute inset-0 bg-gradient-to-r from-emerald-950 via-emerald-950/70 to-transparent"></div>
           <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/40 via-transparent to-transparent"></div>
         </div>
@@ -45,12 +77,67 @@ export const AboutPage: React.FC = () => {
             <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div> INDEPENDENCE</span>
           </div>
         </div>
-        
-        {/* Декоративні відблиски сонця */}
-        <div className="absolute top-1/4 right-1/4 w-48 h-48 bg-yellow-400/10 rounded-full blur-[100px] animate-pulse"></div>
       </div>
 
-      {/* Main Intro - REDUCED IMAGE SIZE BY CHANGING GRID PROPORTIONS */}
+      {/* Category Horizontal Menu with Illuminated Frames */}
+      <div className="mb-20 px-4">
+        <div className="flex flex-wrap justify-center gap-6">
+          {categoryMenu.map((item) => (
+            <button 
+              key={item.id} 
+              onClick={() => handleCategoryClick(item.id)}
+              className="flex-1 min-w-[150px] max-w-[220px] bg-white border-2 border-emerald-100/80 rounded-[2.5rem] p-8 flex flex-col items-center gap-4 group hover:border-emerald-500 hover:shadow-[0_20px_40px_-15px_rgba(16,185,129,0.2)] hover:-translate-y-1 transition-all duration-500 shadow-sm relative overflow-hidden"
+            >
+              {/* Subtle background glow effect */}
+              <div className="absolute inset-0 bg-emerald-50/0 group-hover:bg-emerald-50/40 transition-colors duration-500"></div>
+              
+              <div className="relative z-10 w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-all duration-500 shadow-inner">
+                <item.icon size={28} />
+              </div>
+              
+              <span className="relative z-10 text-[15px] font-black uppercase tracking-tight text-slate-900 group-hover:text-emerald-600 transition-colors text-center leading-tight">
+                {item.label}
+              </span>
+
+              {/* Decorative corner light */}
+              <div className="absolute top-0 right-0 w-8 h-8 bg-emerald-400/5 rounded-full -mr-4 -mt-4 blur-xl group-hover:bg-emerald-400/20 transition-all"></div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Sales Leaders Section */}
+      {leaders.length > 0 && (
+        <div className="mb-24 px-4 space-y-10">
+          <div className="flex flex-col items-center text-center space-y-2">
+            <span className="text-amber-500 text-[9px] font-black uppercase tracking-[0.5em] flex items-center gap-2">
+              <Crown size={14} className="fill-amber-500" /> Professional Grade
+            </span>
+            <h3 className="text-4xl font-black text-slate-900 uppercase tracking-tighter flex items-center gap-4">
+              {t('sales_leader')} <Flame size={28} className="text-rose-500 animate-pulse" />
+            </h3>
+            <div className="w-20 h-1 bg-gradient-to-r from-transparent via-amber-400 to-transparent mt-4"></div>
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            {leaders.map((p, idx) => (
+              <ProductCard 
+                key={p.id} 
+                product={p} 
+                index={idx} 
+                onSelect={setSelectedProduct} 
+                onAddToCart={(e, prod) => { 
+                  e.stopPropagation(); 
+                  addItem(prod); 
+                  addNotification(prod.stock === 0 ? t('preorder_added') : t('item_added'), 'success'); 
+                }} 
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Main Intro */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_0.6fr] gap-16 mb-24 items-center px-4">
         <div className="space-y-8">
           <div className="space-y-3">
@@ -96,7 +183,6 @@ export const AboutPage: React.FC = () => {
         
         <div className="relative group flex justify-center">
           <div className="absolute -inset-4 bg-slate-100 rounded-[3rem] -z-10 group-hover:bg-emerald-50 transition-colors duration-500"></div>
-          {/* Reduced size image container */}
           <div className="relative rounded-[2.5rem] overflow-hidden shadow-2xl aspect-[4/5] border border-slate-200/50 w-full max-w-xs">
              <img 
               src="https://images.unsplash.com/photo-1473448912268-2022ce9509d8?q=80&w=1200&auto=format&fit=crop" 
@@ -106,7 +192,6 @@ export const AboutPage: React.FC = () => {
             <div className="absolute inset-0 bg-gradient-to-t from-emerald-900/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
           </div>
           
-          {/* Badge */}
           <div className="absolute -bottom-4 -right-4 bg-white p-5 rounded-[2rem] shadow-2xl border border-slate-100 animate-bounce-short">
              <div className="text-center">
                 <div className="text-xl font-black text-emerald-600 tracking-tighter leading-none">15+</div>
@@ -129,7 +214,7 @@ export const AboutPage: React.FC = () => {
             { title: "Scandinavian Quality", desc: "Our equipment is engineered specifically to perform in Northern climates." },
             { title: "Expert Support", desc: "Our certified engineers provide full technical assistance and system design." }
           ].map((item, i) => (
-            <div key={i} className="p-10 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm text-center space-y-4 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group">
+            <div key={i} className="p-10 bg-white rounded-[2.5rem] border-2 border-slate-50 shadow-sm text-center space-y-4 hover:shadow-2xl hover:border-emerald-100 hover:-translate-y-2 transition-all duration-500 group">
               <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                 <CheckCircle2 size={24} />
               </div>

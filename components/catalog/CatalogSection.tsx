@@ -9,29 +9,29 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { 
   ShoppingCart, X, Heart, Loader2, Zap, 
   Sparkles, Scale, Layers, ChevronLeft, ChevronRight, Info, List, 
-  Truck, Clock, FileText, Download, Leaf
+  Truck, Clock, FileText, Download, Leaf, Crown
 } from 'lucide-react';
 import { Product, ProductSpec, ProductDoc, LocalizedText } from '../../types';
 
 const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?q=80&w=400&auto=format&fit=crop';
 
-const useLocalizedText = () => {
+export const useLocalizedText = () => {
   const { language } = useLanguage();
   return (text: LocalizedText | null | undefined): string => {
     if (!text) return "";
     if (typeof text === 'string') return text;
-    return text[language] || text['en'] || Object.values(text)[0] || "";
+    return (text as any)[language] || (text as any)['en'] || Object.values(text as any)[0] || "";
   };
 };
 
-interface ProductCardProps {
+export interface ProductCardProps {
   product: Product;
   index: number;
   onSelect: (product: Product) => void;
   onAddToCart: (e: React.MouseEvent, product: Product) => void;
 }
 
-const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSelect, onAddToCart }) => {
+export const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSelect, onAddToCart }) => {
   const { t, formatPrice } = useLanguage();
   const getLoc = useLocalizedText();
   
@@ -57,7 +57,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSelect, onA
     <div 
       onClick={() => onSelect(product)}
       style={{ animationDelay: `${index * 50}ms` }}
-      className="group premium-card overflow-hidden cursor-pointer flex flex-col h-full animate-fade-in relative border border-slate-200/50"
+      className={`group premium-card overflow-hidden cursor-pointer flex flex-col h-full animate-fade-in relative border ${product.is_leader ? 'border-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.1)]' : 'border-slate-200/50'}`}
     >
       <div className="relative h-52 w-full overflow-hidden bg-slate-50/50 p-2 flex items-center justify-center">
         <img 
@@ -74,6 +74,11 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSelect, onA
         </div>
 
         <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
+          {product.is_leader && (
+            <span className="bg-amber-400 text-yellow-950 text-[7px] font-black uppercase px-2 py-1 rounded-md shadow-lg flex items-center gap-1">
+              <Crown size={8} className="fill-yellow-950" /> {t('sales_leader')}
+            </span>
+          )}
           {product.is_new && (
             <span className="bg-emerald-500 text-white text-[7px] font-black uppercase px-2 py-1 rounded-md shadow-lg">New</span>
           )}
@@ -193,7 +198,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
 
   return (
     <div className="space-y-24">
-      {/* Lightened Hero Section - REDUCED SIZE AND LIGHTER DESIGN */}
+      {/* Hero Section */}
       <div className="relative rounded-[3rem] bg-emerald-50 overflow-hidden min-h-[380px] flex items-center shadow-sm border border-emerald-100">
         <div className="absolute inset-0 bg-gradient-to-r from-emerald-50 via-emerald-50/70 to-transparent z-10"></div>
         <img 
@@ -299,6 +304,16 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                 <div className="lg:w-[42%] flex flex-col gap-6">
                   <div className="bg-slate-50/50 rounded-3xl border border-slate-100 p-8 flex flex-col gap-6 shadow-sm">
                     <div className="space-y-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        {selectedProduct.is_leader && (
+                          <span className="bg-amber-400 text-yellow-950 text-[8px] font-black uppercase px-2 py-1 rounded-md flex items-center gap-1">
+                            <Crown size={10} className="fill-yellow-950" /> {t('sales_leader')}
+                          </span>
+                        )}
+                        {selectedProduct.is_new && (
+                          <span className="bg-emerald-500 text-white text-[8px] font-black uppercase px-2 py-1 rounded-md">New</span>
+                        )}
+                      </div>
                       <h3 className="font-black text-slate-900 text-sm uppercase tracking-tight leading-tight mb-2">{selectedProductNameStr}</h3>
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('sku')}: {selectedProduct.id?.slice(0, 8).toUpperCase()}</span>

@@ -112,9 +112,17 @@ export const LiveAssistant: React.FC = () => {
       if (aiText) {
         setTranscription(prev => [...prev, aiText]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Text AI Error:", err);
-      addNotification("Помилка при відправці запиту", "error");
+      const errStr = String(err).toLowerCase();
+      if (errStr.includes('429') || errStr.includes('quota')) {
+        addNotification("Денний ліміт запитів вичерпано. Спробуйте пізніше або виберіть власний ключ.", "info");
+        setTranscription(prev => [...prev, "Вибачте, ліміт безкоштовних запитів на сьогодні вичерпано. Поверніться завтра або підключіть власний API ключ у налаштуваннях."]);
+      } else if (errStr.includes('503')) {
+        addNotification("AI сервіс тимчасово перевантажений (503). Спробуйте пізніше.", "info");
+      } else {
+        addNotification("Помилка при відправці запиту", "error");
+      }
     } finally {
       setIsGeneratingText(false);
     }
@@ -203,8 +211,13 @@ export const LiveAssistant: React.FC = () => {
           },
           onerror: (e: any) => {
             const errStr = String(e).toLowerCase();
+            console.error("Live Assistant Error:", errStr);
             if (errStr.includes('leaked') || errStr.includes('403')) {
                addNotification("API Key Blocked: Please select your own API Key.", "error");
+            } else if (errStr.includes('429') || errStr.includes('quota')) {
+               addNotification("Ліміт запитів вичерпано.", "info");
+            } else if (errStr.includes('503')) {
+               addNotification("AI сервіс тимчасово недоступний (503).", "info");
             }
             stopSession();
           },
@@ -222,7 +235,7 @@ export const LiveAssistant: React.FC = () => {
 
       sessionRef.current = await sessionPromise;
     } catch (err: any) {
-      console.error("Live AI Error:", err);
+      console.error("Live AI Connection Error:", err);
       stopSession();
     }
   };

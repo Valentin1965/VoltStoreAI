@@ -119,7 +119,7 @@ const AppContent: React.FC = () => {
       case AppView.COMPARE:
         return <ComparePage />;
       case AppView.ABOUT:
-        return <AboutPage />;
+        return <AboutPage onNavigateToCatalog={handleSetView} />;
       case AppView.CABINET:
         return <ClientCabinet />;
       default:
