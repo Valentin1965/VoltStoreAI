@@ -16,33 +16,38 @@ declare global {
 
 export type Language = 'en' | 'da' | 'no' | 'sv';
 
-interface ExchangeRates {
-  USD: number;
+export interface ExchangeRates {
+  EUR: number;
   DKK: number;
   NOK: number;
   SEK: number;
+  USD: number;
   timestamp: number;
 }
 
 const FALLBACK_RATES: ExchangeRates = {
-  USD: 1.0,
-  DKK: 6.92,
-  NOK: 10.55,
-  SEK: 10.42,
+  EUR: 1.0,
+  DKK: 7.46,
+  NOK: 11.38,
+  SEK: 11.23,
+  USD: 1.08,
   timestamp: 0
 };
 
-const CACHE_KEY = 'voltstore_rates_v2';
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 години
+const CACHE_KEY = 'voltstore_rates_v4_eur';
+const SUPPRESS_KEY = 'voltstore_api_suppress';
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+const SUPPRESS_DURATION = 4 * 60 * 60 * 1000; // 4 hours pause on 429
 
 export interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: (key: TranslationKey) => string;
-  formatPrice: (priceInUSD: number) => string;
+  formatPrice: (priceInEUR: number) => string;
   currencySymbol: string;
   currencyCode: string;
   isLoadingRates: boolean;
+  rates: ExchangeRates;
   refreshRates: () => Promise<void>;
   isApiRestricted: boolean;
   checkAndPromptKey: () => Promise<boolean>;
@@ -52,10 +57,11 @@ const DEFAULT_VALUE: LanguageContextType = {
   language: 'en',
   setLanguage: () => {},
   t: (key) => key,
-  formatPrice: (p) => `$${(p || 0).toLocaleString()}`,
-  currencySymbol: '$',
-  currencyCode: 'USD',
+  formatPrice: (p) => `€${(p || 0).toLocaleString()}`,
+  currencySymbol: '€',
+  currencyCode: 'EUR',
   isLoadingRates: false,
+  rates: FALLBACK_RATES,
   refreshRates: async () => {},
   isApiRestricted: false,
   checkAndPromptKey: async () => true
@@ -64,7 +70,6 @@ const DEFAULT_VALUE: LanguageContextType = {
 const LanguageContext = createContext<LanguageContextType>(DEFAULT_VALUE);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { addNotification } = useNotification();
   const [language, setLanguageState] = useState<Language>(() => {
     try {
       return (localStorage.getItem('voltstore_lang') as Language) || 'en';
@@ -115,45 +120,54 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return;
     }
 
-    // Перевірка свіжості кешу
+    const suppressUntil = Number(localStorage.getItem(SUPPRESS_KEY) || 0);
+    if (!force && Date.now() < suppressUntil) {
+      return;
+    }
+
     if (!force && rates.timestamp > 0 && (Date.now() - rates.timestamp < CACHE_DURATION)) {
       return;
     }
 
     setIsLoadingRates(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: 'Return current exchange rates for 1 USD to: DKK, NOK, SEK. ONLY JSON: {"DKK": number, "NOK": number, "SEK": number}',
+        model: 'gemini-flash-lite-latest',
+        contents: 'Get approximate exchange rates for 1 EUR to: DKK, NOK, SEK, USD. ONLY JSON: {"DKK": number, "NOK": number, "SEK": number, "USD": number}',
         config: {
           responseMimeType: "application/json",
-          temperature: 0.1,
+          temperature: 0,
         }
       });
 
       const data = JSON.parse(response.text || '{}');
       if (data.DKK && data.NOK && data.SEK) {
         const newRates = {
-          USD: 1.0,
+          EUR: 1.0,
           DKK: Number(data.DKK),
           NOK: Number(data.NOK),
           SEK: Number(data.SEK),
+          USD: Number(data.USD || 1.08),
           timestamp: Date.now()
         };
         setRates(newRates);
         localStorage.setItem(CACHE_KEY, JSON.stringify(newRates));
+        localStorage.removeItem(SUPPRESS_KEY);
       }
     } catch (err: any) {
       const errStr = String(err).toLowerCase();
-      console.error("Exchange Rate API Error:", errStr);
       
-      if (errStr.includes('429') || errStr.includes('quota') || errStr.includes('limit')) {
-        console.warn("API Quota exceeded. Using cached/fallback rates.");
-        // Не блокуємо ключ, просто чекаємо наступного циклу
-      } else if (errStr.includes('503')) {
-        console.warn("Gemini API is temporarily unavailable (503).");
-      } else if (errStr.includes('leaked') || errStr.includes('403') || errStr.includes('permission_denied') || errStr.includes('not found')) {
+      if (errStr.includes('429') || errStr.includes('quota')) {
+        localStorage.setItem(SUPPRESS_KEY, String(Date.now() + SUPPRESS_DURATION));
+      } else if (
+        errStr.includes('leaked') || 
+        errStr.includes('expired') || 
+        errStr.includes('403') || 
+        errStr.includes('invalid') || 
+        errStr.includes('permission_denied')
+      ) {
+        console.warn("[Language Guard] API Key is restricted or expired. Disabling AI features.");
         isKeyBlocked.current = true;
         setIsApiRestricted(true);
       }
@@ -163,9 +177,15 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [rates.timestamp]);
 
   useEffect(() => {
-    const timer = setTimeout(() => fetchExchangeRates(), 5000); // Збільшена затримка при старті
-    return () => clearTimeout(timer);
-  }, [fetchExchangeRates]);
+    const isCacheValid = rates.timestamp > 0 && (Date.now() - rates.timestamp < CACHE_DURATION);
+    const suppressUntil = Number(localStorage.getItem(SUPPRESS_KEY) || 0);
+    const isSuppressed = Date.now() < suppressUntil;
+
+    if (!isCacheValid && !isSuppressed) {
+      const timer = setTimeout(() => fetchExchangeRates(), 7000);
+      return () => clearTimeout(timer);
+    }
+  }, [fetchExchangeRates, rates.timestamp]);
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
@@ -182,10 +202,12 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const currentLangTranslations = translations[language] || translations['en'];
   const currencyCode = currentLangTranslations.currency_code;
   const currencySymbol = currentLangTranslations.currency_symbol;
+  
+  // All formats derived from EUR base
   const currentRate = rates[currencyCode as keyof ExchangeRates] || FALLBACK_RATES[currencyCode as keyof ExchangeRates] || 1.0;
 
-  const formatPrice = useCallback((priceInUSD: number): string => {
-    const converted = (priceInUSD || 0) * currentRate;
+  const formatPrice = useCallback((priceInEUR: number): string => {
+    const converted = (priceInEUR || 0) * currentRate;
     return `${currencySymbol}${converted.toLocaleString(language === 'en' ? 'en-US' : 'de-DE', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
@@ -201,6 +223,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       currencySymbol, 
       currencyCode,
       isLoadingRates,
+      rates,
       refreshRates: () => fetchExchangeRates(true),
       isApiRestricted,
       checkAndPromptKey
@@ -211,5 +234,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 };
 
 export const useLanguage = (): LanguageContextType => {
-  return useContext(LanguageContext) || DEFAULT_VALUE;
+  const context = useContext(LanguageContext);
+  if (!context) return DEFAULT_VALUE;
+  return context;
 };

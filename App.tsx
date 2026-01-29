@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from './components/layout/Layout';
 import { CatalogSection } from './components/catalog/CatalogSection';
 import { CartPage } from './components/cart/CartPage';
@@ -17,6 +17,7 @@ import { NotificationProvider } from './contexts/NotificationContext';
 import { WishlistProvider } from './contexts/WishlistContext';
 import { CompareProvider } from './contexts/CompareContext';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
+import { UserProvider } from './contexts/UserContext';
 import { AppView } from './types';
 import { AlertCircle, Key, Lock, X } from 'lucide-react';
 
@@ -91,6 +92,15 @@ const AppContent: React.FC = () => {
       setCurrentView(view);
     }
   };
+
+  // Global event listener for view changes from components
+  useEffect(() => {
+    const handleViewChange = (e: any) => {
+      handleSetView(e.detail);
+    };
+    window.addEventListener('changeView', handleViewChange);
+    return () => window.removeEventListener('changeView', handleViewChange);
+  }, []);
 
   const renderView = () => {
     switch (currentView) {
@@ -171,15 +181,17 @@ const App: React.FC = () => {
   return (
     <NotificationProvider>
       <LanguageProvider>
-        <ProductsProvider>
-          <CartProvider>
-            <WishlistProvider>
-              <CompareProvider>
-                <AppContent />
-              </CompareProvider>
-            </WishlistProvider>
-          </CartProvider>
-        </ProductsProvider>
+        <UserProvider>
+          <ProductsProvider>
+            <CartProvider>
+              <WishlistProvider>
+                <CompareProvider>
+                  <AppContent />
+                </CompareProvider>
+              </WishlistProvider>
+            </CartProvider>
+          </ProductsProvider>
+        </UserProvider>
       </LanguageProvider>
     </NotificationProvider>
   );

@@ -178,13 +178,13 @@ export const AdminPanel: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2 uppercase tracking-tighter">
-            <Cpu className="text-yellow-500" size={24} /> Термінал VoltStore
+            <Cpu className="text-yellow-500" size={24} /> VoltStore Terminal
           </h1>
-          <p className="text-slate-400 text-[8px] font-bold uppercase tracking-[0.2em] mt-1">Панель управління активами</p>
+          <p className="text-slate-400 text-[8px] font-bold uppercase tracking-[0.2em] mt-1">Asset Management Panel</p>
         </div>
         <div className="flex bg-slate-200/50 p-2 rounded-2xl shadow-inner border border-slate-100">
-          <button onClick={() => setActiveTab('kits')} className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'kits' ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-500 hover:text-slate-700'}`}>Енергокомплекти</button>
-          <button onClick={() => setActiveTab('products')} className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'products' ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-500 hover:text-slate-700'}`}>Складські товари</button>
+          <button onClick={() => setActiveTab('kits')} className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'kits' ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-500 hover:text-slate-700'}`}>Energy Kits</button>
+          <button onClick={() => setActiveTab('products')} className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'products' ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-500 hover:text-slate-700'}`}>Stock Items</button>
         </div>
       </div>
 
@@ -193,17 +193,17 @@ export const AdminPanel: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="bg-slate-900 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
               <Layers className="text-yellow-400 mb-6" size={32} />
-              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Локальні системи</div>
+              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Local Systems</div>
               <div className="text-5xl font-black tracking-tighter">{kits.length}</div>
             </div>
             <button onClick={() => handleOpenModal(undefined, 'Kits')} className="md:col-span-2 bg-white border-4 border-dashed border-slate-200 rounded-[3rem] flex flex-col items-center justify-center gap-6 hover:border-yellow-400 hover:bg-yellow-50/50 transition-all group shadow-sm">
               <Plus size={40} className="text-slate-200 group-hover:text-yellow-500" />
-              <span className="text-xs font-black uppercase tracking-widest text-slate-900">Створити локальну збірку</span>
+              <span className="text-xs font-black uppercase tracking-widest text-slate-900">Create Local Kit</span>
             </button>
           </div>
           <div className="bg-white rounded-[3.5rem] border border-slate-100 overflow-hidden shadow-sm">
             {kits.length === 0 ? (
-              <div className="p-20 text-center text-slate-300 font-black uppercase text-[10px] tracking-widest">Немає збережених комплектів</div>
+              <div className="p-20 text-center text-slate-300 font-black uppercase text-[10px] tracking-widest">No saved kits found</div>
             ) : kits.map(kit => {
               const kitIsHidden = kit.is_active === false;
               const kitIsLeader = kit.is_leader === true;
@@ -231,11 +231,11 @@ export const AdminPanel: React.FC = () => {
                     <div>
                       <h4 className="font-black text-slate-900 uppercase text-sm tracking-tight flex items-center gap-2">
                         {getDisplayValue(kit.name)}
-                        {kitIsHidden && <span className="bg-slate-200 text-slate-600 text-[8px] px-2 py-0.5 rounded-full uppercase">Неактивний</span>}
+                        {kitIsHidden && <span className="bg-slate-200 text-slate-600 text-[8px] px-2 py-0.5 rounded-full uppercase">Inactive</span>}
                       </h4>
                       <div className="flex items-center gap-2">
                         <span className="text-[9px] font-bold text-slate-400 uppercase">{kit.id}</span>
-                        {kitIsLeader && <span className="text-[8px] font-black text-amber-500 uppercase flex items-center gap-1"><Flame size={10} className="fill-amber-500"/> Лідер продажу</span>}
+                        {kitIsLeader && <span className="text-[8px] font-black text-amber-500 uppercase flex items-center gap-1"><Flame size={10} className="fill-amber-500"/> Sales Leader</span>}
                       </div>
                     </div>
                   </div>
@@ -256,18 +256,18 @@ export const AdminPanel: React.FC = () => {
       {activeTab === 'products' && (
         <div className="bg-white rounded-[3.5rem] border border-slate-100 overflow-hidden shadow-sm animate-fade-in">
           <div className="p-10 border-b border-slate-100 flex justify-between items-center bg-slate-50/20">
-             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Склад (База Supabase)</h3>
-             <button onClick={() => handleOpenModal()} className="bg-slate-900 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-yellow-400 hover:text-yellow-950 transition-all shadow-lg">Додати товар</button>
+             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Stock (Supabase Database)</h3>
+             <button onClick={() => handleOpenModal()} className="bg-slate-900 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-yellow-400 hover:text-yellow-950 transition-all shadow-lg">Add Product</button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
                <thead className="bg-slate-50/50 text-[9px] font-black uppercase text-slate-400">
                   <tr>
-                    <th className="px-10 py-5">Товар</th>
-                    <th className="px-10 py-5">Категорія</th>
-                    <th className="px-10 py-5">Статус</th>
-                    <th className="px-10 py-5">Ціна (Base: USD)</th>
-                    <th className="px-10 py-5 text-right">Дії</th>
+                    <th className="px-10 py-5">Product</th>
+                    <th className="px-10 py-5">Category</th>
+                    <th className="px-10 py-5">Status</th>
+                    <th className="px-10 py-5">Price (Base: EUR)</th>
+                    <th className="px-10 py-5 text-right">Actions</th>
                   </tr>
                </thead>
                <tbody className="divide-y divide-slate-50">
@@ -289,14 +289,14 @@ export const AdminPanel: React.FC = () => {
                           </div>
                           <div className="flex flex-col">
                              <span className={`font-black text-slate-900 text-xs uppercase truncate max-w-[250px] ${isHidden ? 'text-slate-400' : ''}`}>{getDisplayValue(p.name)}</span>
-                             {isLeader && <span className="text-[7px] font-black text-amber-500 uppercase tracking-widest mt-0.5 flex items-center gap-1"><Flame size={8} className="fill-amber-500"/> Лідер продажу</span>}
+                             {isLeader && <span className="text-[7px] font-black text-amber-500 uppercase tracking-widest mt-0.5 flex items-center gap-1"><Flame size={8} className="fill-amber-500"/> Sales Leader</span>}
                           </div>
                         </td>
                         <td className="px-10 py-5"><span className="text-[9px] font-bold uppercase text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{p.category}</span></td>
                         <td className="px-10 py-5">
                           <span className={`flex items-center gap-1.5 text-[8px] font-black uppercase ${isHidden ? 'text-slate-400' : 'text-emerald-600'}`}>
                             <div className={`w-1.5 h-1.5 rounded-full ${isHidden ? 'bg-slate-300' : 'bg-emerald-500'}`}></div> 
-                            {isHidden ? 'Неактивний' : 'Активний'}
+                            {isHidden ? 'Inactive' : 'Active'}
                           </span>
                         </td>
                         <td className="px-10 py-5 font-black text-slate-900">{formatPrice(p.price)}</td>
@@ -321,8 +321,8 @@ export const AdminPanel: React.FC = () => {
               <div className="flex items-center gap-4">
                 <div className="bg-slate-900 p-3 rounded-2xl text-yellow-400">{isKitMode ? <Layers size={24}/> : <Package size={24}/>}</div>
                 <div>
-                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">{isKitMode ? 'Конструктор Системи' : 'Картка товару'}</h3>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{isKitMode ? 'Форма збірки енерговузлів' : 'Введення характеристик та медіа'}</p>
+                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">{isKitMode ? 'System Constructor' : 'Product Card'}</h3>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{isKitMode ? 'Asset assembly and logic config' : 'Technical data and media entry'}</p>
                 </div>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="p-4 bg-slate-50 hover:bg-red-50 hover:text-red-500 rounded-3xl transition-all shadow-sm"><X size={24} /></button>
@@ -333,7 +333,7 @@ export const AdminPanel: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
                   <div className="space-y-6">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex justify-between">
-                      Мультимовна Назва
+                      Multilingual Name
                       <div className="flex gap-2">
                         <button 
                           type="button" 
@@ -349,7 +349,7 @@ export const AdminPanel: React.FC = () => {
                           className={`flex items-center gap-2 px-3 py-1 rounded-full text-[8px] font-black uppercase transition-all ${formData.is_active ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-500'}`}
                         >
                           {formData.is_active ? <Eye size={10}/> : <EyeOff size={10}/>}
-                          <span>{formData.is_active ? 'Активний' : 'Прихований'}</span>
+                          <span>{formData.is_active ? 'Active' : 'Hidden'}</span>
                         </button>
                       </div>
                     </label>
@@ -365,7 +365,7 @@ export const AdminPanel: React.FC = () => {
                               setFormData({...formData, name: newName});
                             }} 
                             className="w-full bg-white border border-slate-200 rounded-2xl pl-12 pr-6 py-4 text-xs font-bold uppercase" 
-                            placeholder={`Назва (${lang.toUpperCase()})`} 
+                            placeholder={`Name (${lang.toUpperCase()})`} 
                           />
                         </div>
                       ))}
@@ -374,7 +374,7 @@ export const AdminPanel: React.FC = () => {
                   
                   <div className="space-y-8">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Вартість (Base: USD)</label>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Cost (Base: EUR)</label>
                       <input 
                         type="number" 
                         required 
@@ -386,7 +386,7 @@ export const AdminPanel: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Категорія</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Category</label>
                         <select value={formData.category || 'Inverters'} onChange={e => setFormData({...formData, category: e.target.value as Category})} className="input-premium appearance-none">
                           {categories.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
@@ -400,7 +400,7 @@ export const AdminPanel: React.FC = () => {
                 </div>
 
                 <div className="space-y-6">
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">Мультимовний Опис</label>
+                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">Multilingual Description</label>
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {LANGUAGES.map(lang => (
                         <div key={`desc-${lang}`} className="space-y-2">
@@ -412,7 +412,7 @@ export const AdminPanel: React.FC = () => {
                               setFormData({...formData, description: newDesc});
                             }} 
                             className="input-premium h-40 resize-none pt-4 text-xs font-medium leading-relaxed" 
-                            placeholder={`Опис на ${lang.toUpperCase()} мові...`} 
+                            placeholder={`Description in ${lang.toUpperCase()}...`} 
                           />
                         </div>
                       ))}
@@ -423,7 +423,7 @@ export const AdminPanel: React.FC = () => {
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
                       <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                        <List size={16} className="text-yellow-500" /> Технічні характеристики
+                        <List size={16} className="text-yellow-500" /> Technical Specs
                       </h4>
                       <button 
                         type="button" 
@@ -439,13 +439,13 @@ export const AdminPanel: React.FC = () => {
                           <input 
                             value={spec.label} 
                             onChange={e => handleJsonListUpdate('specs', idx, 'label', e.target.value)}
-                            placeholder="Назва (напр. Вага)"
+                            placeholder="Label (e.g. Weight)"
                             className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-bold uppercase"
                           />
                           <input 
                             value={spec.value} 
                             onChange={e => handleJsonListUpdate('specs', idx, 'value', e.target.value)}
-                            placeholder="Значення (напр. 5 кг)"
+                            placeholder="Value (e.g. 5 kg)"
                             className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-bold"
                           />
                           <button 
@@ -463,7 +463,7 @@ export const AdminPanel: React.FC = () => {
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
                       <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                        <FileText size={16} className="text-red-500" /> Документація (PDF)
+                        <FileText size={16} className="text-red-500" /> Documentation (PDF)
                       </h4>
                       <button 
                         type="button" 
@@ -488,7 +488,7 @@ export const AdminPanel: React.FC = () => {
                             <input 
                               value={doc.title} 
                               onChange={e => handleJsonListUpdate('docs', idx, 'title', e.target.value)}
-                              placeholder="Назва файлу (напр. Datasheet)"
+                              placeholder="File Title (e.g. Datasheet)"
                               className="w-full bg-transparent border-none p-0 text-[10px] font-black uppercase outline-none"
                             />
                           </div>
@@ -497,7 +497,7 @@ export const AdminPanel: React.FC = () => {
                             <input 
                               value={doc.url} 
                               onChange={e => handleJsonListUpdate('docs', idx, 'url', e.target.value)}
-                              placeholder="URL посилання (https://...)"
+                              placeholder="URL Link (https://...)"
                               className="w-full bg-transparent border-none p-0 text-[9px] text-slate-400 font-medium outline-none"
                             />
                           </div>
@@ -510,26 +510,26 @@ export const AdminPanel: React.FC = () => {
                 {isKitMode && (
                   <div className="space-y-10 border-t border-slate-100 pt-10">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2"><Cpu size={16}/> Склад комплекту</h4>
+                      <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2"><Cpu size={16}/> Kit Components</h4>
                       <button type="button" onClick={() => {
                          const newComp: KitComponent = { id: 'COMP-' + Math.random().toString(36).substr(2, 9), name: '', price: 0, quantity: 1, alternatives: [] };
                          setFormData({ ...formData, kitComponents: [...(formData.kitComponents || []), newComp] });
-                      }} className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-yellow-400 transition-all">+ Додати вузол</button>
+                      }} className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-yellow-400 transition-all">+ Add Node</button>
                     </div>
                     <div className="space-y-6">
                        {(formData.kitComponents || []).map((comp, compIdx) => (
                          <div key={comp.id || compIdx} className="bg-white rounded-[2.5rem] border-2 border-slate-100 overflow-hidden shadow-sm">
                             <div className="p-8 bg-slate-50/50 flex flex-wrap items-end gap-6 border-b border-slate-100">
                                <div className="flex-1 min-w-[200px]">
-                                  <label className="text-[7px] font-black text-slate-400 uppercase block mb-2">Назва компонента</label>
+                                  <label className="text-[7px] font-black text-slate-400 uppercase block mb-2">Component Name</label>
                                   <input value={comp.name} onChange={e => {
                                      const comps = [...(formData.kitComponents || [])];
                                      comps[compIdx].name = e.target.value;
                                      setFormData({...formData, kitComponents: comps});
-                                  }} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-[11px] font-black uppercase" placeholder="Гібридний інвертор" />
+                                  }} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-[11px] font-black uppercase" placeholder="Hybrid Inverter" />
                                </div>
                                <div className="w-32">
-                                  <label className="text-[7px] font-black text-slate-400 uppercase block mb-2">Ціна (USD)</label>
+                                  <label className="text-[7px] font-black text-slate-400 uppercase block mb-2">Price (EUR)</label>
                                   <input type="number" value={comp.price} onChange={e => {
                                      const comps = [...(formData.kitComponents || [])];
                                      comps[compIdx].price = Number(e.target.value);
@@ -541,7 +541,7 @@ export const AdminPanel: React.FC = () => {
                                   const newAlt: Alternative = { id: 'ALT-' + Math.random().toString(36).substr(2, 9), name: '', price: 0, quantity: 1 };
                                   comps[compIdx].alternatives = [...(comps[compIdx].alternatives || []), newAlt];
                                   setFormData({...formData, kitComponents: comps});
-                               }} className="px-4 py-3 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 text-[8px] font-black uppercase">+ Аналог</button>
+                               }} className="px-4 py-3 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 text-[8px] font-black uppercase">+ Substitute</button>
                                <button type="button" onClick={() => setFormData({...formData, kitComponents: (formData.kitComponents || []).filter((_, i) => i !== compIdx)})} className="p-3 text-slate-300 hover:text-red-500"><Trash2 size={18}/></button>
                             </div>
                          </div>
@@ -553,7 +553,7 @@ export const AdminPanel: React.FC = () => {
                 {!isKitMode && (
                   <div className="space-y-16 pt-10 border-t border-slate-100">
                     <div className="bg-white p-10 rounded-[3rem] border border-slate-100 space-y-8">
-                       <div className="flex items-center gap-3 border-b border-slate-100 pb-4"><ImageIcon size={18} className="text-yellow-500"/><h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Галерея зображень</h4></div>
+                       <div className="flex items-center gap-3 border-b border-slate-100 pb-4"><ImageIcon size={18} className="text-yellow-500"/><h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Image Gallery</h4></div>
                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                          {[0, 1, 2].map(idx => (
                            <div key={`img-field-${idx}`} className="space-y-4">
@@ -561,7 +561,7 @@ export const AdminPanel: React.FC = () => {
                                 const imgs = [...(formData.images || ['', '', ''])];
                                 imgs[idx] = e.target.value;
                                 setFormData({...formData, images: imgs});
-                             }} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[10px] outline-none" placeholder={`URL фото ${idx + 1}`} />
+                             }} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[10px] outline-none" placeholder={`URL photo ${idx + 1}`} />
                              <div className="aspect-square bg-slate-50 rounded-[2rem] overflow-hidden border border-slate-100 flex items-center justify-center">
                                 <img 
                                   src={getSafeImage((formData.images || [])[idx]) || IMAGE_FALLBACK} 
@@ -580,9 +580,9 @@ export const AdminPanel: React.FC = () => {
             </div>
 
             <div className="p-12 border-t border-slate-100 flex gap-6 bg-slate-50/50 shrink-0">
-              <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-6 rounded-[2rem] border-2 border-slate-200 font-black text-[12px] uppercase tracking-widest text-slate-500 hover:bg-white transition-all shadow-lg">Скасувати</button>
+              <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-6 rounded-[2rem] border-2 border-slate-200 font-black text-[12px] uppercase tracking-widest text-slate-500 hover:bg-white transition-all shadow-lg">Cancel</button>
               <button onClick={handleSubmit} className="bg-slate-900 hover:bg-yellow-400 text-white hover:text-yellow-950 flex-[2] flex items-center justify-center gap-4 py-6 text-[14px] rounded-[2rem] font-black uppercase tracking-widest transition-all shadow-2xl active:scale-95">
-                <Save size={24} /> {editingProduct ? 'Оновити дані' : 'Затвердити'}
+                <Save size={24} /> {editingProduct ? 'Update Data' : 'Confirm'}
               </button>
             </div>
           </div>

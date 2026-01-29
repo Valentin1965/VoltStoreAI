@@ -26,11 +26,11 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
   const leaders = products.filter(p => p.is_leader === true).slice(0, 4);
 
   const categoryMenu = [
-    { id: 'Inverters' as Category, label: t('nav_catalog') === 'Catalog' ? 'Inverters' : 'Інвертори', icon: Cpu },
-    { id: 'Batteries' as Category, label: t('nav_catalog') === 'Catalog' ? 'Batteries' : 'Батареї', icon: Battery },
-    { id: 'Solar Panels' as Category, label: t('nav_catalog') === 'Catalog' ? 'Solar Panels' : 'Панелі', icon: Sun },
-    { id: 'Charging Stations' as Category, label: t('nav_catalog') === 'Catalog' ? 'Charging Stations' : 'Зарядні станції', icon: Zap },
-    { id: 'Kits' as Category, label: t('nav_catalog') === 'Catalog' ? 'Ready Kits' : 'Комплекти', icon: Layers },
+    { id: 'Inverters' as Category, label: 'Inverters', icon: Cpu },
+    { id: 'Batteries' as Category, label: 'Batteries', icon: Battery },
+    { id: 'Solar Panels' as Category, label: 'Solar Panels', icon: Sun },
+    { id: 'Charging Stations' as Category, label: 'Charging Stations', icon: Zap },
+    { id: 'Kits' as Category, label: 'Ready Kits', icon: Layers },
   ];
 
   const handleCategoryClick = (cat: Category) => {
@@ -86,16 +86,16 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
             <button 
               key={item.id} 
               onClick={() => handleCategoryClick(item.id)}
-              className="flex-1 min-w-[150px] max-w-[220px] bg-white border-2 border-emerald-100/80 rounded-[2.5rem] p-8 flex flex-col items-center gap-4 group hover:border-emerald-500 hover:shadow-[0_20px_40px_-15px_rgba(16,185,129,0.2)] hover:-translate-y-1 transition-all duration-500 shadow-sm relative overflow-hidden"
+              className="flex-1 min-w-[150px] max-w-[220px] h-[180px] bg-white border-2 border-emerald-100/80 rounded-[2.5rem] px-6 py-6 flex flex-col items-center justify-center gap-3 group hover:border-emerald-500 hover:shadow-[0_20px_40px_-15px_rgba(16,185,129,0.2)] hover:-translate-y-1 transition-all duration-500 shadow-sm relative overflow-hidden"
             >
               {/* Subtle background glow effect */}
               <div className="absolute inset-0 bg-emerald-50/0 group-hover:bg-emerald-50/40 transition-colors duration-500"></div>
               
-              <div className="relative z-10 w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-all duration-500 shadow-inner">
-                <item.icon size={28} />
+              <div className="relative z-10 w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-all duration-500 shadow-inner shrink-0">
+                <item.icon size={24} />
               </div>
               
-              <span className="relative z-10 text-[15px] font-black uppercase tracking-tight text-slate-900 group-hover:text-emerald-600 transition-colors text-center leading-tight">
+              <span className="relative z-10 text-[18px] font-black uppercase tracking-tighter text-slate-900 group-hover:text-emerald-600 transition-colors text-center leading-none">
                 {item.label}
               </span>
 

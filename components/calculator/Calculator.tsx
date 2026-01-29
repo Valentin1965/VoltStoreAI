@@ -17,7 +17,9 @@ import {
   RefreshCw,
   ChevronRight,
   Target,
-  Wallet
+  Wallet,
+  ShieldAlert,
+  Key
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { KitComponent, Alternative, Product } from '../../types';
@@ -26,19 +28,19 @@ const OFFLINE_TEMPLATES = {
   optimal: {
     en: {
       title: "Optimal Energy System Pro",
-      description: "Based on your profile, we have assembled a reliable set. You can replace any component with an analogue from another brand.",
+      description: "Our engineers have pre-assembled this reliable set based on high-demand configurations. You can customize components below.",
     },
     da: {
       title: "Optimalt Energisystem Pro",
-      description: "Baseret på din profil har vi samlet et pålideligt sæt. Du kan udskifte enhver komponent med en analog fra et andet mærke.",
+      description: "Vores ingeniører har forudmonteret dette pålidelige sæt baseret på konfigurationer med høj efterspørgsel. Du kan tilpasse komponenter nedenfor.",
     },
     sv: {
       title: "Optimalt Energisystem Pro",
-      description: "Baserat på din profil har vi sammanställt en pålitlig uppsättning. Du kan ersätta vilken komponent som helst med en motsvarighet från ett annat märke.",
+      description: "Våra ingenjörer har förmonterat denna pålitliga uppsättning baserat på konfigurationer med hög efterfrågan. Du kan anpassa komponenter nedan.",
     },
     no: {
       title: "Optimalt Energisystem Pro",
-      description: "Basert på profilen din har vi satt sammen et pålitelig sett. Du kan bytte ut hvilken som helst komponent med en analog fra et annet merke.",
+      description: "Våre ingeniører har forhåndsmontert dette pålitelige settet basert på konfigurasjoner med høy etterspørsel. Du kan tilpasse komponenter nedenfor.",
     }
   }
 };
@@ -57,7 +59,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
   const { addNotification } = useNotification();
   const { addItem } = useCart();
   const { products } = useProducts();
-  const { formatPrice, t, language } = useLanguage();
+  const { formatPrice, t, language, isApiRestricted, checkAndPromptKey } = useLanguage();
   
   const [config, setConfig] = useState({
     objectType: 'Private House',
@@ -76,14 +78,23 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
     const langKey = language as keyof typeof OFFLINE_TEMPLATES.optimal;
     const template = OFFLINE_TEMPLATES.optimal[langKey] || OFFLINE_TEMPLATES.optimal.en;
     setResult({ title: template.title, description: template.description });
+    
+    const inverter = products.find(p => p.category === 'Inverters' && p.stock && p.stock > 0) || 
+                   { id: 'def-inv', name: 'Standard Hybrid Inverter 5kW', price: 1100 };
+    const battery = products.find(p => p.category === 'Batteries' && p.stock && p.stock > 0) || 
+                  { id: 'def-bat', name: 'LiFePO4 Battery 5.12kWh', price: 1450 };
+
     setActiveComponents([
       { 
-        id: 'inv-deye-5', name: 'Hybrid Inverter Deye 5kW', price: 1200, quantity: 1, 
-        alternatives: []
+        id: inverter.id, name: (typeof inverter.name === 'string' ? inverter.name : (inverter.name as any).en) || 'Inverter', 
+        price: inverter.price, quantity: 1, alternatives: [] 
+      },
+      { 
+        id: battery.id, name: (typeof battery.name === 'string' ? battery.name : (battery.name as any).en) || 'Battery Storage', 
+        price: battery.price, quantity: 1, alternatives: [] 
       }
     ]);
     setStep(3);
-    addNotification('Using default template', 'info');
   };
 
   const getFullLanguageName = (langCode: string) => {
@@ -96,64 +107,51 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
   };
 
   const handleCalculate = async () => {
+    if (isApiRestricted) {
+       addNotification("API Key is restricted. Please select a valid key to use AI features.", "error");
+       await checkAndPromptKey();
+       return;
+    }
+
     setLoading(true);
     try {
       const inventoryContext = products
         .filter(p => (p.stock || 0) > 0)
-        .map(p => `ID: ${p.id}, Name: ${p.name}, Category: ${p.category}, Price: ${p.price}`)
+        .slice(0, 15)
+        .map(p => `ID: ${p.id}, Name: ${p.name}, Category: ${p.category}, Price: ${p.price} EUR`)
         .join('\n');
 
       const apiKey = process.env.API_KEY;
-      if (!apiKey || apiKey === 'undefined') {
-        throw new Error("Missing API Key");
-      }
+      if (!apiKey || apiKey === 'undefined') throw new Error("Missing API Key");
 
       const ai = new GoogleGenAI({ apiKey });
       const currentFullLang = getFullLanguageName(language);
 
-      const prompt = `You are an energy expert for VoltStore. Create an optimal equipment set for: 
-      Object: ${config.objectType}, 
-      Monthly Usage: ${config.monthlyUsage}, 
-      Goal: ${config.purpose}, 
-      Budget: ${config.budget}.
-      
-      CRITICAL: You MUST respond and provide all text (title, description, names) in ${currentFullLang} language.
-      
-      USE ONLY THESE PRODUCTS FROM OUR WAREHOUSE:
+      const prompt = `Energy expert task for VoltStore. Assemble optimal equipment set: 
+      Object: ${config.objectType}, Monthly Usage: ${config.monthlyUsage}, Goal: ${config.purpose}, Budget: ${config.budget}.
+      Respond in ${currentFullLang}. All prices in EUR.
+      CONTEXT (Inventory prices are in EUR):
       ${inventoryContext}
-      
-      Return ONLY clean JSON without Markdown: {
-        "title": "System Name in ${currentFullLang}", 
-        "description": "Explanation why this fits in ${currentFullLang}", 
-        "components": [
-          {
-            "id": "real_id_from_context", 
-            "name": "real_name_translated_to_${currentFullLang}_if_needed", 
-            "price": price_number, 
-            "quantity": 1, 
-            "alternatives": [
-              {"id": "alt_id", "name": "alt_name", "price": alt_price, "quantity": 1}
-            ]
-          }
-        ]
-      }`;
+      JSON: {"title": "str", "description": "str", "components": [{"id": "str", "name": "str", "price": num, "quantity": 1, "alternatives": []}]}`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
-        config: { 
-          responseMimeType: "application/json"
-        }
+        config: { responseMimeType: "application/json" }
       });
 
-      const textResult = response.text || '{}';
-      const data = JSON.parse(textResult);
+      const data = JSON.parse(response.text || '{}');
       setResult({ title: data.title || 'Power System', description: data.description || '' });
       setActiveComponents(data.components || []);
       setStep(3);
-      addNotification('AI Architect generated your solution', 'success');
+      addNotification('Energy Constructor generated your solution', 'success');
     } catch (err: any) {
-      console.error("AI Error:", err);
+      const errStr = String(err).toLowerCase();
+      if (errStr.includes('429') || errStr.includes('quota')) {
+        addNotification("AI quota exceeded. Using engineer template.", "info");
+      } else {
+        console.error("Energy Constructor Error:", err);
+      }
       useFallback();
     } finally {
       setLoading(false);
@@ -208,7 +206,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
     <div className="max-w-6xl mx-auto py-6 animate-fade-in pb-20 px-4">
       <div className="text-center mb-10">
         <div className="inline-flex items-center gap-2 bg-slate-900 text-yellow-400 px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-4 shadow-xl">
-          <Cpu size={14} className="animate-pulse" /> Energy Architect
+          <Cpu size={14} className="animate-pulse" /> Energy Constructor
         </div>
         <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter uppercase mb-4 leading-none">
           System Parameters
@@ -216,6 +214,21 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
       </div>
 
       <div className="bg-white rounded-[3rem] border border-slate-100 shadow-[0_32px_120px_-20px_rgba(0,0,0,0.08)] overflow-hidden relative">
+        {isApiRestricted && step === 1 && (
+           <div className="p-8 bg-rose-50 border-b border-rose-100 flex items-center justify-between text-rose-900">
+              <div className="flex items-center gap-3">
+                 <ShieldAlert size={20} />
+                 <span className="text-[10px] font-black uppercase tracking-widest">AI Services Restricted (Key Leaked)</span>
+              </div>
+              <button 
+                onClick={() => checkAndPromptKey()}
+                className="bg-rose-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all flex items-center gap-2"
+              >
+                <Key size={14} /> Select Key
+              </button>
+           </div>
+        )}
+        
         {loading && (
           <div className="absolute inset-0 z-[60] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center gap-6 animate-fade-in">
             <Loader2 className="text-yellow-500 animate-spin" size={56} />
@@ -286,7 +299,7 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep }) => {
                   onClick={() => setStep(1)} 
                   className="px-6 py-3 bg-slate-50 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-yellow-600 hover:bg-yellow-50 transition-all shadow-sm flex items-center gap-2"
                 >
-                  <RotateCcw size={16}/> Back to parameters
+                  <div className="p-1 rounded bg-slate-200 group-hover:bg-yellow-400"><RotateCcw size={12}/></div> Back to parameters
                 </button>
               </div>
               

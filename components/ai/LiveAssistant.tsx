@@ -116,12 +116,12 @@ export const LiveAssistant: React.FC = () => {
       console.error("Text AI Error:", err);
       const errStr = String(err).toLowerCase();
       if (errStr.includes('429') || errStr.includes('quota')) {
-        addNotification("Денний ліміт запитів вичерпано. Спробуйте пізніше або виберіть власний ключ.", "info");
-        setTranscription(prev => [...prev, "Вибачте, ліміт безкоштовних запитів на сьогодні вичерпано. Поверніться завтра або підключіть власний API ключ у налаштуваннях."]);
+        addNotification("Daily request limit exceeded. Try again later or select your own key.", "info");
+        setTranscription(prev => [...prev, "Sorry, the free request limit for today has been reached. Please come back tomorrow or connect your own API key in the settings."]);
       } else if (errStr.includes('503')) {
-        addNotification("AI сервіс тимчасово перевантажений (503). Спробуйте пізніше.", "info");
+        addNotification("AI service is temporarily overloaded (503). Try again later.", "info");
       } else {
-        addNotification("Помилка при відправці запиту", "error");
+        addNotification("Error sending request", "error");
       }
     } finally {
       setIsGeneratingText(false);
@@ -215,9 +215,9 @@ export const LiveAssistant: React.FC = () => {
             if (errStr.includes('leaked') || errStr.includes('403')) {
                addNotification("API Key Blocked: Please select your own API Key.", "error");
             } else if (errStr.includes('429') || errStr.includes('quota')) {
-               addNotification("Ліміт запитів вичерпано.", "info");
+               addNotification("Request limit exceeded.", "info");
             } else if (errStr.includes('503')) {
-               addNotification("AI сервіс тимчасово недоступний (503).", "info");
+               addNotification("AI service temporarily unavailable (503).", "info");
             }
             stopSession();
           },
@@ -254,7 +254,7 @@ export const LiveAssistant: React.FC = () => {
           <div className={`${isApiRestricted ? 'bg-rose-100' : 'bg-yellow-400'} p-1.5 rounded-full group-hover:rotate-12 transition-transform`}>
             {isApiRestricted ? <ShieldAlert size={18} className="text-rose-600" /> : <Zap size={18} className="text-yellow-950 fill-yellow-950" />}
           </div>
-          <span className="font-bold text-xs pr-2">{isApiRestricted ? 'Блоковано' : 'Питання?'}</span>
+          <span className="font-bold text-xs pr-2">{isApiRestricted ? 'Blocked' : 'Questions?'}</span>
         </button>
       ) : (
         <div className="bg-white w-80 rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden animate-fade-in flex flex-col">
@@ -273,27 +273,27 @@ export const LiveAssistant: React.FC = () => {
                <div className="flex flex-col items-center justify-center h-full text-center gap-4 px-4">
                   <ShieldAlert className="text-rose-400" size={40} />
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
-                    API ключ заблоковано. <br/>
-                    Використовуйте власний ключ.
+                    API key blocked. <br/>
+                    Please use your own key.
                   </p>
                   <button 
                     onClick={() => checkAndPromptKey()}
                     className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all"
                   >
-                    <Key size={14} /> Обрати ключ
+                    <Key size={14} /> Select Key
                   </button>
                </div>
             ) : (
               <>
                 {transcription.length === 0 && !isConnecting && !isGeneratingText && (
                   <p className="text-[10px] text-slate-400 text-center font-bold mt-12 px-4 leading-relaxed uppercase tracking-widest">
-                    Вітаю! Напишіть запитання або скористайтеся голосовим зв'язком.
+                    Welcome! Write a question or use voice communication.
                   </p>
                 )}
                 {isConnecting && (
                   <div className="flex flex-col items-center justify-center h-full gap-3">
                     <Loader2 className="animate-spin text-yellow-500" size={24} />
-                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em]">З'єднання...</p>
+                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em]">Connecting...</p>
                   </div>
                 )}
                 {transcription.map((t, i) => (
@@ -321,7 +321,7 @@ export const LiveAssistant: React.FC = () => {
                 value={textInput}
                 disabled={isApiRestricted || isGeneratingText}
                 onChange={(e) => setTextInput(e.target.value)}
-                placeholder="Напишіть запитання..."
+                placeholder="Write a question..."
                 className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-4 pr-12 py-3 text-[11px] font-medium outline-none focus:border-emerald-400 focus:bg-white transition-all disabled:opacity-50"
               />
               <button 

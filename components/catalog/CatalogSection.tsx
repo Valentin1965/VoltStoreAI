@@ -13,7 +13,8 @@ import {
 } from 'lucide-react';
 import { Product, ProductSpec, ProductDoc, LocalizedText } from '../../types';
 
-const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?q=80&w=400&auto=format&fit=crop';
+// Reliable image fallback
+const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1509391366360-fe5bb58583bb?q=80&w=600&auto=format&fit=crop';
 
 export const useLocalizedText = () => {
   const { language } = useLanguage();
@@ -41,10 +42,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSele
       if (firstValid) return firstValid;
     }
     if (product.image && typeof product.image === 'string' && product.image.trim() !== '') return product.image;
-    return null;
+    return IMAGE_FALLBACK;
   };
 
-  const displayImage = getDisplayImage();
+  const [displayImage, setDisplayImage] = useState(getDisplayImage());
   const { toggleWishlist, isInWishlist } = useWishlist();
   const { toggleCompare, isInCompare } = useCompare();
   
@@ -52,6 +53,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSele
   const isComparing = isInCompare(product.id);
   const isOutOfStock = product.stock === 0 || product.stock === null;
   const productNameStr = getLoc(product.name);
+
+  // Sync image if product data changes
+  useEffect(() => {
+    setDisplayImage(getDisplayImage());
+  }, [product]);
 
   return (
     <div 
@@ -61,10 +67,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSele
     >
       <div className="relative h-52 w-full overflow-hidden bg-slate-50/50 p-2 flex items-center justify-center">
         <img 
-          src={displayImage ? displayImage : IMAGE_FALLBACK} 
+          src={displayImage} 
           alt={productNameStr}
           className="max-w-full max-h-full object-contain transition-all duration-700 group-hover:scale-110"
-          onError={(e) => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }}
+          onError={() => { setDisplayImage(IMAGE_FALLBACK); }}
+          loading="lazy"
         />
         
         <div className="absolute top-3 right-3 z-20">
@@ -198,12 +205,12 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
 
   return (
     <div className="space-y-24">
-      {/* Hero Section */}
-      <div className="relative rounded-[3rem] bg-emerald-50 overflow-hidden min-h-[380px] flex items-center shadow-sm border border-emerald-100">
-        <div className="absolute inset-0 bg-gradient-to-r from-emerald-50 via-emerald-50/70 to-transparent z-10"></div>
+      {/* Hero Section - Image made lighter and higher contrast as requested */}
+      <div className="relative rounded-[3rem] bg-white overflow-hidden min-h-[380px] flex items-center shadow-sm border border-emerald-100">
+        <div className="absolute inset-0 bg-gradient-to-r from-white/70 via-white/20 to-transparent z-10"></div>
         <img 
           src="https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?q=80&w=2000&auto=format&fit=crop" 
-          className="absolute right-0 top-0 w-3/4 h-full object-cover animate-slow-zoom opacity-30 mix-blend-multiply" 
+          className="absolute right-0 top-0 w-3/4 h-full object-cover animate-slow-zoom opacity-100 brightness-125 contrast-150" 
           alt="" 
         />
         
@@ -279,6 +286,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                       src={productImages[activeImageIdx] || IMAGE_FALLBACK} 
                       className="max-w-full max-h-full object-contain" 
                       alt={selectedProductNameStr} 
+                      onError={(e) => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }}
                     />
                     {productImages.length > 1 && (
                       <div className="absolute inset-0 flex items-center justify-between px-3 opacity-0 group-hover/img:opacity-100 transition-opacity">
@@ -295,7 +303,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                         onClick={() => setActiveImageIdx(idx)}
                         className={`w-20 h-20 rounded-xl overflow-hidden border-2 shrink-0 transition-all ${activeImageIdx === idx ? 'border-emerald-500 scale-95' : 'border-slate-100 opacity-60 hover:opacity-100'}`}
                       >
-                        <img src={img || IMAGE_FALLBACK} className="w-full h-full object-cover" alt="" />
+                        <img src={img || IMAGE_FALLBACK} className="w-full h-full object-cover" alt="" onError={(e) => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }} />
                       </button>
                     ))}
                   </div>

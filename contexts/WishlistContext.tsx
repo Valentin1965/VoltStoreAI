@@ -26,10 +26,10 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setWishlist(prev => {
       const exists = prev.find(p => p.id === product.id);
       if (exists) {
-        setTimeout(() => addNotification('Бронювання скасовано', 'info'), 0);
+        setTimeout(() => addNotification('Booking cancelled', 'info'), 0);
         return prev.filter(p => p.id !== product.id);
       } else {
-        setTimeout(() => addNotification('Обладнання успішно заброньовано', 'success'), 0);
+        setTimeout(() => addNotification('Equipment successfully booked', 'success'), 0);
         return [...prev, product];
       }
     });

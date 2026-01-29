@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { CheckCircle2, AlertCircle, Info as InfoIcon, X } from 'lucide-react';
 
 type NotificationType = 'success' | 'error' | 'info';
@@ -18,18 +18,35 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const timeoutsRef = useRef<Map<string, number>>(new Map());
 
-  const addNotification = useCallback((message: string, type: NotificationType) => {
-    const id = Math.random().toString(36).substr(2, 9);
-    setNotifications(prev => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== id));
-    }, 4000);
+  const removeNotification = useCallback((id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    if (timeoutsRef.current.has(id)) {
+      window.clearTimeout(timeoutsRef.current.get(id));
+      timeoutsRef.current.delete(id);
+    }
   }, []);
 
-  const removeNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-  };
+  const addNotification = useCallback((message: string, type: NotificationType) => {
+    const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    setNotifications(prev => [...prev, { id, message, type }]);
+    
+    const timeout = window.setTimeout(() => {
+      removeNotification(id);
+    }, 4500);
+    
+    timeoutsRef.current.set(id, timeout);
+  }, [removeNotification]);
+
+  useEffect(() => {
+    return () => {
+      // Cleanup all timeouts on unmount
+      timeoutsRef.current.forEach(timeout => window.clearTimeout(timeout));
+      timeoutsRef.current.clear();
+    };
+  }, []);
 
   return (
     <NotificationContext.Provider value={{ addNotification }}>
@@ -55,6 +72,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             <button 
               onClick={() => removeNotification(n.id)}
               className="p-1.5 hover:bg-white/20 rounded-xl transition-colors"
+              aria-label="Close notification"
             >
               <X size={16} />
             </button>
@@ -67,12 +85,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
 export const useNotification = () => {
   const context = useContext(NotificationContext);
-  // Fail-safe mechanism: return a dummy function instead of crashing the app
   if (!context) {
+    // Return a dummy to prevent crashes during initialization if called accidentally
     return {
-      addNotification: (message: string, type: NotificationType) => {
-        console.warn('[Notification Guard] Provider not ready yet. Notification deferred:', message);
-      }
+      addNotification: (msg: string, type: NotificationType) => console.warn('NotificationProvider not found', msg)
     };
   }
   return context;
