@@ -1,16 +1,19 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
 export async function POST(request: Request) {
   try {
     const { prompt } = await request.json();
-    const apiKey = process.env.GEMINI_API_KEY;
+
+    // Пріоритет: Змінна середовища Vercel, інакше — hardcoded ключ
+    const apiKey = process.env.GEMINI_API_KEY || "AIzaSyDhNAK8S9_HQdCQD-y9nkY_d9IaLOmm9tg";
 
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: 'GEMINI_API_KEY відсутній у змінних середовища' }),
+        JSON.stringify({ error: 'API Key is missing' }),
         { status: 500 }
       );
     }
 
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
       model: "gemini-1.5-flash",
@@ -21,8 +24,8 @@ export async function POST(request: Request) {
     });
 
     const result = await model.generateContent(prompt);
-    // Виправляємо очищення JSON від markdown-обгорток
-    const text = result.response.text().replace(/```json|```/gi, '').trim();
+    const response = await result.response;
+    const text = response.text().replace(/```json|```/gi, '').trim();
 
     return new Response(JSON.stringify({ data: JSON.parse(text) }), { 
       status: 200,
@@ -31,7 +34,7 @@ export async function POST(request: Request) {
   } catch (err: any) {
     console.error('[Server /api/gemini]', err);
     return new Response(
-      JSON.stringify({ error: err.message || 'Помилка сервера' }),
+      JSON.stringify({ error: err.message || 'Server Error' }),
       { status: 500 }
     );
   }
