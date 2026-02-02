@@ -5,11 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.37.0",
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.48.1",
     "lucide-react": "^0.562.0",
