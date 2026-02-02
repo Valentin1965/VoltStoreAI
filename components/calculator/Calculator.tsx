@@ -3,7 +3,7 @@ import { useNotification } from '../../contexts/NotificationContext';
 import { useCart } from '../../contexts/CartContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { 
-  RotateCcw, Check, Zap, Settings2, Target, Wallet, Sparkles 
+  RotateCcw, Check, Zap, Settings2, Target, Wallet, Sparkles, Activity 
 } from 'lucide-react';
 import { KitComponent } from '../../types';
 
