@@ -3,15 +3,11 @@ import { useNotification } from '../../contexts/NotificationContext';
 import { useCart } from '../../contexts/CartContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { 
-  RotateCcw, Check, Activity, Zap, Settings2, Target, Wallet, Sparkles, ShoppingCart
+  RotateCcw, Check, Zap, Settings2, Target, Wallet, Sparkles 
 } from 'lucide-react';
 import { KitComponent } from '../../types';
 
-interface CalculatorProps {
-  initialStep?: 1 | 3;
-}
-
-export const Calculator: React.FC<CalculatorProps> = ({ initialStep = 1 }) => {
+export const Calculator: React.FC<{ initialStep?: 1 | 3 }> = ({ initialStep = 1 }) => {
   const [step, setStep] = useState<1 | 3>(initialStep as 1 | 3); 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ title: string; description: string; } | null>(null);
@@ -19,18 +15,19 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep = 1 }) => {
   
   const { addNotification } = useNotification();
   const { addItem } = useCart();
-  const { formatPrice, t } = useLanguage();
+  const { formatPrice } = useLanguage();
   
   const [config, setConfig] = useState({ 
     objectType: 'Private House', 
-    monthlyUsage: '300-600 kWh/month', 
-    purpose: 'Backup Power', 
+    monthlyUsage: '300-600 kWh', 
+    purpose: 'Backup', 
     budget: 'Optimal'
   });
 
   const generateAiSolution = async () => {
+    // Використовуємо ключ з налаштувань Vercel або ваш hardcoded ключ
     const apiKey = "AIzaSyDhNAK8S9_HQdCQD-y9nkY_d9IaLOmm9tg";
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     setLoading(true);
     try {
@@ -39,12 +36,12 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep = 1 }) => {
         Object: ${config.objectType}, Monthly Usage: ${config.monthlyUsage}, 
         Primary Goal: ${config.purpose}, Budget Level: ${config.budget}.
         
-        IMPORTANT: Return ONLY a JSON object in this format:
+        IMPORTANT: Return ONLY a JSON object:
         {
-          "title": "Name in Ukrainian",
-          "description": "Benefits in Ukrainian",
+          "title": "Назва українською",
+          "description": "Опис переваг українською",
           "components": [
-            {"name": "English Technical Name", "price": number_in_eur, "quantity": number}
+            {"name": "Technical Name", "price": number, "quantity": number}
           ]
         }
       `;
@@ -53,16 +50,16 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep = 1 }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: "application/json" }
         })
       });
 
       if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
 
       const resData = await response.json();
-      const aiText = resData.candidates[0].content.parts[0].text;
-      const cleanJson = aiText.replace(/```json|```/gi, '').trim();
-      const data = JSON.parse(cleanJson);
+      const rawText = resData.candidates[0].content.parts[0].text;
+      const data = JSON.parse(rawText);
 
       setResult({ title: data.title, description: data.description });
       
@@ -76,10 +73,9 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep = 1 }) => {
 
       setActiveComponents(components);
       setStep(3);
-      addNotification("Solution generated successfully", "success");
     } catch (err: any) {
-      console.error('AI Error:', err);
-      addNotification("AI Architect is busy. Try again.", "error");
+      console.error('AI Architect Error:', err);
+      addNotification("The AI Architect is busy. Please try again.", "error");
     } finally {
       setLoading(false);
     }
@@ -89,110 +85,86 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep = 1 }) => {
     activeComponents.reduce((s, c) => s + (c.price * c.quantity), 0)
   , [activeComponents]);
 
-  const handleAddToCart = () => {
-    activeComponents.forEach(comp => {
-      addItem({
-        id: comp.id,
-        name: comp.name,
-        price: comp.price,
-        image: 'https://images.unsplash.com/photo-1509391366360-feaffa44d51a?auto=format&fit=crop&q=80&w=200',
-        category: 'Components'
-      });
-    });
-    addNotification("All components added to cart", "success");
-  };
+  // Спрощений селектор для стабільності
+  const Selector = ({ label, icon: Icon, value, options, onChange }: any) => (
+    <div className="space-y-3">
+      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
+        <Icon size={12} className="text-emerald-500" /> {label}
+      </label>
+      <div className="flex flex-col gap-2">
+        {options.map((opt: string) => (
+          <button 
+            key={opt} 
+            onClick={() => onChange(opt)} 
+            className={`p-4 rounded-2xl border-2 text-left font-bold transition-all flex justify-between items-center ${value === opt ? 'border-emerald-400 bg-emerald-50 text-emerald-950' : 'border-slate-50 bg-slate-50 text-slate-400'}`}
+          >
+            <span className="text-[10px] uppercase tracking-tight">{opt}</span>
+            {value === opt && <Check size={14} className="text-emerald-600" />}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="bg-white rounded-[3rem] shadow-3xl border border-slate-100 overflow-hidden">
-        {step === 1 ? (
-          <div className="p-10 space-y-8">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="bg-yellow-400 p-3 rounded-2xl">
-                <Sparkles className="text-yellow-950" />
-              </div>
-              <h2 className="text-3xl font-black uppercase tracking-tighter">AI Architect</h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-slate-400 px-2">Object Type</label>
-                <select 
-                  className="w-full bg-slate-50 p-4 rounded-2xl font-bold border-2 border-transparent focus:border-yellow-400 outline-none"
-                  value={config.objectType}
-                  onChange={(e) => setConfig({...config, objectType: e.target.value})}
-                >
-                  <option>Private House</option>
-                  <option>Office/Business</option>
-                  <option>Industrial</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-slate-400 px-2">Purpose</label>
-                <select 
-                  className="w-full bg-slate-50 p-4 rounded-2xl font-bold border-2 border-transparent focus:border-yellow-400 outline-none"
-                  value={config.purpose}
-                  onChange={(e) => setConfig({...config, purpose: e.target.value})}
-                >
-                  <option>Backup Power</option>
-                  <option>Full Autonomy</option>
-                  <option>Savings/Net Metering</option>
-                </select>
-              </div>
-            </div>
-
-            <button 
-              onClick={generateAiSolution}
-              disabled={loading}
-              className="w-full bg-slate-900 text-white py-6 rounded-3xl font-black uppercase tracking-widest hover:bg-yellow-400 hover:text-yellow-950 transition-all shadow-xl disabled:opacity-50"
-            >
-              {loading ? "Analyzing Data..." : "Generate My Solution"}
-            </button>
-          </div>
-        ) : (
-          <div className="p-10 space-y-8 animate-fade-in">
-            <div className="bg-yellow-50 p-8 rounded-[2.5rem] border border-yellow-100">
-              <h3 className="text-2xl font-black text-yellow-950 mb-2 uppercase tracking-tighter">{result?.title}</h3>
-              <p className="text-yellow-800 font-medium leading-relaxed">{result?.description}</p>
-            </div>
-
-            <div className="space-y-4">
-              {activeComponents.map((comp) => (
-                <div key={comp.id} className="flex justify-between items-center p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div>
-                    <p className="font-black text-slate-900">{comp.name}</p>
-                    <p className="text-xs text-slate-400 font-bold uppercase">Qty: {comp.quantity}</p>
-                  </div>
-                  <p className="font-black text-slate-900 text-lg">{formatPrice(comp.price * comp.quantity)}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="pt-6 border-t border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
-              <div className="text-center md:text-left">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Investment</p>
-                <p className="text-4xl font-black text-slate-900 tracking-tighter">{formatPrice(totalPrice)}</p>
-              </div>
-              
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => setStep(1)}
-                  className="p-5 bg-slate-100 text-slate-600 rounded-2xl hover:bg-slate-200 transition-all"
-                >
-                  <RotateCcw size={24} />
-                </button>
-                <button 
-                  onClick={handleAddToCart}
-                  className="bg-slate-900 text-white px-8 py-5 rounded-2xl font-black uppercase tracking-widest flex items-center gap-3 hover:bg-yellow-400 hover:text-yellow-950 transition-all shadow-xl"
-                >
-                  <ShoppingCart size={20} />
-                  Add to Cart
-                </button>
-              </div>
-            </div>
+    <div className="max-w-6xl mx-auto py-6 pb-20 px-4">
+      <div className="bg-white rounded-[3rem] border border-slate-100 shadow-2xl overflow-hidden relative min-h-[400px]">
+        {loading && (
+          <div className="absolute inset-0 z-[60] bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
+            <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-[10px] font-black uppercase tracking-widest">Architect is thinking...</p>
           </div>
         )}
+
+        <div className="p-8 md:p-12">
+          {step === 1 ? (
+            <div className="space-y-10">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <Selector label="Object" icon={Settings2} value={config.objectType} options={['Private House', 'Business', 'Apartment']} onChange={(v:any)=>setConfig({...config, objectType:v})}/>
+                <Selector label="Usage" icon={Activity} value={config.monthlyUsage} options={['< 300 kWh', '300-600 kWh', '600+ kWh']} onChange={(v:any)=>setConfig({...config, monthlyUsage:v})}/>
+                <Selector label="Goal" icon={Target} value={config.purpose} options={['Backup', 'Autonomy', 'Savings']} onChange={(v:any)=>setConfig({...config, purpose:v})}/>
+                <Selector label="Budget" icon={Wallet} value={config.budget} options={['Economy', 'Optimal', 'Premium']} onChange={(v:any)=>setConfig({...config, budget:v})}/>
+              </div>
+              <button onClick={generateAiSolution} className="w-full bg-slate-900 text-white py-6 rounded-3xl font-black uppercase tracking-widest text-[13px] hover:bg-emerald-600 transition-all shadow-xl flex items-center justify-center gap-4">
+                Generate AI Solution <Zap size={20} className="text-emerald-400" />
+              </button>
+            </div>
+          ) : result && (
+            <div className="space-y-10">
+              <div className="flex justify-between items-center border-b pb-8">
+                <div>
+                  <h2 className="text-2xl font-black uppercase tracking-tighter">{result.title}</h2>
+                  <p className="text-[10px] text-slate-500 uppercase font-bold mt-2">{result.description}</p>
+                </div>
+                <button onClick={() => setStep(1)} className="px-6 py-3 bg-slate-50 rounded-2xl text-[10px] font-black uppercase text-slate-400 hover:text-emerald-600 transition-all">
+                  <RotateCcw size={12}/> New Design
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                <div className="lg:col-span-2 space-y-4">
+                  {activeComponents.map((c, i) => (
+                    <div key={i} className="p-6 bg-slate-50 rounded-2xl flex justify-between items-center border border-transparent hover:border-emerald-400">
+                      <div>
+                        <div className="font-black text-slate-900 text-[11px] uppercase">{c.name}</div>
+                        <div className="text-[9px] text-slate-400 font-bold uppercase">{c.quantity} units</div>
+                      </div>
+                      <div className="font-black text-slate-900">{formatPrice(c.price * c.quantity)}</div>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="bg-slate-950 p-10 rounded-[3rem] text-center text-white shadow-2xl h-fit">
+                   <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-4">Total System Cost</div>
+                   <div className="text-4xl font-black text-emerald-400 mb-8">{formatPrice(totalPrice)}</div>
+                   <button onClick={() => addItem({ id: 'kit-' + Date.now(), name: result.title, price: totalPrice, category: 'Kits', image: 'https://images.unsplash.com/photo-1509391366360-feaffa44d51a?q=80&w=200' })} className="w-full bg-emerald-500 text-white py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-emerald-950 transition-all">
+                      Add to Cart
+                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
