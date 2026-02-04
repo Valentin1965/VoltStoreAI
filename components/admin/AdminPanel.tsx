@@ -165,7 +165,7 @@ export const AdminPanel: React.FC = () => {
                   <label className="text-[10px] font-black text-slate-400 uppercase px-4 tracking-widest">{curr} Base (vs EUR)</label>
                   <input 
                     type="number" step="0.001" 
-                    value={(currencyForm as any)[curr]} 
+                    value={(currencyForm as any)[curr] || 0} 
                     onChange={e => setCurrencyForm({...currencyForm, [curr]: Number(e.target.value)})} 
                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-sm font-black outline-none focus:border-yellow-400 focus:bg-white transition-all shadow-inner" 
                   />
@@ -202,20 +202,20 @@ export const AdminPanel: React.FC = () => {
                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Unique Identifier</label>
-                    <input disabled={!!editingProduct} value={formData.id} onChange={e => setFormData({...formData, id: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none opacity-50 cursor-not-allowed" />
+                    <input disabled={!!editingProduct} value={formData.id || ''} onChange={e => setFormData({...formData, id: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none opacity-50 cursor-not-allowed" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Base Price (EUR)</label>
-                    <input type="number" value={formData.price} onChange={e => setFormData({...formData, price: Number(e.target.value)})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500 focus:bg-white transition-all shadow-inner" />
+                    <input type="number" value={formData.price || 0} onChange={e => setFormData({...formData, price: Number(e.target.value)})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500 focus:bg-white transition-all shadow-inner" />
                   </div>
                   <div className="space-y-2 col-span-full">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Title (English)</label>
-                    <input value={(formData.name as any)?.en} onChange={e => setFormData({...formData, name: { ...formData.name as any, en: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none" required />
+                    <input value={(formData.name as any)?.en || ''} onChange={e => setFormData({...formData, name: { ...formData.name as any, en: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none" required />
                   </div>
                   <div className="space-y-2 col-span-full">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Asset Image URL</label>
                     <div className="flex gap-4">
-                      <input value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none" placeholder="https://..." />
+                      <input value={formData.image || ''} onChange={e => setFormData({...formData, image: e.target.value})} className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none" placeholder="https://..." />
                       {formData.image && <img src={formData.image} className="w-14 h-14 rounded-2xl object-cover border-2 border-slate-100" alt="preview" />}
                     </div>
                   </div>

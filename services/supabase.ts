@@ -1,19 +1,15 @@
-
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Get variables from Vite's import.meta.env or the mapped process.env (from vite.config.ts)
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+// Використовуємо (import.meta as any) для стабільної збірки у Vite
+const metaEnv = (import.meta as any).env;
 
-// Debugging check to help identify issues in the console
+const supabaseUrl = metaEnv?.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = metaEnv?.VITE_SUPABASE_ANON_KEY || '';
+
 if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder')) {
-  console.warn('[Supabase Service] Environment variables are missing or invalid. Check Vercel/Local .env settings.');
+  console.warn('[Supabase Service] Environment variables are missing or invalid.');
 }
 
-/**
- * Singleton for SupabaseClient.
- * Ensures only one connection instance is created.
- */
 const getSupabaseInstance = (): SupabaseClient => {
   const global = globalThis as any;
   
@@ -21,7 +17,6 @@ const getSupabaseInstance = (): SupabaseClient => {
     return global.__supabaseClientInstance;
   }
 
-  // Initialize with the provided variables or a dummy URL to prevent SDK initialization crash
   const client = createClient(
     supabaseUrl || 'https://placeholder.supabase.co', 
     supabaseAnonKey || 'placeholder-key',
