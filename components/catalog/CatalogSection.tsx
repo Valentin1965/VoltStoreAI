@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useCart } from '../../contexts/CartContext';
@@ -9,9 +8,9 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { 
   ShoppingCart, X, Heart, Loader2, Zap, 
   Sparkles, Scale, Layers, ChevronLeft, ChevronRight, Info, List, 
-  Truck, Clock, FileText, Download, Leaf, Crown
+  Truck, Clock, FileText, Download, Leaf, Crown, ArrowRight
 } from 'lucide-react';
-import { Product, ProductSpec, ProductDoc, LocalizedText } from '../../types';
+import { Product, ProductSpec, ProductDoc, LocalizedText, AppView } from '../../types';
 
 // Reliable image fallback
 const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1509391366360-fe5bb58583bb?q=80&w=600&auto=format&fit=crop';
@@ -51,7 +50,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSele
   
   const isReserved = isInWishlist(product.id);
   const isComparing = isInCompare(product.id);
-  const isOutOfStock = product.stock === 0 || product.stock === null;
+  const isOutOfStock = product.stock === 0 || product.stock === null || product.is_active === false;
   const productNameStr = getLoc(product.name);
 
   // Sync image if product data changes
@@ -93,7 +92,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSele
             <span className="bg-rose-500 text-white text-[7px] font-black uppercase px-2 py-1 rounded-md shadow-lg">Sale</span>
           )}
           {isOutOfStock && (
-            <span className="bg-slate-500 text-white text-[7px] font-black uppercase px-2 py-1 rounded-md shadow-lg flex items-center gap-1">
+            <span className="bg-amber-500 text-white text-[7px] font-black uppercase px-2 py-1 rounded-md shadow-lg flex items-center gap-1">
               <Clock size={8} /> {t('out_of_stock')}
             </span>
           )}
@@ -138,7 +137,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSele
                 : 'bg-slate-900 hover:bg-emerald-500 text-white'
             }`}
           >
-            <ShoppingCart size={14} />
+            {isOutOfStock ? <ArrowRight size={14} /> : <ShoppingCart size={14} />}
             <span className="text-[8px] font-black uppercase">{isOutOfStock ? t('order_now') : t('add_to_cart')}</span>
           </button>
         </div>
@@ -176,6 +175,19 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
     setTimeout(scrollToProducts, 100);
   };
 
+  const handleAction = (e: React.MouseEvent, product: Product) => {
+    e.stopPropagation();
+    const isSpecialOrder = product.stock === 0 || product.stock === null || product.is_active === false;
+    
+    addItem(product);
+    addNotification(isSpecialOrder ? t('preorder_added') : t('item_added'), 'success');
+    
+    if (isSpecialOrder) {
+      // Пряме перенаправлення до оформлення замовлення для "неактивних" або відсутніх товарів
+      window.dispatchEvent(new CustomEvent('changeView', { detail: AppView.CHECKOUT }));
+    }
+  };
+
   const parseJsonData = (data: any): any[] => {
     if (!data) return [];
     if (Array.isArray(data)) return data;
@@ -200,12 +212,12 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
 
   const filteredSpecs = selectedProduct ? parseJsonData(selectedProduct.specs).filter((s: ProductSpec) => s.label?.trim() && s.value?.trim()) : [];
   const productDocs = selectedProduct ? parseJsonData(selectedProduct.docs).filter((d: ProductDoc) => d.title?.trim() && d.url?.trim()) : [];
-  const isSelectedOutOfStock = selectedProduct ? (selectedProduct.stock === 0 || selectedProduct.stock === null) : false;
+  const isSelectedOutOfStock = selectedProduct ? (selectedProduct.stock === 0 || selectedProduct.stock === null || selectedProduct.is_active === false) : false;
   const selectedProductNameStr = selectedProduct ? getLoc(selectedProduct.name) : "";
 
   return (
     <div className="space-y-24">
-      {/* Hero Section - Image made lighter and higher contrast as requested */}
+      {/* Hero Section */}
       <div className="relative rounded-[3rem] bg-white overflow-hidden min-h-[380px] flex items-center shadow-sm border border-emerald-100">
         <div className="absolute inset-0 bg-gradient-to-r from-white/70 via-white/20 to-transparent z-10"></div>
         <img 
@@ -254,11 +266,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
               product={p} 
               index={idx} 
               onSelect={setSelectedProduct} 
-              onAddToCart={(e, p) => { 
-                e.stopPropagation(); 
-                addItem(p); 
-                addNotification(p.stock === 0 ? t('preorder_added') : t('item_added'), 'success'); 
-              }} 
+              onAddToCart={handleAction} 
             />
           ))}
         </div>
@@ -329,9 +337,6 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                     </div>
 
                     <div className="space-y-0.5">
-                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tighter">
-                        {formatPrice(Math.round(selectedProduct.price / 1.2))} <span className="text-[8px] opacity-60 font-black">{t('ex_vat')}</span>
-                      </div>
                       <div className="text-3xl font-black text-slate-900 tracking-tighter">
                         {formatPrice(selectedProduct.price)} <span className="text-[10px] text-slate-400 uppercase font-black tracking-widest ml-1">{t('inc_vat')}</span>
                       </div>
@@ -347,32 +352,18 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                             </span>
                          </div>
                       </div>
-
-                      <div className="bg-white p-4 rounded-2xl border border-slate-100 flex items-start gap-4">
-                         <div className={`shrink-0 p-2 rounded-xl ${isSelectedOutOfStock ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                            <Truck size={16} />
-                         </div>
-                         <div className="flex-1">
-                            <div className="text-[10px] font-black text-slate-900 uppercase tracking-tight">
-                              {isSelectedOutOfStock ? t('expected_delivery') : t('delivery')}
-                            </div>
-                         </div>
-                      </div>
                     </div>
 
                     <div className="flex gap-3">
                       <button 
-                        onClick={() => { 
-                          addItem(selectedProduct); 
-                          addNotification(isSelectedOutOfStock ? t('preorder_added') : t('item_added'), 'success'); 
-                        }}
+                        onClick={(e) => handleAction(e, selectedProduct)}
                         className={`flex-1 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg py-5 flex items-center justify-center gap-3 active:scale-95 group ${
                           isSelectedOutOfStock 
                             ? 'bg-amber-500 hover:bg-amber-600 text-white' 
                             : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                         }`}
                       >
-                        <ShoppingCart size={18} className="group-hover:rotate-12 transition-transform" /> 
+                        {isSelectedOutOfStock ? <ArrowRight size={18} /> : <ShoppingCart size={18} />} 
                         {isSelectedOutOfStock ? t('order_now') : t('add_to_cart')}
                       </button>
                     </div>
@@ -389,51 +380,6 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                       <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{t('about_product')}</h4>
                     </div>
                     <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-wrap">{getLoc(selectedProduct.description)}</p>
-                  </div>
-                )}
-
-                {filteredSpecs.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                      <List size={16} className="text-emerald-500" />
-                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{t('specs')}</h4>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
-                      {filteredSpecs.map((spec: ProductSpec, i: number) => (
-                        <div key={i} className="flex justify-between border-b border-slate-50 py-3">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{spec.label}</span>
-                          <span className="text-[10px] font-bold text-slate-800 uppercase text-right">{spec.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {productDocs.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                      <FileText size={16} className="text-emerald-500" />
-                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{t('docs_and_files')}</h4>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {productDocs.map((doc: ProductDoc, i: number) => (
-                        <a 
-                          key={i} 
-                          href={doc.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-white rounded-xl text-rose-500 shadow-sm">
-                              <FileText size={16} />
-                            </div>
-                            <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight line-clamp-1">{doc.title}</span>
-                          </div>
-                          <Download size={14} className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
-                        </a>
-                      ))}
-                    </div>
                   </div>
                 )}
               </div>

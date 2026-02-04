@@ -18,29 +18,24 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('voltstore_cart');
+    const saved = localStorage.getItem('voltstoreai_cart');
     return saved ? JSON.parse(saved) : [];
   });
 
   useEffect(() => {
-    localStorage.setItem('voltstore_cart', JSON.stringify(items));
+    localStorage.setItem('voltstoreai_cart', JSON.stringify(items));
   }, [items]);
 
   const addItem = (product: Product, parts?: KitPart[]) => {
     setItems(prev => {
-      // Якщо це комплект, завжди створюємо новий унікальний запис, 
-      // бо замовник може створити два різних комплекти одного типу
       if (parts) {
         const id = `${product.id}-${Date.now()}`;
         return [...prev, { ...product, id, quantity: 1, parts }];
       }
-
-      // Для звичайних товарів шукаємо існуючий
       const existing = prev.find(i => i.id === product.id && !i.parts);
       if (existing) {
         return prev.map(i => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
       }
-      
       return [...prev, { ...product, quantity: 1 }];
     });
   };
@@ -54,11 +49,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (item.id === itemId && item.parts) {
         const partToRemove = item.parts.find(p => p.id === partId);
         if (!partToRemove) return item;
-
         const updatedParts = item.parts.filter(p => p.id !== partId);
-        // Оновлюємо базову ціну комплекту (ціна за 1 шт комплекту)
         const priceReduction = partToRemove.price * partToRemove.quantity;
-        
         return {
           ...item,
           parts: updatedParts,
@@ -81,7 +73,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           return p;
         });
-
         return {
           ...item,
           parts: updatedParts,
@@ -109,15 +100,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <CartContext.Provider value={{ 
-      items, 
-      addItem, 
-      removeItem, 
-      removePart, 
-      updateQuantity, 
-      updatePartQuantity,
-      clearCart, 
-      totalItems, 
-      totalPrice 
+      items, addItem, removeItem, removePart, updateQuantity, updatePartQuantity,
+      clearCart, totalItems, totalPrice 
     }}>
       {children}
     </CartContext.Provider>

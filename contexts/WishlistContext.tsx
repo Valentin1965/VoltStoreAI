@@ -13,13 +13,13 @@ const WishlistContext = createContext<WishlistContextType | undefined>(undefined
 
 export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [wishlist, setWishlist] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('voltstore_wishlist');
+    const saved = localStorage.getItem('voltstoreai_wishlist');
     return saved ? JSON.parse(saved) : [];
   });
   const { addNotification } = useNotification();
 
   useEffect(() => {
-    localStorage.setItem('voltstore_wishlist', JSON.stringify(wishlist));
+    localStorage.setItem('voltstoreai_wishlist', JSON.stringify(wishlist));
   }, [wishlist]);
 
   const toggleWishlist = useCallback((product: Product) => {

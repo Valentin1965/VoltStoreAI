@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Layout } from './components/layout/Layout';
 import { CatalogSection } from './components/catalog/CatalogSection';
@@ -99,7 +98,6 @@ const AppContent: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.ABOUT);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
-  // Adjusted type to match Calculator's 1 | 3 steps
   const [calcMode, setCalcMode] = useState<1 | 3>(1);
 
   const handleSetView = useCallback((view: AppView) => {
@@ -145,11 +143,9 @@ const AppContent: React.FC = () => {
 
   return (
     <Layout currentView={currentView} setView={handleSetView}>
-      <div id="view-wrapper" key={`view-${currentView}`} className="animate-fade-in min-h-[50vh]">
+      <div id="view-wrapper" key={currentView} className="animate-fade-in min-h-[50vh]">
         <ErrorBoundary>
-          <div key={`content-${currentView}`}>
-            {renderedView}
-          </div>
+          {renderedView}
         </ErrorBoundary>
       </div>
 

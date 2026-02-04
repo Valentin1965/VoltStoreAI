@@ -1,12 +1,13 @@
 
 import React, { useState } from 'react';
-import { ShoppingCart, LayoutGrid, Calculator, Heart, User, Search, Scale, X, Info, MapPin, Phone, Mail, Lock, Coins } from 'lucide-react';
+import { ShoppingCart, LayoutGrid, Calculator, Heart, User, Search, Scale, X, Info, MapPin, Phone, Mail, Lock } from 'lucide-react';
 import { AppView } from '../../types';
 import { useCart } from '../../contexts/CartContext';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useLanguage, Language } from '../../contexts/LanguageContext';
 import { CartDrawer } from '../cart/CartDrawer';
 
+// Define LayoutProps to fix the compilation error
 interface LayoutProps {
   children: React.ReactNode;
   currentView: AppView;
@@ -15,12 +16,16 @@ interface LayoutProps {
 
 const GreenLightLogo = () => (
   <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
+    {/* Bulb Shape */}
     <path d="M50 85C50 90.5228 45.5228 95 40 95H60C54.4772 95 50 90.5228 50 85Z" fill="#065F46" />
     <rect x="40" y="80" width="20" height="4" rx="2" fill="#064E3B" />
     <rect x="42" y="74" width="16" height="4" rx="2" fill="#064E3B" />
     <path d="M50 10C30 10 15 25 15 45C15 65 35 75 40 85H60C65 75 85 65 85 45C85 25 70 10 50 10Z" fill="url(#bulbGrad)" />
-    <path d="M50 70C50 70 48 50 40 40C32 30 20 28 20 28C20 28 30 35 35 48C40 61 42 75 42 75" fill="white" fillOpacity="0.8" />
+    
+    {/* Internal Leaf Shape (White/Translucent for glow) */}
+    <path d="M50 70C50 70 48 50 40 40C32 30 20 28 20 28C20 28 30 35 35 48C40 61 42 75 42 75" fill="white" fillOpacity="0.9" />
     <path d="M50 70C50 70 55 55 65 48C75 41 85 40 85 40C85 40 75 45 70 55C65 65 62 80 62 80" fill="white" fillOpacity="0.4" />
+    
     <defs>
       <linearGradient id="bulbGrad" x1="50" y1="10" x2="50" y2="85" gradientUnits="userSpaceOnUse">
         <stop offset="0" stopColor="#34D399" />
@@ -73,7 +78,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
             </div>
           </div>
 
-          <nav className="hidden lg:flex items-center bg-slate-100/50 p-1.5 rounded-2xl border border-slate-100 mx-4">
+          <nav className="hidden lg:flex items-center bg-slate-100/50 p-1.5 rounded-2xl border border-slate-100 mx-4 overflow-x-auto scrollbar-hide">
             {navItems.map((item) => (
               <button
                 key={item.id}
@@ -118,9 +123,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
                 ))}
               </div>
 
-              <div className="hidden xl:flex flex-col gap-0.5 border-l border-slate-200 pl-2 ml-0.5">
-                {displayRates.map(rate => (
-                  <div key={rate.code} className="flex items-center justify-between gap-2 min-w-[48px]">
+              <div className="hidden xl:flex flex-col gap-0.5 border-l border-slate-200 pl-2 ml-0.5 min-w-[65px]">
+                {displayRates.slice(0, 3).map(rate => (
+                  <div key={rate.code} className="flex items-center justify-between gap-2">
                     <span className="text-[6.5px] font-black text-slate-400 uppercase leading-none">{rate.code}</span>
                     <span className="text-[7.5px] font-black text-slate-900 tabular-nums leading-none">{rate.value.toFixed(2)}</span>
                   </div>
@@ -145,10 +150,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
               <MapPin size={14} className="text-emerald-500 shrink-0 mt-0.5" />
               <span>Green Light Scandinavia<br/>Øster Teglgårdsvej 6<br/>8800 Viborg, Danmark</span>
             </div>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest leading-loose max-w-sm">{t('footer_tagline')}</p>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest leading-loose max-sm:text-[10px]">{t('footer_tagline')}</p>
           </div>
           <div className="space-y-6 md:text-center">
-            <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.3em]">Navigate</h4>
+            <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.3em]">Navigation</h4>
             <div className="flex flex-col md:items-center gap-4">
               <button onClick={() => setView(AppView.CATALOG)} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-600 transition-colors">{t('nav_catalog')}</button>
               <button onClick={() => setView(AppView.ABOUT)} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-600 transition-colors">{t('nav_about')}</button>
@@ -157,7 +162,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
             </div>
           </div>
           <div className="space-y-6 md:text-right">
-             <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.3em]">Support</h4>
+             <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.3em]">{t('about_contact_title')}</h4>
              <div className="space-y-4">
                <a href="tel:+4531185819" className="text-xl font-black text-slate-900 hover:text-emerald-600 transition-colors tracking-tighter flex items-center md:justify-end gap-2"><Phone size={16} className="text-emerald-500" /> +45 31 18 58 19</a>
                <a href="mailto:info@glsolargroup.dk" className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-600 transition-colors flex items-center md:justify-end gap-2"><Mail size={14} className="text-emerald-500" /> info@glsolargroup.dk</a>

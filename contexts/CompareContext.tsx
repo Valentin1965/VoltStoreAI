@@ -14,13 +14,13 @@ const CompareContext = createContext<CompareContextType | undefined>(undefined);
 
 export const CompareProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [compareList, setCompareList] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('voltstore_compare');
+    const saved = localStorage.getItem('voltstoreai_compare');
     return saved ? JSON.parse(saved) : [];
   });
   const { addNotification } = useNotification();
 
   useEffect(() => {
-    localStorage.setItem('voltstore_compare', JSON.stringify(compareList));
+    localStorage.setItem('voltstoreai_compare', JSON.stringify(compareList));
   }, [compareList]);
 
   const toggleCompare = (product: Product) => {

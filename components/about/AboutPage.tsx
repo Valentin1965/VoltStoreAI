@@ -1,21 +1,22 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useCart } from '../../contexts/CartContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { 
-  Leaf, Zap, Cpu, Battery, Sun, Layers, Flame, Crown, X, 
-  ChevronLeft, ChevronRight, Info, List, FileText, Download, ShoppingCart, Truck
+  ShieldCheck, Zap, Globe, Heart, Award, CheckCircle2, 
+  ChevronRight, Mail, Phone, MapPin, Sparkles, Crown,
+  Layers, Battery, Sun, Cpu, X, ShoppingCart, Info, ArrowRight,
+  ChevronLeft
 } from 'lucide-react';
-import { AppView, Category, Product, ProductSpec, ProductDoc } from '../../types';
+import { AppView, Category, Product } from '../../types';
 import { ProductCard, useLocalizedText } from '../catalog/CatalogSection';
-
-const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1509391366360-fe5bb58583bb?q=80&w=600&auto=format&fit=crop';
 
 interface AboutPageProps {
   onNavigateToCatalog: (view: AppView) => void;
 }
+
+const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1509391366360-fe5bb58583bb?q=80&w=600&auto=format&fit=crop';
 
 export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => {
   const { t, formatPrice } = useLanguage();
@@ -23,10 +24,27 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
   const { addItem } = useCart();
   const { addNotification } = useNotification();
   const getLoc = useLocalizedText();
-  
+
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
 
+  // Вибираємо лідерів продажів (Bestsellers)
+  const salesLeaders = products.filter(p => p.is_leader === true).slice(0, 4);
+
+  const handleCategoryClick = (cat: Category) => {
+    setSelectedCategory(cat);
+    onNavigateToCatalog(AppView.CATALOG);
+  };
+
+  const categoryIcons = {
+    'Charging Stations': <Zap size={28} />,
+    'Inverters': <Cpu size={28} />,
+    'Batteries': <Battery size={28} />,
+    'Solar Panels': <Sun size={28} />,
+    'Kits': <Layers size={28} />
+  };
+
+  // Блокування скролу при відкритій модалці
   useEffect(() => {
     if (selectedProduct) {
       document.body.style.overflow = 'hidden';
@@ -37,129 +55,166 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
     return () => { document.body.style.overflow = 'unset'; };
   }, [selectedProduct]);
 
-  // Вибираємо лідерів продажів для відображення
-  const leaders = products.filter(p => p.is_leader === true).slice(0, 4);
-
-  const categoryMenu = [
-    { id: 'Inverters' as Category, label: 'Inverters', icon: Cpu },
-    { id: 'Batteries' as Category, label: 'Batteries', icon: Battery },
-    { id: 'Solar Panels' as Category, label: 'Solar Panels', icon: Sun },
-    { id: 'Charging Stations' as Category, label: 'Charging Stations', icon: Zap },
-    { id: 'Kits' as Category, label: 'Ready Kits', icon: Layers },
-  ];
-
-  const handleCategoryClick = (cat: Category) => {
-    setSelectedCategory(cat);
-    if (onNavigateToCatalog) {
-      onNavigateToCatalog(AppView.CATALOG);
-    }
-  };
-
-  const parseJsonData = (data: any): any[] => {
-    if (!data) return [];
-    if (Array.isArray(data)) return data;
-    try {
-      return typeof data === 'string' ? JSON.parse(data) : [];
-    } catch { return []; }
-  };
-
   const productImages = selectedProduct 
     ? (Array.isArray(selectedProduct.images) && selectedProduct.images.length > 0
         ? selectedProduct.images.filter(img => img && typeof img === 'string' && img.trim() !== '')
         : (selectedProduct.image && typeof selectedProduct.image === 'string' && selectedProduct.image.trim() !== '' ? [selectedProduct.image] : [IMAGE_FALLBACK]))
     : [IMAGE_FALLBACK];
 
-  const filteredSpecs = selectedProduct ? parseJsonData(selectedProduct.specs).filter((s: ProductSpec) => s.label?.trim() && s.value?.trim()) : [];
-  const productDocs = selectedProduct ? parseJsonData(selectedProduct.docs).filter((d: ProductDoc) => d.title?.trim() && d.url?.trim()) : [];
-  const isSelectedOutOfStock = selectedProduct ? (selectedProduct.stock === 0 || selectedProduct.stock === null) : false;
   const selectedProductNameStr = selectedProduct ? getLoc(selectedProduct.name) : "";
+  const isSelectedInactive = selectedProduct ? (selectedProduct.stock === 0 || selectedProduct.stock === null || selectedProduct.is_active === false) : false;
 
   return (
-    <div className="max-w-6xl mx-auto animate-fade-in pb-24">
-      {/* Hero Section */}
-      <div className="relative rounded-[3rem] bg-emerald-950 overflow-hidden min-h-[450px] flex items-center shadow-2xl mb-12 border border-white/10">
-        <div className="absolute inset-0 z-0">
-          <img 
-            src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2000&auto=format&fit=crop" 
-            className="w-full h-full object-cover animate-slow-zoom opacity-60" 
-            alt="Majestic Mountains" 
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-emerald-950 via-emerald-950/70 to-transparent"></div>
-        </div>
-
-        <div className="relative z-20 px-8 md:px-16 py-12 max-w-4xl">
-          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-xl text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] mb-6 border border-white/20">
-            <Leaf size={12} className="text-emerald-400" /> Photovoltaic Specialists
+    <div className="animate-fade-in pb-24 space-y-16">
+      
+      {/* 1. ГОЛОВНА КАРТИНА */}
+      <section className="relative h-[400px] md:h-[480px] -mt-10 overflow-hidden rounded-[3rem] shadow-2xl">
+        <div className="absolute inset-0 bg-slate-900/30 z-10"></div>
+        <img 
+          src="https://images.unsplash.com/photo-1470770841072-f978cf4d019e?q=80&w=2000&auto=format&fit=crop" 
+          className="absolute inset-0 w-full h-full object-cover animate-slow-zoom" 
+          alt="Nature Energy Background" 
+        />
+        
+        <div className="relative z-20 h-full flex flex-col items-center justify-center text-center px-6">
+          <div className="inline-flex items-center gap-2 bg-emerald-500/30 backdrop-blur-md border border-white/20 text-white px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-6">
+            <Sparkles size={14} className="text-emerald-400" /> Енергія Природи
           </div>
-          
-          <h1 className="text-5xl md:text-7xl font-black text-white mb-6 leading-[0.9] tracking-tighter uppercase">
-            GREEN <span className="text-emerald-400 italic">LIGHT</span> <br/>
-            <span className="text-white/95">SOLAR GROUP</span>
+          <h1 className="text-5xl md:text-7xl font-black text-white leading-[0.8] tracking-tighter uppercase mb-6 drop-shadow-2xl">
+            VOLT<br/>
+            <span className="text-emerald-400 italic">STORE</span>
           </h1>
-        </div>
-      </div>
-
-      {/* Category Menu */}
-      <div className="mb-20 px-4">
-        <div className="flex flex-wrap justify-center gap-6">
-          {categoryMenu.map((item) => (
+          <p className="text-white/90 text-sm md:text-lg font-medium max-w-xl mb-10 tracking-tight leading-snug">
+            Професійне обладнання для енергонезалежності. 
+            Використовуйте силу сонця для свого дому та бізнесу.
+          </p>
+          <div className="flex flex-wrap justify-center gap-4">
             <button 
-              key={item.id} 
-              onClick={() => handleCategoryClick(item.id)}
-              className="flex-1 min-w-[150px] max-w-[220px] h-[180px] bg-white border-2 border-emerald-100/80 rounded-[2.5rem] px-6 py-6 flex flex-col items-center justify-center gap-3 group hover:border-emerald-500 hover:shadow-xl transition-all duration-500 shadow-sm relative overflow-hidden"
+              onClick={() => onNavigateToCatalog(AppView.CATALOG)}
+              className="bg-white text-slate-900 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 hover:text-white transition-all shadow-2xl active:scale-95"
             >
-              <div className="relative z-10 w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-all duration-500">
-                <item.icon size={24} />
+              Переглянути Каталог
+            </button>
+            <button 
+              onClick={() => onNavigateToCatalog(AppView.CALCULATOR)}
+              className="bg-emerald-600/30 backdrop-blur-xl border border-white/20 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 hover:text-white transition-all active:scale-95"
+            >
+              AI Архітектор
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* 2. ВИБІР МЕНЮ */}
+      <section className="container mx-auto px-4 -mt-10 relative z-30">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {(['Charging Stations', 'Inverters', 'Batteries', 'Solar Panels', 'Kits'] as Category[]).map((cat) => (
+            <button
+              key={cat}
+              onClick={() => handleCategoryClick(cat)}
+              className="group bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border-2 border-slate-100 shadow-lg hover:shadow-2xl hover:border-emerald-400 hover:-translate-y-2 transition-all duration-300 flex flex-col items-center text-center gap-4"
+            >
+              <div className="w-16 h-16 bg-emerald-50 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white rounded-2xl flex items-center justify-center transition-all duration-500 shadow-sm border border-emerald-100/50">
+                {categoryIcons[cat]}
               </div>
-              <span className="relative z-10 text-[16px] font-black uppercase tracking-tighter text-slate-900 group-hover:text-emerald-600 transition-colors text-center leading-none">
-                {item.label}
+              <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-slate-700 group-hover:text-emerald-600 transition-colors">
+                {cat}
               </span>
             </button>
           ))}
         </div>
-      </div>
+      </section>
 
-      {/* Bestsellers Section - Тепер з доступом до характеристик */}
-      {leaders.length > 0 && (
-        <div className="mb-24 px-4 space-y-10">
-          <div className="flex flex-col items-center text-center space-y-2">
-            <span className="text-amber-500 text-[9px] font-black uppercase tracking-[0.5em] flex items-center gap-2">
-              <Crown size={14} className="fill-amber-500" /> Professional Grade
-            </span>
-            <h3 className="text-4xl font-black text-slate-900 uppercase tracking-tighter flex items-center gap-4">
-              {t('sales_leader')} <Flame size={28} className="text-rose-500 animate-pulse" />
-            </h3>
+      {/* 3. ЛІДЕРИ ПРОДАЖІВ */}
+      {salesLeaders.length > 0 && (
+        <section className="container mx-auto px-4 space-y-10 pt-4">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-4">
+            <div className="space-y-3 text-center md:text-left">
+               <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-600 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border border-amber-100 mx-auto md:mx-0">
+                <Crown size={12} className="fill-amber-600" /> Bestsellers
+               </div>
+               <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">Лідери <span className="text-emerald-500">Продажів</span></h2>
+            </div>
+            <button 
+              onClick={() => onNavigateToCatalog(AppView.CATALOG)}
+              className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-emerald-600 transition-colors flex items-center gap-2 group mx-auto md:mx-0"
+            >
+              Переглянути все <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
+            </button>
           </div>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {leaders.map((p, idx) => (
+            {salesLeaders.map((p, idx) => (
               <ProductCard 
                 key={p.id} 
                 product={p} 
                 index={idx} 
-                onSelect={(prod) => {
-                  setSelectedProduct(prod);
-                }} 
+                onSelect={setSelectedProduct}
                 onAddToCart={(e, prod) => { 
                   e.stopPropagation(); 
                   addItem(prod); 
-                  addNotification(prod.stock === 0 ? t('preorder_added') : t('item_added'), 'success'); 
+                  addNotification(t('item_added'), 'success'); 
                 }} 
               />
             ))}
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Product Detail Modal (Access to Specs/Forms) */}
+      {/* 4. ПРО НАС */}
+      <section className="container mx-auto px-4 pt-12">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <div className="space-y-8">
+            <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-100">
+              <Sparkles size={14} /> Спеціалісти з Енергії
+            </div>
+            <h2 className="text-5xl md:text-6xl font-black text-slate-900 leading-[0.9] tracking-tighter uppercase">
+              Про <span className="text-emerald-500">Нас</span>
+            </h2>
+            <p className="text-slate-600 text-lg leading-relaxed font-medium">
+              З самого початку нашою метою було надання рішень, які використовують енергію природи. Ми є фахівцями у сфері відновлювальної енергетики, і наша місія — допомогти клієнтам стати енергонезалежними, зменшити витрати та зберегти навколишнє середовище.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex items-center gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                <div className="w-12 h-12 bg-emerald-500 text-white rounded-xl flex items-center justify-center shrink-0 shadow-lg">
+                  <Award size={24} />
+                </div>
+                <div>
+                  <div className="text-[12px] font-black text-slate-900 uppercase tracking-tighter leading-none">Сертифіковано</div>
+                  <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Офіційний дистриб'ютор</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                <div className="w-12 h-12 bg-slate-900 text-emerald-400 rounded-xl flex items-center justify-center shrink-0 shadow-lg">
+                  <ShieldCheck size={24} />
+                </div>
+                <div>
+                  <div className="text-[12px] font-black text-slate-900 uppercase tracking-tighter leading-none">Безпека</div>
+                  <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Гарантія до 25 років</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="relative">
+            <div className="absolute -inset-10 bg-emerald-500/10 blur-[100px] rounded-full"></div>
+            <img 
+              src="https://images.unsplash.com/photo-1509391366360-fe5bb58583bb?q=80&w=1200&auto=format&fit=crop" 
+              alt="Solar Panels Installation" 
+              className="relative rounded-[3rem] shadow-2xl border border-white"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* МОДАЛЬНЕ ВІКНО ТОВАРУ */}
       {selectedProduct && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 md:p-10 bg-slate-900/40 backdrop-blur-md overflow-y-auto animate-fade-in">
           <div className="bg-white w-full max-w-6xl rounded-[2.5rem] shadow-3xl border border-white flex flex-col my-auto max-h-[95vh] overflow-hidden">
             
             <div className="px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center gap-4">
-                <div className="bg-emerald-600 p-2 rounded-xl">
-                  <Zap size={18} className="text-white" />
+                <div className="bg-emerald-600 p-2 rounded-xl text-white">
+                  <Zap size={18} />
                 </div>
                 <h2 className="text-lg font-black text-slate-900 uppercase tracking-tighter leading-none">{selectedProductNameStr}</h2>
               </div>
@@ -211,15 +266,9 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
                         )}
                       </div>
                       <h3 className="font-black text-slate-900 text-sm uppercase tracking-tight leading-tight mb-2">{selectedProductNameStr}</h3>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('sku')}: {selectedProduct.id?.slice(0, 8).toUpperCase()}</span>
-                      </div>
                     </div>
 
                     <div className="space-y-0.5">
-                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tighter">
-                        {formatPrice(Math.round(selectedProduct.price / 1.2))} <span className="text-[8px] opacity-60 font-black">{t('ex_vat')}</span>
-                      </div>
                       <div className="text-3xl font-black text-slate-900 tracking-tighter">
                         {formatPrice(selectedProduct.price)} <span className="text-[10px] text-slate-400 uppercase font-black tracking-widest ml-1">{t('inc_vat')}</span>
                       </div>
@@ -229,9 +278,9 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
                       <div className="flex items-center justify-between">
                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('availability')}:</span>
                          <div className="flex items-center gap-1.5">
-                            <div className={`w-2 h-2 rounded-full shadow-sm ${isSelectedOutOfStock ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
+                            <div className={`w-2 h-2 rounded-full shadow-sm ${isSelectedInactive ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
                             <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">
-                              {isSelectedOutOfStock ? t('out_of_stock') : t('in_stock')}
+                              {isSelectedInactive ? 'Замовлення' : t('in_stock')}
                             </span>
                          </div>
                       </div>
@@ -239,18 +288,15 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
 
                     <div className="flex gap-3">
                       <button 
-                        onClick={() => { 
-                          addItem(selectedProduct); 
-                          addNotification(isSelectedOutOfStock ? t('preorder_added') : t('item_added'), 'success'); 
-                        }}
+                        onClick={() => { addItem(selectedProduct); addNotification(t('item_added'), 'success'); }}
                         className={`flex-1 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg py-5 flex items-center justify-center gap-3 active:scale-95 group ${
-                          isSelectedOutOfStock 
+                          isSelectedInactive 
                             ? 'bg-amber-500 hover:bg-amber-600 text-white' 
                             : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                         }`}
                       >
-                        <ShoppingCart size={18} className="group-hover:rotate-12 transition-transform" /> 
-                        {isSelectedOutOfStock ? t('order_now') : t('add_to_cart')}
+                        {isSelectedInactive ? <ArrowRight size={18} /> : <ShoppingCart size={18} />} 
+                        {isSelectedInactive ? 'Замовити' : t('add_to_cart')}
                       </button>
                     </div>
                   </div>
@@ -258,7 +304,6 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
                 </div>
               </div>
 
-              {/* Характеристики продукту (Характеристики товару) */}
               <div className="max-w-4xl space-y-16 pb-20">
                 {selectedProduct.description && (
                   <div className="space-y-4">
@@ -269,56 +314,26 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
                     <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-wrap">{getLoc(selectedProduct.description)}</p>
                   </div>
                 )}
-
-                {filteredSpecs.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                      <List size={16} className="text-emerald-500" />
-                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{t('specs')}</h4>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
-                      {filteredSpecs.map((spec: ProductSpec, i: number) => (
-                        <div key={i} className="flex justify-between border-b border-slate-50 py-3">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{spec.label}</span>
-                          <span className="text-[10px] font-bold text-slate-800 uppercase text-right">{spec.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {productDocs.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                      <FileText size={16} className="text-emerald-500" />
-                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{t('docs_and_files')}</h4>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {productDocs.map((doc: ProductDoc, i: number) => (
-                        <a 
-                          key={i} 
-                          href={doc.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-white hover:shadow-md transition-all group"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-white rounded-xl text-rose-500 shadow-sm">
-                              <FileText size={16} />
-                            </div>
-                            <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight line-clamp-1">{doc.title}</span>
-                          </div>
-                          <Download size={14} className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Наша Місія */}
+      <section className="container mx-auto px-4">
+        <div className="bg-slate-900 rounded-[4rem] p-12 md:p-20 text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-1/2 h-full opacity-20 pointer-events-none">
+            <img src="https://images.unsplash.com/photo-1497435334941-8c899ee9e8e9?q=80&w=800&auto=format&fit=crop" className="w-full h-full object-cover" alt="Nature" />
+          </div>
+          <div className="relative z-10 max-w-2xl space-y-6">
+            <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tighter">Наша Місія</h2>
+            <p className="text-slate-300 text-lg leading-relaxed">
+              Сонячна енергія — це не просто економія коштів, це інвестиція в майбутнє. Ми робимо зелену енергію простою та доступною для кожного, забезпечуючи повний цикл підтримки: від розрахунку до запуску системи.
+            </p>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };

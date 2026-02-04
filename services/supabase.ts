@@ -30,7 +30,7 @@ const getSupabaseInstance = (): SupabaseClient => {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        storageKey: 'voltstore-auth-token'
+        storageKey: 'voltstoreai-auth-token'
       }
     }
   );

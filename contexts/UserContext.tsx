@@ -38,28 +38,28 @@ const INITIAL_USERS: UserProfile[] = [
 
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<UserProfile[]>(() => {
-    const saved = localStorage.getItem('voltstore_users');
+    const saved = localStorage.getItem('voltstoreai_users');
     return saved ? JSON.parse(saved) : INITIAL_USERS;
   });
 
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    const saved = localStorage.getItem('voltstore_current_user');
+    const saved = localStorage.getItem('voltstoreai_current_user');
     return saved ? JSON.parse(saved) : null;
   });
 
   useEffect(() => {
-    localStorage.setItem('voltstore_users', JSON.stringify(users));
+    localStorage.setItem('voltstoreai_users', JSON.stringify(users));
   }, [users]);
 
   useEffect(() => {
-    localStorage.setItem('voltstore_current_user', JSON.stringify(currentUser));
+    localStorage.setItem('voltstoreai_current_user', JSON.stringify(currentUser));
   }, [currentUser]);
 
   const registerUser = (userData: Omit<UserProfile, 'id' | 'cards'>) => {
     const newUser: UserProfile = {
       ...userData,
       id: `usr_${Date.now()}`,
-      cards: [{ id: `c_${Date.now()}`, brand: 'visa', last4: '1234' }], // Default card for demo
+      cards: [{ id: `c_${Date.now()}`, brand: 'visa', last4: '1234' }],
       city: userData.address.split(',')[0] || '',
       department: 'Main Office'
     };
@@ -69,7 +69,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const findUser = (emailQuery: string) => {
     const q = emailQuery.toLowerCase().trim();
-    // Requirement 4: Strictly match by email only
     return users.find(u => u.email.toLowerCase() === q);
   };
 

@@ -1,67 +1,52 @@
-# ⚡ VoltStore Pro
 
-VoltStore Pro — це сучасний веб-додаток для магазину енергетичного обладнання (генератори, інвертори, акумулятори). Проєкт використовує **React 19**, **Vite**, **Supabase** для бази даних та **Google Gemini AI** для інтелектуального підбору комплектів.
+# ⚡ Voltstoreai Pro
 
-## 🚀 Як підключити до GitHub
+Voltstoreai Pro — це передова платформа для продажу енергетичного обладнання, інтегрована з Google Gemini AI для інтелектуального підбору систем.
 
-Оскільки я — AI, я не можу виконати команди у вашому терміналі, але ось покрокова інструкція, як завантажити цей код у ваш новий репозиторій:
+## 🌟 Особливості
+- **AI System Architect**: Генерація персональних комплектів живлення через Gemini API.
+- **Live Voice Assistant**: Голосовий консультант для допомоги клієнтам у реальному часі.
+- **Admin Dashboard**: Повна аналітика складу, доходів та категорій на базі Recharts.
+- **Supabase Backend**: Надійне зберігання товарів та замовлень.
+- **Modern UI**: Анімований інтерфейс на Tailwind CSS з підтримкою темних режимів та мобільної адаптивності.
 
-1.  **Створіть новий репозиторій на GitHub**:
-    *   Перейдіть на [github.com/new](https://github.com/new).
-    *   Назвіть його `voltstore-pro`.
-    *   **Не** додавайте README, .gitignore або ліцензію (вони вже є в коді).
+## 🚀 Швидкий старт
 
-2.  **Ініціалізуйте Git локально та завантажте код**:
-    Відкрийте термінал у папці проекту та виконайте:
+### 1. Встановлення залежностей
+```bash
+npm install
+```
 
-    ```bash
-    # Ініціалізація git
-    git init
+### 2. Налаштування середовища
+Створіть файл `.env` та додайте ваші ключі (див. `.env.example`):
+```env
+VITE_API_KEY=ваш_ключ_gemini
+VITE_SUPABASE_URL=ваш_url_supabase
+VITE_SUPABASE_ANON_KEY=ваш_ключ_supabase
+```
 
-    # Додавання всіх файлів
-    git add .
+### 3. Запуск у режимі розробки
+```bash
+npm run dev
+```
 
-    # Перший коміт
-    git commit -m "Initial commit: VoltStore Pro with AI features"
-
-    # Створення гілки main
-    git branch -M main
-
-    # Підключення віддаленого репозиторію (ЗАМІНІТЬ URL на ваш)
-    git remote add origin https://github.com/ВАШ_ЛОГІН/voltstore-pro.git
-
-    # Пуш коду на GitHub
-    git push -u origin main
-    ```
-
-## 🔐 Налаштування секретів (Secrets)
-
-Для того, щоб GitHub Actions (CI/CD) міг збирати проєкт, вам потрібно додати змінні в налаштуваннях репозиторію на GitHub:
-1.  Перейдіть у **Settings** -> **Secrets and variables** -> **Actions**.
-2.  Натисніть **New repository secret**.
-3.  Додайте наступні ключі:
-    *   `API_KEY` (ваш ключ Google Gemini)
-    *   `SUPABASE_URL`
-    *   `SUPABASE_ANON_KEY`
+### 4. Збірка для продакшну
+```bash
+npm run build
+```
 
 ## 🛠 Технології
+- **Frontend**: React 19, TypeScript, Vite
+- **Стилізація**: Tailwind CSS, Lucide Icons
+- **AI**: @google/genai (Gemini 2.5/3.0)
+- **База даних**: Supabase
+- **Графіки**: Recharts
 
-*   **Frontend**: React 19, Tailwind CSS, Lucide React.
-*   **AI**: Google Generative AI (Gemini 2.5 Flash).
-*   **Backend**: Supabase (Database & Auth).
-*   **Build Tool**: Vite.
-
-## 📦 Встановлення та запуск
-
-1.  Встановіть залежності:
-    ```bash
-    npm install
-    ```
-2.  Налаштуйте `.env` файл (див. `.env.example`).
-3.  Запустіть в режимі розробки:
-    ```bash
-    npm run dev
-    ```
+## 📦 Розгортання на GitHub
+1. Ініціалізуйте репозиторій: `git init`
+2. Додайте файли: `git add .`
+3. Створіть коміт: `git commit -m "feat: initial pro release"`
+4. Підключіть віддалений репозиторій та зробіть `push`.
 
 ---
-Розроблено з ⚡ для майбутнього енергетики України.
+Розроблено для забезпечення енергонезалежності. ⚡
