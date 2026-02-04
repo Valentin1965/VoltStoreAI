@@ -1,21 +1,15 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-/**
- * Отримуємо змінні оточення через (import.meta as any), 
- * щоб TypeScript не блокував білд через відсутність декларацій типів.
- */
+// Використовуємо (import.meta as any) щоб TypeScript не блокував білд
 const metaEnv = (import.meta as any).env;
 
 const supabaseUrl = metaEnv?.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = metaEnv?.VITE_SUPABASE_ANON_KEY || '';
 
 if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder')) {
-  console.warn('[Supabase Service] Environment variables are missing or invalid.');
+  console.warn('[Supabase Service] Environment variables are missing.');
 }
 
-/**
- * Singleton для SupabaseClient.
- */
 const getSupabaseInstance = (): SupabaseClient => {
   const global = globalThis as any;
   
