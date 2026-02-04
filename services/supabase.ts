@@ -1,6 +1,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Використовуємо (import.meta as any) для стабільної збірки у Vite
+/**
+ * Отримуємо змінні оточення через (import.meta as any), 
+ * щоб TypeScript не блокував білд через відсутність декларацій типів.
+ */
 const metaEnv = (import.meta as any).env;
 
 const supabaseUrl = metaEnv?.VITE_SUPABASE_URL || '';
@@ -10,6 +13,9 @@ if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder')) {
   console.warn('[Supabase Service] Environment variables are missing or invalid.');
 }
 
+/**
+ * Singleton для SupabaseClient.
+ */
 const getSupabaseInstance = (): SupabaseClient => {
   const global = globalThis as any;
   
