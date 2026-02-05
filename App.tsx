@@ -50,7 +50,6 @@ const AppContent: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  // Handle logout from admin
   const handleAdminLogout = useCallback(() => {
     localStorage.removeItem('voltstore_admin_auth');
     setIsAdminAuthenticated(false);
