@@ -275,10 +275,10 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
     <div className="space-y-20">
       {/* Search & Filter Header */}
       <div ref={productsRef} className="flex flex-col md:flex-row items-center justify-between border-b border-slate-200 pb-10 scroll-mt-32 gap-8">
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide w-full md:w-auto px-4 md:px-0">
+        <div className="flex gap-4 overflow-x-auto scrollbar-hide w-full md:w-auto px-4 md:px-0">
           <button 
             onClick={() => setSelectedCategory('All')} 
-            className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${selectedCategory === 'All' ? 'bg-slate-900 border-slate-900 text-white shadow-2xl' : 'bg-white text-slate-400 border-slate-100 hover:border-emerald-500 hover:text-emerald-600'}`}
+            className={`px-10 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${selectedCategory === 'All' ? 'bg-slate-900 border-slate-900 text-white shadow-2xl' : 'bg-white text-slate-400 border-slate-100 hover:border-emerald-500 hover:text-emerald-600'}`}
           >
             All Assets
           </button>
@@ -286,13 +286,13 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
             <button 
               key={cat} 
               onClick={() => setSelectedCategory(cat)} 
-              className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${selectedCategory === cat ? 'bg-slate-900 border-slate-900 text-white shadow-2xl' : 'bg-white text-slate-400 border-slate-100 hover:border-emerald-500 hover:text-emerald-600'}`}
+              className={`px-10 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${selectedCategory === cat ? 'bg-slate-900 border-slate-900 text-white shadow-2xl' : 'bg-white text-slate-400 border-slate-100 hover:border-emerald-500 hover:text-emerald-600'}`}
             >
               {cat}
             </button>
           ))}
         </div>
-        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-6">
+        <div className="text-xs font-black text-slate-400 uppercase tracking-widest px-6">
           Found <span className="text-slate-900">{filteredProducts.length}</span> items
         </div>
       </div>
@@ -319,14 +319,14 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
             
             <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center gap-4">
-                <div className="bg-emerald-600 p-2.5 rounded-2xl text-white shadow-lg">
-                  <Zap size={20} />
+                <div className="bg-emerald-600 p-3 rounded-2xl text-white shadow-lg">
+                  <Zap size={24} />
                 </div>
-                <h2 className="text-xl font-black text-slate-900 uppercase tracking-tighter leading-none">
+                <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">
                   {selectedProduct.category === 'Kits' ? 'Solution Configurator' : selectedProductNameStr}
                 </h2>
               </div>
-              <button onClick={() => setSelectedProduct(null)} className="p-3 hover:bg-slate-100 rounded-2xl transition-all"><X size={24} /></button>
+              <button onClick={() => setSelectedProduct(null)} className="p-3 hover:bg-slate-100 rounded-2xl transition-all"><X size={28} /></button>
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-8 md:p-12">
@@ -339,12 +339,12 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                       alt={selectedProductNameStr} 
                     />
                   </div>
-                  <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                  <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                     {productImages.map((img, idx) => (
                       <button 
                         key={idx} 
                         onClick={() => setActiveImageIdx(idx)}
-                        className={`w-24 h-24 rounded-2xl overflow-hidden border-2 shrink-0 transition-all ${activeImageIdx === idx ? 'border-emerald-500 scale-95 shadow-md' : 'border-slate-100 opacity-60 hover:opacity-100'}`}
+                        className={`w-28 h-28 rounded-2xl overflow-hidden border-2 shrink-0 transition-all ${activeImageIdx === idx ? 'border-emerald-500 scale-95 shadow-md' : 'border-slate-100 opacity-60 hover:opacity-100'}`}
                       >
                         <img src={img || IMAGE_FALLBACK} className="w-full h-full object-cover" alt="" />
                       </button>
@@ -353,33 +353,33 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
 
                   {/* Configurator UI for Kits */}
                   {selectedProduct.category === 'Kits' && (
-                    <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white space-y-8 animate-fade-in border border-white/5 shadow-2xl">
-                        <div className="flex items-center gap-3 border-b border-white/10 pb-6">
-                           <Layers className="text-emerald-400" size={24} />
+                    <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white space-y-10 animate-fade-in border border-white/5 shadow-2xl">
+                        <div className="flex items-center gap-4 border-b border-white/10 pb-8">
+                           <Layers className="text-emerald-400" size={28} />
                            <div>
-                             <h3 className="text-xl font-black uppercase tracking-tighter leading-none">Interactive Configurator</h3>
-                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-2">Adjust system components to your needs</p>
+                             <h3 className="text-2xl font-black uppercase tracking-tighter leading-none">Interactive Configurator</h3>
+                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Adjust system components to your needs</p>
                            </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <div className="space-y-2">
-                             <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest px-2">Add New Hardware</label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                           <div className="space-y-3">
+                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">Add New Hardware</label>
                              <select 
                                value={selectedConfigCat}
                                onChange={e => setSelectedConfigCat(e.target.value as Category)}
-                               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[10px] font-black uppercase outline-none focus:border-emerald-400 appearance-none cursor-pointer"
+                               className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-xs font-black uppercase outline-none focus:border-emerald-400 appearance-none cursor-pointer"
                              >
                                <option value="" className="text-slate-900">Select Category...</option>
                                {categories.filter(c => c !== 'Kits').map(c => <option key={c} value={c} className="text-slate-900">{c}</option>)}
                              </select>
                            </div>
-                           <div className="space-y-2 flex items-end gap-2">
+                           <div className="space-y-3 flex items-end gap-3">
                               <select 
                                 disabled={!selectedConfigCat}
                                 value={selectedConfigProdId}
                                 onChange={e => setSelectedConfigProdId(e.target.value)}
-                                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[10px] font-black uppercase outline-none focus:border-emerald-400 disabled:opacity-20 appearance-none cursor-pointer"
+                                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-xs font-black uppercase outline-none focus:border-emerald-400 disabled:opacity-20 appearance-none cursor-pointer"
                               >
                                 <option value="" className="text-slate-900">Choose Device...</option>
                                 {configAvailableProducts.map(p => <option key={p.id} value={p.id} className="text-slate-900">{getLoc(p.name)}</option>)}
@@ -387,32 +387,32 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                               <button 
                                 onClick={addPartToConfig}
                                 disabled={!selectedConfigProdId}
-                                className="bg-emerald-500 text-white p-3 rounded-xl hover:bg-emerald-400 transition-all shadow-lg active:scale-95 disabled:opacity-30"
+                                className="bg-emerald-500 text-white p-4 rounded-xl hover:bg-emerald-400 transition-all shadow-lg active:scale-95 disabled:opacity-30"
                               >
-                                <Plus size={18} />
+                                <Plus size={20} />
                               </button>
                            </div>
                         </div>
 
-                        <div className="space-y-4">
-                           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Configured Assets</h4>
-                           <div className="grid grid-cols-1 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                        <div className="space-y-5">
+                           <h4 className="text-[12px] font-black text-slate-400 uppercase tracking-widest px-2">Configured Assets</h4>
+                           <div className="grid grid-cols-1 gap-4 max-h-[400px] overflow-y-auto pr-3 custom-scrollbar">
                               {kitConfig.map((item, idx) => (
-                                <div key={idx} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex items-center justify-between group hover:border-emerald-400 transition-all">
-                                   <div className="flex items-center gap-4">
-                                      <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-emerald-400"><Zap size={18} /></div>
+                                <div key={idx} className="bg-white/5 border border-white/10 p-5 rounded-2xl flex items-center justify-between group hover:border-emerald-400 transition-all">
+                                   <div className="flex items-center gap-5">
+                                      <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center text-emerald-400"><Zap size={22} /></div>
                                       <div>
-                                         <div className="text-[10px] font-black uppercase leading-none truncate max-w-[150px]">{item.name}</div>
-                                         <div className="text-[8px] font-bold text-slate-500 uppercase mt-1">{formatPrice(item.price)} per unit</div>
+                                         <div className="text-[11px] font-black uppercase leading-none truncate max-w-[200px]">{item.name}</div>
+                                         <div className="text-[9px] font-bold text-slate-500 uppercase mt-2">{formatPrice(item.price)} per unit</div>
                                       </div>
                                    </div>
-                                   <div className="flex items-center gap-4">
-                                      <div className="flex items-center gap-2 bg-black/30 rounded-lg p-1">
-                                         <button onClick={() => updateKitPartQty(idx, -1)} className="p-1 hover:text-emerald-400 transition-colors"><Minus size={12}/></button>
-                                         <span className="text-[10px] font-black w-4 text-center">{item.quantity}</span>
-                                         <button onClick={() => updateKitPartQty(idx, 1)} className="p-1 hover:text-emerald-400 transition-colors"><Plus size={12}/></button>
+                                   <div className="flex items-center gap-5">
+                                      <div className="flex items-center gap-3 bg-black/30 rounded-lg p-1.5">
+                                         <button onClick={() => updateKitPartQty(idx, -1)} className="p-1.5 hover:text-emerald-400 transition-colors"><Minus size={14}/></button>
+                                         <span className="text-xs font-black w-6 text-center">{item.quantity}</span>
+                                         <button onClick={() => updateKitPartQty(idx, 1)} className="p-1.5 hover:text-emerald-400 transition-colors"><Plus size={14}/></button>
                                       </div>
-                                      <button onClick={() => removeKitPart(idx)} className="text-white/20 hover:text-rose-400 transition-colors"><Trash2 size={16}/></button>
+                                      <button onClick={() => removeKitPart(idx)} className="text-white/20 hover:text-rose-400 transition-colors p-1.5"><Trash2 size={20}/></button>
                                    </div>
                                 </div>
                               ))}
@@ -427,43 +427,43 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                     <div className="space-y-4">
                       <div className="flex items-center gap-2">
                         {selectedProduct.is_leader && (
-                          <span className="bg-amber-400 text-yellow-950 text-[9px] font-black uppercase px-3 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
-                            <Crown size={12} className="fill-yellow-950" /> {t('sales_leader')}
+                          <span className="bg-amber-400 text-yellow-950 text-[10px] font-black uppercase px-4 py-1.5 rounded-lg flex items-center gap-2 shadow-sm">
+                            <Crown size={14} className="fill-yellow-950" /> {t('sales_leader')}
                           </span>
                         )}
                         {selectedProduct.is_new && (
-                          <span className="bg-emerald-500 text-white text-[9px] font-black uppercase px-3 py-1 rounded-lg">New</span>
+                          <span className="bg-emerald-500 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-lg shadow-sm">New</span>
                         )}
                       </div>
-                      <h3 className="font-black text-slate-900 text-2xl uppercase tracking-tighter leading-tight">
+                      <h3 className="font-black text-slate-900 text-3xl uppercase tracking-tighter leading-tight">
                         {selectedProduct.category === 'Kits' ? selectedProductNameStr : selectedProductNameStr}
                       </h3>
                     </div>
 
-                    <div className="text-4xl font-black text-slate-900 tracking-tighter flex items-center gap-3">
+                    <div className="text-5xl font-black text-slate-900 tracking-tighter flex items-center gap-4">
                       {formatPrice(selectedProduct.category === 'Kits' ? configPrice : selectedProduct.price)}
-                      {selectedProduct.category === 'Kits' && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg uppercase">Config Price</span>}
+                      {selectedProduct.category === 'Kits' && <span className="text-[11px] bg-emerald-100 text-emerald-700 px-4 py-1.5 rounded-lg uppercase">Config Price</span>}
                     </div>
 
-                    <div className="py-6 border-y border-slate-200/60 flex flex-col gap-4">
+                    <div className="py-8 border-y border-slate-200/60 flex flex-col gap-5">
                       <div className="flex items-center justify-between">
-                         <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Availability:</span>
-                         <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${isSelectedInactive ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
-                            <span className="text-[11px] font-black text-slate-900 uppercase">
+                         <span className="text-[12px] font-black text-slate-400 uppercase tracking-widest">Availability:</span>
+                         <div className="flex items-center gap-3">
+                            <div className={`w-3 h-3 rounded-full ${isSelectedInactive ? 'bg-amber-500' : 'bg-emerald-500'} shadow-sm animate-pulse`}></div>
+                            <span className="text-[12px] font-black text-slate-900 uppercase">
                               {isSelectedInactive ? 'Special Order' : 'In Stock'}
                             </span>
                          </div>
                       </div>
                       {selectedProduct.category === 'Kits' && (
                         <div className="flex items-center justify-between">
-                           <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Kit Components:</span>
-                           <span className="text-[11px] font-black text-slate-900 uppercase">{kitConfig.length} Assets</span>
+                           <span className="text-[12px] font-black text-slate-400 uppercase tracking-widest">Kit Components:</span>
+                           <span className="text-[12px] font-black text-slate-900 uppercase">{kitConfig.length} Assets</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="mt-auto space-y-4">
+                    <div className="mt-auto space-y-5">
                       <button 
                         onClick={() => { 
                           if (selectedProduct.category === 'Kits') {
@@ -474,14 +474,14 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                             setSelectedProduct(null);
                           }
                         }}
-                        className={`w-full rounded-2xl font-black text-[12px] uppercase tracking-widest py-6 flex items-center justify-center gap-4 shadow-xl transition-all active:scale-95 ${isSelectedInactive ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-slate-900 hover:bg-emerald-600 text-white'}`}
+                        className={`w-full rounded-2xl font-black text-[14px] uppercase tracking-widest py-7 flex items-center justify-center gap-5 shadow-xl transition-all active:scale-95 ${isSelectedInactive ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-slate-900 hover:bg-emerald-600 text-white'}`}
                       >
-                        {isSelectedInactive ? <ArrowRight size={22} /> : (selectedProduct.category === 'Kits' ? <ShoppingBag size={22}/> : <ShoppingCart size={22} />)} 
+                        {isSelectedInactive ? <ArrowRight size={24} /> : (selectedProduct.category === 'Kits' ? <ShoppingBag size={24}/> : <ShoppingCart size={24} />)} 
                         {isSelectedInactive ? 'Order Activation' : (selectedProduct.category === 'Kits' ? 'Add Custom Kit to Cart' : t('add_to_cart'))}
                       </button>
                       
                       {selectedProduct.category === 'Kits' && (
-                        <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest text-center px-6">
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest text-center px-8">
                           * Changes made in the configurator will be saved for this specific order.
                         </p>
                       )}
@@ -490,30 +490,30 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                 </div>
               </div>
 
-              <div className="max-w-4xl mx-auto space-y-16 pb-20">
+              <div className="max-w-4xl mx-auto space-y-20 pb-24">
                 {selectedProduct.description && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3 border-b-2 border-slate-100 pb-4">
-                      <Info size={20} className="text-emerald-500" />
-                      <h4 className="text-[12px] font-black text-slate-900 uppercase tracking-widest">Product Description</h4>
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-4 border-b-2 border-slate-100 pb-5">
+                      <Info size={24} className="text-emerald-500" />
+                      <h4 className="text-[14px] font-black text-slate-900 uppercase tracking-widest">Product Description</h4>
                     </div>
-                    <p className="text-slate-600 text-lg leading-relaxed font-medium">{getLoc(selectedProduct.description)}</p>
+                    <p className="text-slate-600 text-xl leading-relaxed font-medium">{getLoc(selectedProduct.description)}</p>
                   </div>
                 )}
 
                 {filteredSpecs.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3 border-b-2 border-slate-100 pb-4">
-                      <List size={20} className="text-emerald-500" />
-                      <h4 className="text-[12px] font-black text-slate-900 uppercase tracking-widest">Technical Specifications</h4>
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-4 border-b-2 border-slate-100 pb-5">
+                      <List size={24} className="text-emerald-500" />
+                      <h4 className="text-[14px] font-black text-slate-900 uppercase tracking-widest">Technical Specifications</h4>
                     </div>
                     <div className="bg-slate-50 rounded-3xl overflow-hidden border border-slate-100">
                       <table className="w-full">
                         <tbody className="divide-y divide-slate-100">
                           {filteredSpecs.map((spec: ProductSpec, i: number) => (
                             <tr key={i} className="hover:bg-white transition-colors">
-                              <td className="p-5 text-[10px] font-black text-slate-400 uppercase w-1/3">{spec.label}</td>
-                              <td className="p-5 text-[11px] font-bold text-slate-900">{spec.value}</td>
+                              <td className="p-6 text-[11px] font-black text-slate-400 uppercase w-1/3">{spec.label}</td>
+                              <td className="p-6 text-[12px] font-bold text-slate-900">{spec.value}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -523,25 +523,25 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                 )}
 
                 {productDocs.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3 border-b-2 border-slate-100 pb-4">
-                      <FileText size={20} className="text-emerald-500" />
-                      <h4 className="text-[12px] font-black text-slate-900 uppercase tracking-widest">Files for Download</h4>
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-4 border-b-2 border-slate-100 pb-5">
+                      <FileText size={24} className="text-emerald-500" />
+                      <h4 className="text-[14px] font-black text-slate-900 uppercase tracking-widest">Files for Download</h4>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       {productDocs.map((doc: ProductDoc, i: number) => (
                         <a 
                           key={i} 
                           href={doc.url} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="p-5 bg-white border border-slate-100 rounded-2xl flex items-center justify-between hover:border-emerald-500 transition-all group"
+                          className="p-6 bg-white border border-slate-100 rounded-2xl flex items-center justify-between hover:border-emerald-500 transition-all group"
                         >
-                          <div className="flex items-center gap-4">
-                            <Download size={18} className="text-emerald-500 group-hover:scale-110 transition-transform" />
-                            <span className="text-[11px] font-black text-slate-900 uppercase">{doc.title}</span>
+                          <div className="flex items-center gap-5">
+                            <Download size={22} className="text-emerald-500 group-hover:scale-110 transition-transform" />
+                            <span className="text-[12px] font-black text-slate-900 uppercase">{doc.title}</span>
                           </div>
-                          <ChevronRight size={14} className="text-slate-300 group-hover:text-emerald-500" />
+                          <ChevronRight size={18} className="text-slate-300 group-hover:text-emerald-500" />
                         </a>
                       ))}
                     </div>
