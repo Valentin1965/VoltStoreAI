@@ -173,7 +173,7 @@ export const AdminPanel: React.FC = () => {
                   <label className="text-[10px] font-black text-slate-400 uppercase px-4 tracking-widest">{curr} Base (vs EUR)</label>
                   <input 
                     type="number" step="0.001" 
-                    value={(currencyForm as any)[curr]} 
+                    value={(currencyForm as any)[curr] || 0} 
                     onChange={e => setCurrencyForm({...currencyForm, [curr]: Number(e.target.value)})} 
                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-sm font-black outline-none focus:border-yellow-400 focus:bg-white transition-all shadow-inner" 
                   />
@@ -208,39 +208,61 @@ export const AdminPanel: React.FC = () => {
             
             <form onSubmit={handleSubmit} className="space-y-8">
                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {/* Left Column: Basic Info */}
                   <div className="space-y-6">
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Unique Identifier</label>
-                      <input disabled={!!editingProduct} value={formData.id} onChange={e => setFormData({...formData, id: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none opacity-50 cursor-not-allowed" />
+                      <input 
+                        disabled={!!editingProduct} 
+                        value={formData.id || ''} 
+                        onChange={e => setFormData({...formData, id: e.target.value})} 
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none opacity-50 cursor-not-allowed" 
+                      />
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Base Price (EUR)</label>
-                      <input type="number" value={formData.price} onChange={e => setFormData({...formData, price: Number(e.target.value)})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500 focus:bg-white transition-all shadow-inner" />
+                      <input 
+                        type="number" 
+                        value={formData.price ?? 0} 
+                        onChange={e => setFormData({...formData, price: Number(e.target.value)})} 
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500 focus:bg-white transition-all shadow-inner" 
+                      />
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 flex items-center gap-2"><Type size={12}/> Title (English)</label>
-                      <input value={(formData.name as any)?.en} onChange={e => setFormData({...formData, name: { ...formData.name as any, en: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500" required />
+                      <input 
+                        value={(formData.name as any)?.en || ''} 
+                        onChange={e => setFormData({...formData, name: { ...formData.name as any, en: e.target.value }})} 
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500" 
+                        required 
+                      />
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 flex items-center gap-2"><Languages size={12}/> Назва (Українська)</label>
-                      <input value={(formData.name as any)?.uk} onChange={e => setFormData({...formData, name: { ...formData.name as any, uk: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500" />
+                      <input 
+                        value={(formData.name as any)?.uk || ''} 
+                        onChange={e => setFormData({...formData, name: { ...formData.name as any, uk: e.target.value }})} 
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500" 
+                      />
                     </div>
                   </div>
 
-                  {/* Right Column: Descriptions & Media */}
                   <div className="space-y-6">
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Asset Image URL</label>
                       <div className="flex gap-4">
-                        <input value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500" placeholder="https://..." />
+                        <input 
+                          value={formData.image || ''} 
+                          onChange={e => setFormData({...formData, image: e.target.value})} 
+                          className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500" 
+                          placeholder="https://..." 
+                        />
                         {formData.image && <img src={formData.image} className="w-14 h-14 rounded-2xl object-cover border-2 border-slate-100" alt="preview" />}
                       </div>
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 flex items-center gap-2"><FileText size={12}/> Description (English)</label>
                       <textarea 
-                        value={(formData.description as any)?.en} 
+                        value={(formData.description as any)?.en || ''} 
                         onChange={e => setFormData({...formData, description: { ...formData.description as any, en: e.target.value }})} 
                         className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-medium outline-none h-24 resize-none focus:border-emerald-500" 
                         placeholder="Detailed technical description in English..."
@@ -249,7 +271,7 @@ export const AdminPanel: React.FC = () => {
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 flex items-center gap-2"><Languages size={12}/> Опис (Українська)</label>
                       <textarea 
-                        value={(formData.description as any)?.uk} 
+                        value={(formData.description as any)?.uk || ''} 
                         onChange={e => setFormData({...formData, description: { ...formData.description as any, uk: e.target.value }})} 
                         className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-medium outline-none h-24 resize-none focus:border-emerald-500" 
                         placeholder="Детальний технічний опис українською..."
@@ -260,25 +282,25 @@ export const AdminPanel: React.FC = () => {
 
                <div className="bg-slate-50 p-8 rounded-[3rem] border-2 border-slate-100 space-y-6">
                   <div className="flex flex-wrap gap-10">
-                    <label className="flex items-center gap-4 cursor-pointer group">
+                    <div className="flex items-center gap-4 cursor-pointer group">
                       <div onClick={() => setFormData({...formData, is_active: !formData.is_active})} className={`w-14 h-7 rounded-full relative transition-all duration-500 shadow-inner ${formData.is_active !== false ? 'bg-emerald-500' : 'bg-slate-300'}`}>
                         <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all duration-500 shadow-md ${formData.is_active !== false ? 'left-8' : 'left-1'}`}></div>
                       </div>
                       <span className={`text-[10px] font-black uppercase tracking-widest ${formData.is_active !== false ? 'text-emerald-600' : 'text-slate-400'}`}>Availability Status</span>
-                    </label>
+                    </div>
 
-                    <label className="flex items-center gap-4 cursor-pointer group">
+                    <div className="flex items-center gap-4 cursor-pointer group">
                       <div onClick={() => setFormData({...formData, is_leader: !formData.is_leader})} className={`w-14 h-7 rounded-full relative transition-all duration-500 shadow-inner ${formData.is_leader ? 'bg-amber-400' : 'bg-slate-300'}`}>
                         <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all duration-500 shadow-md ${formData.is_leader ? 'left-8' : 'left-1'}`}></div>
                       </div>
                       <span className={`text-[10px] font-black uppercase tracking-widest ${formData.is_leader ? 'text-amber-600' : 'text-slate-400'}`}>Market Leader</span>
-                    </label>
+                    </div>
                   </div>
                </div>
 
                <div className="flex justify-end gap-6 pt-6">
                   <button type="button" onClick={() => setIsModalOpen(false)} className="px-10 py-5 rounded-2xl text-[10px] font-black uppercase text-slate-400 tracking-widest hover:text-slate-900 transition-all">Discard</button>
-                  <button type="submit" className="bg-slate-900 text-white px-14 py-5 rounded-3xl font-black uppercase text-[10px] tracking-[0.2em] hover:bg-emerald-500 transition-all shadow-2xl active:scale-95 flex items-center gap-3">
+                  <button type="submit" className="bg-slate-900 text-white px-14 py-5 rounded-3xl font-black uppercase text-[10px] tracking-[0.2em] hover:bg-emerald-500 transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-3">
                     <Save size={18} /> Sync to Database
                   </button>
                </div>
