@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import { translations, TranslationKey } from '../utils/translations';
 
@@ -42,17 +43,18 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   
   const [rates, setRates] = useState<ExchangeRates>(() => {
     const saved = localStorage.getItem('voltstoreai_rates_v3');
-    try {
-      return saved ? JSON.parse(saved) : STABLE_RATES;
-    } catch {
-      return STABLE_RATES;
-    }
+    return saved ? JSON.parse(saved) : STABLE_RATES;
   });
 
-  const setLanguage = useCallback((lang: Language) => {
+  // Keep the HTML lang attribute in sync to prevent browser translate conflicts
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
+
+  const setLanguage = (lang: Language) => {
     setLanguageState(lang);
     localStorage.setItem('voltstoreai_lang', lang);
-  }, []);
+  };
 
   const updateRates = useCallback((newRates: Partial<ExchangeRates>) => {
     setRates(prev => {
@@ -62,51 +64,34 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   }, []);
 
-  const translateDynamic = useCallback(async (text: string): Promise<string> => {
-    return text || '';
-  }, []);
+  const translateDynamic = async (text: string): Promise<string> => {
+    return text;
+  };
 
   const t = useCallback((key: TranslationKey | string): string => {
     const currentSet = translations[language] || translations['en'];
-    const val = (currentSet as any)[key] || (translations['en'] as any)[key];
-    // Повертаємо ключ, якщо переклад не знайдено, щоб уникнути undefined у текстових вузлах
-    return val || String(key);
+    const val = (currentSet as any)[key] || (translations['en'] as any)[key] || key;
+    return val;
   }, [language]);
 
-  const currentLangData = useMemo(() => 
-    translations[language] || translations['en'], 
-  [language]);
-
-  const currencyCode = useMemo(() => currentLangData.currency_code, [currentLangData]);
-  const currencySymbol = useMemo(() => currentLangData.currency_symbol, [currentLangData]);
+  const currentLangData = translations[language] || translations['en'];
+  const currencyCode = currentLangData.currency_code;
+  const currencySymbol = currentLangData.currency_symbol;
 
   const formatPrice = useCallback((priceInEUR: number): string => {
     const rate = rates[currencyCode as keyof ExchangeRates] || 1.0;
-    const converted = (Number(priceInEUR) || 0) * rate;
-    
-    // Вибір локалі для коректного відображення роздільників
-    const locale = language === 'en' ? 'en-US' : 'de-DE';
-    
-    return `${currencySymbol}${converted.toLocaleString(locale, {
+    const converted = (priceInEUR || 0) * rate;
+    return `${currencySymbol}${converted.toLocaleString(language === 'en' ? 'en-US' : 'de-DE', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     })}`;
   }, [currencySymbol, currencyCode, language, rates]);
 
-  const value = useMemo(() => ({
-    language,
-    setLanguage,
-    t,
-    translateDynamic,
-    formatPrice,
-    currencySymbol,
-    currencyCode,
-    rates,
-    updateRates
-  }), [language, setLanguage, t, translateDynamic, formatPrice, currencySymbol, currencyCode, rates, updateRates]);
-
   return (
-    <LanguageContext.Provider value={value}>
+    <LanguageContext.Provider value={{ 
+      language, setLanguage, t, translateDynamic, formatPrice, 
+      currencySymbol, currencyCode, rates, updateRates 
+    }}>
       {children}
     </LanguageContext.Provider>
   );

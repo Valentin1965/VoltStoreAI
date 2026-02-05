@@ -1,11 +1,11 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Plus, Edit, Trash2, X, 
   Save, Cpu, Crown, Coins, 
   RefreshCw, Settings, Activity, Zap, Layers, ImageIcon,
   FileText, Languages, Type, List, File, ArrowRight,
-  PlusCircle, MinusCircle, ShoppingBag, Calculator
+  PlusCircle, MinusCircle, ShoppingBag, Calculator, RefreshCcw, LogOut
 } from 'lucide-react';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -14,7 +14,11 @@ import { Product, Category, KitComponent } from '../../types';
 
 const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?q=80&w=400&auto=format&fit=crop';
 
-export const AdminPanel: React.FC = () => {
+interface AdminPanelProps {
+  onLogout?: () => void;
+}
+
+export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<'kits' | 'products' | 'currency'>('kits');
   const { products, addProduct, updateProduct, deleteProduct, categories } = useProducts();
   const { addNotification } = useNotification();
@@ -97,10 +101,6 @@ export const AdminPanel: React.FC = () => {
         kitComponents: []
       });
     }
-    // Reset builder selectors
-    setSelectedBuilderCat('');
-    setSelectedBuilderProdId('');
-    setBuilderQty(1);
     setIsModalOpen(true);
   };
 
@@ -131,7 +131,7 @@ export const AdminPanel: React.FC = () => {
     setFormData({
       ...formData,
       kitComponents: updatedComponents,
-      price: newTotal // Initial auto-calc, but admin can change it later
+      price: newTotal 
     });
 
     setSelectedBuilderProdId('');
@@ -197,10 +197,12 @@ export const AdminPanel: React.FC = () => {
                     <img src={p.image || IMAGE_FALLBACK} className="w-12 h-12 rounded-2xl object-cover border border-slate-100" alt="" />
                     <div>
                       <div className="text-[11px] font-black text-slate-900 uppercase flex items-center gap-2">
-                        {getDisplayValue(p.name)}
+                        <span>{getDisplayValue(p.name)}</span>
                         {p.is_leader && <Crown size={12} className="text-amber-500 fill-amber-500" />}
                       </div>
-                      <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">ID: {p.id.slice(0, 8)} | {p.category}</div>
+                      <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">
+                        <span>ID: {p.id.slice(0, 8)}</span> | <span>{p.category}</span>
+                      </div>
                     </div>
                   </div>
                 </td>
@@ -210,7 +212,9 @@ export const AdminPanel: React.FC = () => {
                 <td className="p-6 text-center">
                    <div className="flex items-center justify-center gap-2">
                       <div className={`w-2 h-2 rounded-full ${p.is_active !== false ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
-                      <span className={`text-[8px] font-black uppercase ${p.is_active !== false ? 'text-emerald-600' : 'text-rose-600'}`}>{p.is_active !== false ? 'Active' : 'Hidden'}</span>
+                      <span className={`text-[8px] font-black uppercase ${p.is_active !== false ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {p.is_active !== false ? 'Active' : 'Hidden'}
+                      </span>
                    </div>
                 </td>
                 <td className="p-6 text-right">
@@ -230,22 +234,38 @@ export const AdminPanel: React.FC = () => {
   return (
     <div className="space-y-12 animate-fade-in pb-20" translate="no">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-3 uppercase tracking-tighter">
-            <Settings className="text-emerald-500" size={28} /> Terminal <span className="text-slate-400">v4.0</span>
-          </h1>
-          <p className="text-slate-400 text-[9px] font-black uppercase tracking-[0.2em] mt-1 ml-10">Energy Asset Control Unit</p>
+        <div className="flex items-center gap-4">
+          <div className="shrink-0">
+            <Settings className="text-emerald-500" size={28} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 flex items-center gap-3 uppercase tracking-tighter">
+              <span>Terminal</span> <span className="text-slate-400">v4.0</span>
+            </h1>
+            <p className="text-slate-400 text-[9px] font-black uppercase tracking-[0.2em]">Energy Asset Control Unit</p>
+          </div>
         </div>
-        <div className="flex bg-slate-200/50 p-1.5 rounded-2xl border border-slate-100">
-          {(['kits', 'products', 'currency'] as const).map(tab => (
-            <button 
-              key={tab} 
-              onClick={() => setActiveTab(tab)} 
-              className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              {tab === 'kits' ? 'Energy Kits' : tab === 'products' ? 'Items' : 'Currency'}
-            </button>
-          ))}
+        
+        <div className="flex items-center gap-4">
+          <div className="flex bg-slate-200/50 p-1.5 rounded-2xl border border-slate-100">
+            {(['kits', 'products', 'currency'] as const).map(tab => (
+              <button 
+                key={tab} 
+                onClick={() => setActiveTab(tab)} 
+                className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <span>{tab === 'kits' ? 'Energy Kits' : tab === 'products' ? 'Items' : 'Currency'}</span>
+              </button>
+            ))}
+          </div>
+
+          <button 
+            onClick={onLogout}
+            className="p-3.5 bg-rose-50 text-rose-500 rounded-2xl border border-rose-100 hover:bg-rose-500 hover:text-white transition-all shadow-sm group"
+            title="Exit Terminal"
+          >
+            <LogOut size={20} className="group-hover:rotate-12 transition-transform" />
+          </button>
         </div>
       </div>
 
@@ -288,7 +308,9 @@ export const AdminPanel: React.FC = () => {
           <div className="bg-white w-full max-w-6xl rounded-[4rem] p-12 shadow-3xl border border-white my-auto">
             <div className="flex justify-between items-center mb-10">
               <div>
-                <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter leading-none">{editingProduct ? 'Update Asset' : 'Register Asset'}</h2>
+                <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter leading-none">
+                  <span>{editingProduct ? 'Update Asset' : 'Register Asset'}</span>
+                </h2>
                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-2">Database Integrity Control</p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="p-3 hover:bg-slate-100 rounded-2xl transition-all"><X size={24} /></button>
@@ -316,7 +338,7 @@ export const AdminPanel: React.FC = () => {
                             onClick={syncPriceWithComponents}
                             className="text-[8px] bg-slate-100 hover:bg-emerald-100 text-slate-500 hover:text-emerald-700 px-2 py-1 rounded-md transition-all flex items-center gap-1"
                           >
-                            <Calculator size={10} /> Sync Total
+                            <RefreshCcw size={10} /> Sync from Components
                           </button>
                         )}
                       </label>
@@ -339,12 +361,6 @@ export const AdminPanel: React.FC = () => {
                           <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${formData.is_active !== false ? 'translate-x-5' : 'translate-x-0'}`}></div>
                         </div>
                         <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Active Status</span>
-                      </div>
-                      <div className="flex items-center gap-4 cursor-pointer" onClick={() => setFormData({...formData, is_leader: !formData.is_leader})}>
-                        <div className={`w-10 h-5 rounded-full relative transition-all ${formData.is_leader ? 'bg-amber-400' : 'bg-slate-300'}`}>
-                          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${formData.is_leader ? 'translate-x-5' : 'translate-x-0'}`}></div>
-                        </div>
-                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Sales Leader</span>
                       </div>
                     </div>
                   </div>
@@ -417,13 +433,13 @@ export const AdminPanel: React.FC = () => {
                         <div className="space-y-6">
                            <div className="flex items-center justify-between px-4">
                              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Selected Components ({formData.kitComponents?.length || 0})</h4>
-                             <div className="text-[11px] font-black text-slate-900 uppercase">Sum of Parts: {formatPrice(formData.kitComponents?.reduce((s,i)=>s+(i.price*i.quantity),0)||0)}</div>
+                             <div className="text-[11px] font-black text-slate-900 uppercase">Calculated Sum: {formatPrice(formData.kitComponents?.reduce((s,i)=>s+(i.price*i.quantity),0)||0)}</div>
                            </div>
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              {(!formData.kitComponents || formData.kitComponents.length === 0) ? (
                                <div className="col-span-2 py-12 border-2 border-dashed border-slate-100 rounded-[3rem] flex flex-col items-center justify-center text-slate-300">
                                   <ShoppingBag size={40} className="mb-3 opacity-20" />
-                                  <span className="text-[10px] font-black uppercase tracking-widest">No assets added to the kit</span>
+                                  <span className="text-[10px] font-black uppercase tracking-widest">Empty Solution</span>
                                </div>
                              ) : (
                                formData.kitComponents.map((comp, idx) => (
@@ -435,7 +451,7 @@ export const AdminPanel: React.FC = () => {
                                           <div className="text-[8px] font-bold text-slate-400 uppercase mt-2 tracking-widest">x{comp.quantity} • {formatPrice(comp.price)}</div>
                                        </div>
                                     </div>
-                                    <button onClick={() => removeComponentFromKit(idx)} type="button" className="p-2 text-slate-300 hover:text-rose-500 transition-colors bg-slate-50 hover:bg-rose-50 rounded-lg">
+                                    <button onClick={() => removeComponentFromKit(idx)} type="button" className="p-2 text-slate-300 hover:text-red-500 transition-colors bg-slate-50 hover:bg-red-50 rounded-lg">
                                        <Trash2 size={16} />
                                     </button>
                                  </div>
@@ -451,19 +467,11 @@ export const AdminPanel: React.FC = () => {
                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Technical Specs (JSON)</label>
                              <textarea value={formData.specs || '[]'} onChange={e => setFormData({...formData, specs: e.target.value})} className="w-full bg-slate-900 text-emerald-400 border-2 border-slate-800 rounded-3xl px-6 py-6 text-[10px] font-mono outline-none h-48 resize-none shadow-inner" />
                            </div>
-                           <div className="space-y-2">
-                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">General Description (EN)</label>
-                             <textarea value={(formData.description as any)?.en || ''} onChange={e => setFormData({...formData, description: { ...formData.description as any, en: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-6 text-xs font-medium outline-none h-32 resize-none focus:border-emerald-500" />
-                           </div>
                         </div>
                         <div className="space-y-6">
                            <div className="space-y-2">
-                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Documentation (JSON)</label>
-                             <textarea value={formData.docs || '[]'} onChange={e => setFormData({...formData, docs: e.target.value})} className="w-full bg-slate-900 text-blue-400 border-2 border-slate-800 rounded-3xl px-6 py-6 text-[10px] font-mono outline-none h-48 resize-none shadow-inner" />
-                           </div>
-                           <div className="space-y-2">
-                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Опис (UK)</label>
-                             <textarea value={(formData.description as any)?.uk || ''} onChange={e => setFormData({...formData, description: { ...formData.description as any, uk: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-6 text-xs font-medium outline-none h-32 resize-none focus:border-emerald-500" />
+                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">General Description (EN)</label>
+                             <textarea value={(formData.description as any)?.en || ''} onChange={e => setFormData({...formData, description: { ...formData.description as any, en: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-6 text-xs font-medium outline-none h-32 resize-none focus:border-emerald-500" />
                            </div>
                         </div>
                       </div>

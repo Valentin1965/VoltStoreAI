@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Layout } from './components/layout/Layout';
 import { CatalogSection } from './components/catalog/CatalogSection';
 import { CartPage } from './components/cart/CartPage';
 import { CheckoutPage } from './components/checkout/CheckoutPage';
 import { AdminPanel } from './components/admin/AdminPanel';
+import { AdminPasswordPrompt } from './components/admin/AdminPasswordPrompt';
 import { Calculator } from './components/calculator/Calculator';
 import { WishlistPage } from './components/wishlist/WishlistPage';
 import { ComparePage } from './components/compare/ComparePage';
@@ -15,10 +17,9 @@ import { CartProvider } from './contexts/CartContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { WishlistProvider } from './contexts/WishlistContext';
 import { CompareProvider } from './contexts/CompareContext';
-import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
+import { LanguageProvider } from './contexts/LanguageContext';
 import { UserProvider } from './contexts/UserContext';
 import { AppView } from './types';
-import { Lock, X } from 'lucide-react';
 
 // Error Boundary for UI safety
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean}> {
@@ -30,83 +31,31 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
   render() {
     if (this.state.hasError) return (
       <div className="p-10 text-center uppercase font-black text-rose-500 bg-rose-50 rounded-3xl border border-rose-100 m-10">
-        System Error. Please refresh.
+        <span>System Error. Please refresh the page.</span>
       </div>
     );
     return this.props.children;
   }
 }
 
-const AdminPasswordPrompt: React.FC<{ onAuth: () => void; onCancel: () => void }> = ({ onAuth, onCancel }) => {
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === '4321') {
-      onAuth();
-    } else {
-      setError(true);
-      setPassword('');
-      setTimeout(() => setError(false), 2000);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-xl animate-fade-in">
-      <div className={`bg-white w-full max-w-md rounded-[3rem] p-10 shadow-3xl border transition-all duration-300 ${error ? 'border-rose-500 shake' : 'border-white'}`}>
-        <div className="flex justify-between items-center mb-8">
-          <div className="flex items-center gap-3">
-            <div className="bg-slate-900 p-2 rounded-xl text-yellow-400">
-              <Lock size={20} />
-            </div>
-            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Admin Access</h3>
-          </div>
-          <button onClick={onCancel} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
-            <X size={20} />
-          </button>
-        </div>
-        
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Access Key</label>
-            <input 
-              type="password" 
-              autoFocus
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••"
-              className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-5 text-center text-2xl tracking-[1em] font-black outline-none focus:border-yellow-400 focus:bg-white transition-all"
-            />
-          </div>
-          
-          {error && <p className="text-[10px] text-rose-500 font-black uppercase text-center tracking-widest animate-pulse">Incorrect Password</p>}
-          
-          <button 
-            type="submit"
-            className="w-full bg-slate-900 hover:bg-yellow-400 text-white hover:text-yellow-950 py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl active:scale-95"
-          >
-            Authenticate
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-};
-
 const AppContent: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.ABOUT);
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
-  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [calcMode, setCalcMode] = useState<1 | 3>(1);
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem('voltstore_admin_auth') === 'true';
+  });
 
   const handleSetView = useCallback((view: AppView) => {
-    if (view === AppView.ADMIN && !isAdminAuthenticated) {
-      setShowPasswordPrompt(true);
-    } else {
-      setCurrentView(view);
-    }
-  }, [isAdminAuthenticated]);
+    setCurrentView(view);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  // Handle logout from admin
+  const handleAdminLogout = useCallback(() => {
+    localStorage.removeItem('voltstore_admin_auth');
+    setIsAdminAuthenticated(false);
+    handleSetView(AppView.ABOUT);
+  }, [handleSetView]);
 
   useEffect(() => {
     const handleViewChange = (e: any) => {
@@ -125,7 +74,9 @@ const AppContent: React.FC = () => {
       case AppView.CHECKOUT:
         return <CheckoutPage onBackToCart={() => handleSetView(AppView.CART)} onOrderSuccess={() => handleSetView(AppView.CATALOG)} setView={handleSetView} />;
       case AppView.ADMIN:
-        return <AdminPanel />;
+        return isAdminAuthenticated 
+          ? <AdminPanel onLogout={handleAdminLogout} /> 
+          : <AdminPasswordPrompt onSuccess={() => setIsAdminAuthenticated(true)} />;
       case AppView.CALCULATOR:
         return <Calculator initialStep={calcMode} />;
       case AppView.WISHLIST:
@@ -139,28 +90,21 @@ const AppContent: React.FC = () => {
       default:
         return <AboutPage onNavigateToCatalog={handleSetView} />;
     }
-  }, [currentView, calcMode, handleSetView]);
+  }, [currentView, calcMode, handleSetView, isAdminAuthenticated, handleAdminLogout]);
 
   return (
     <Layout currentView={currentView} setView={handleSetView}>
-      <div id="view-wrapper" key={currentView} className="animate-fade-in min-h-[50vh]">
+      <div 
+        id="view-wrapper" 
+        key={`${currentView}-${isAdminAuthenticated}`} 
+        className="animate-fade-in min-h-[50vh]"
+        translate="no"
+      >
         <ErrorBoundary>
           {renderedView}
         </ErrorBoundary>
       </div>
-
       <LiveAssistant />
-      
-      {showPasswordPrompt && (
-        <AdminPasswordPrompt 
-          onAuth={() => {
-            setIsAdminAuthenticated(true);
-            setShowPasswordPrompt(false);
-            setCurrentView(AppView.ADMIN);
-          }}
-          onCancel={() => setShowPasswordPrompt(false)}
-        />
-      )}
     </Layout>
   );
 };

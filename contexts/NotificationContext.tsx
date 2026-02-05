@@ -19,8 +19,19 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const timeoutsRef = useRef<Map<string, number>>(new Map());
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+      // Cleanup all timeouts on unmount
+      timeoutsRef.current.forEach(timeout => window.clearTimeout(timeout));
+      timeoutsRef.current.clear();
+    };
+  }, []);
 
   const removeNotification = useCallback((id: string) => {
+    if (!isMounted.current) return;
     setNotifications(prev => prev.filter(n => n.id !== id));
     if (timeoutsRef.current.has(id)) {
       window.clearTimeout(timeoutsRef.current.get(id));
@@ -29,6 +40,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, []);
 
   const addNotification = useCallback((message: string, type: NotificationType) => {
+    if (!isMounted.current) return;
     const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
     setNotifications(prev => [...prev, { id, message, type }]);
@@ -40,18 +52,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     timeoutsRef.current.set(id, timeout);
   }, [removeNotification]);
 
-  useEffect(() => {
-    return () => {
-      // Cleanup all timeouts on unmount
-      timeoutsRef.current.forEach(timeout => window.clearTimeout(timeout));
-      timeoutsRef.current.clear();
-    };
-  }, []);
-
   return (
     <NotificationContext.Provider value={{ addNotification }}>
       {children}
-      <div className="fixed bottom-8 right-8 z-[10000] flex flex-col gap-4 max-w-md w-full pointer-events-none">
+      <div 
+        className="fixed bottom-8 right-8 z-[10000] flex flex-col gap-4 max-w-md w-full pointer-events-none"
+        translate="no"
+      >
         {notifications.map(n => (
           <div
             key={n.id}
@@ -68,7 +75,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
               {n.type === 'error' && <AlertCircle size={24} />}
               {n.type === 'info' && <InfoIcon size={24} />}
             </div>
-            <p className="flex-1 font-bold text-sm uppercase tracking-tight leading-tight">{n.message}</p>
+            <p className="flex-1 font-bold text-sm uppercase tracking-tight leading-tight">
+              {n.message}
+            </p>
             <button 
               onClick={() => removeNotification(n.id)}
               className="p-1.5 hover:bg-white/20 rounded-xl transition-colors"
@@ -86,7 +95,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 export const useNotification = () => {
   const context = useContext(NotificationContext);
   if (!context) {
-    // Return a dummy to prevent crashes during initialization if called accidentally
     return {
       addNotification: (msg: string, type: NotificationType) => console.warn('NotificationProvider not found', msg)
     };
