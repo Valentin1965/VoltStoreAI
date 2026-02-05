@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useProducts } from '../../contexts/ProductsContext';
@@ -7,9 +8,10 @@ import {
   ShieldCheck, Zap, Globe, Heart, Award, CheckCircle2, 
   ChevronRight, Mail, Phone, MapPin, Sparkles, Crown,
   Layers, Battery, Sun, Cpu, X, ShoppingCart, Info, ArrowRight,
-  ChevronLeft
+  ChevronLeft, FileText, Download, List, Check, Rocket, Leaf, UserCheck,
+  Settings
 } from 'lucide-react';
-import { AppView, Category, Product } from '../../types';
+import { AppView, Category, Product, ProductSpec, ProductDoc } from '../../types';
 import { ProductCard, useLocalizedText } from '../catalog/CatalogSection';
 
 interface AboutPageProps {
@@ -17,6 +19,9 @@ interface AboutPageProps {
 }
 
 const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1509391366360-fe5bb58583bb?q=80&w=600&auto=format&fit=crop';
+const HERO_VIBRANT = 'https://images.unsplash.com/photo-1542332213-31f87348057f?q=80&w=2000&auto=format&fit=crop';
+const MISSION_IMG = 'https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?q=80&w=1200&auto=format&fit=crop';
+const INSTALLATION_IMG = 'https://images.unsplash.com/photo-1558444479-c84826091ec2?q=80&w=1200&auto=format&fit=crop';
 
 export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => {
   const { t, formatPrice } = useLanguage();
@@ -28,7 +33,6 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
 
-  // Вибираємо лідерів продажів (Bestsellers)
   const salesLeaders = products.filter(p => p.is_leader === true).slice(0, 4);
 
   const handleCategoryClick = (cat: Category) => {
@@ -37,14 +41,13 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
   };
 
   const categoryIcons = {
-    'Charging Stations': <Zap size={28} />,
-    'Inverters': <Cpu size={28} />,
-    'Batteries': <Battery size={28} />,
-    'Solar Panels': <Sun size={28} />,
-    'Kits': <Layers size={28} />
+    'Charging Stations': <Zap size={22} />,
+    'Inverters': <Cpu size={22} />,
+    'Batteries': <Battery size={22} />,
+    'Solar Panels': <Sun size={22} />,
+    'Kits': <Layers size={22} />
   };
 
-  // Блокування скролу при відкритій модалці
   useEffect(() => {
     if (selectedProduct) {
       document.body.style.overflow = 'hidden';
@@ -61,63 +64,70 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
         : (selectedProduct.image && typeof selectedProduct.image === 'string' && selectedProduct.image.trim() !== '' ? [selectedProduct.image] : [IMAGE_FALLBACK]))
     : [IMAGE_FALLBACK];
 
+  const parseJsonData = (data: any): any[] => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    try { return typeof data === 'string' ? JSON.parse(data) : []; } catch { return []; }
+  };
+
   const selectedProductNameStr = selectedProduct ? getLoc(selectedProduct.name) : "";
   const isSelectedInactive = selectedProduct ? (selectedProduct.stock === 0 || selectedProduct.stock === null || selectedProduct.is_active === false) : false;
+  const filteredSpecs = selectedProduct ? parseJsonData(selectedProduct.specs) : [];
+  const productDocs = selectedProduct ? parseJsonData(selectedProduct.docs) : [];
 
   return (
-    <div className="animate-fade-in pb-24 space-y-16">
+    <div className="animate-fade-in pb-24 space-y-24">
       
-      {/* 1. ГОЛОВНА КАРТИНА */}
-      <section className="relative h-[400px] md:h-[480px] -mt-10 overflow-hidden rounded-[3rem] shadow-2xl">
-        <div className="absolute inset-0 bg-slate-900/30 z-10"></div>
+      {/* 1. HERO SECTION */}
+      <section className="relative h-[450px] md:h-[550px] -mt-10 overflow-hidden rounded-[4rem] shadow-3xl">
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-slate-900/20 z-10"></div>
         <img 
-          src="https://images.unsplash.com/photo-1470770841072-f978cf4d019e?q=80&w=2000&auto=format&fit=crop" 
-          className="absolute inset-0 w-full h-full object-cover animate-slow-zoom" 
-          alt="Nature Energy Background" 
+          src={HERO_VIBRANT} 
+          className="absolute inset-0 w-full h-full object-cover animate-slow-zoom brightness-110" 
+          alt="Clean Energy" 
         />
         
         <div className="relative z-20 h-full flex flex-col items-center justify-center text-center px-6">
-          <div className="inline-flex items-center gap-2 bg-emerald-500/30 backdrop-blur-md border border-white/20 text-white px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-6">
-            <Sparkles size={14} className="text-emerald-400" /> Енергія Природи
+          <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-xl border border-white/30 text-white px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-[0.4em] mb-8 shadow-xl">
+            <Sparkles size={16} className="text-yellow-400" /> Майбутнє вже тут
           </div>
-          <h1 className="text-5xl md:text-7xl font-black text-white leading-[0.8] tracking-tighter uppercase mb-6 drop-shadow-2xl">
+          <h1 className="text-6xl md:text-8xl font-black text-white leading-[0.8] tracking-tighter uppercase mb-8 drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
             VOLT<br/>
             <span className="text-emerald-400 italic">STORE</span>
           </h1>
-          <p className="text-white/90 text-sm md:text-lg font-medium max-w-xl mb-10 tracking-tight leading-snug">
-            Професійне обладнання для енергонезалежності. 
-            Використовуйте силу сонця для свого дому та бізнесу.
+          <p className="text-white text-base md:text-xl font-bold max-w-2xl mb-12 tracking-tight leading-snug opacity-95">
+            Ми не просто продаємо обладнання — ми створюємо вашу персональну незалежність від енергомереж. 
           </p>
-          <div className="flex flex-wrap justify-center gap-4">
+          <div className="flex flex-wrap justify-center gap-5">
             <button 
               onClick={() => onNavigateToCatalog(AppView.CATALOG)}
-              className="bg-white text-slate-900 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 hover:text-white transition-all shadow-2xl active:scale-95"
+              className="bg-emerald-500 hover:bg-emerald-400 text-white px-10 py-5 rounded-[2rem] font-black uppercase text-[11px] tracking-widest transition-all shadow-2xl active:scale-95 flex items-center gap-3"
             >
-              Переглянути Каталог
+              До Каталогу <ChevronRight size={18} />
             </button>
             <button 
               onClick={() => onNavigateToCatalog(AppView.CALCULATOR)}
-              className="bg-emerald-600/30 backdrop-blur-xl border border-white/20 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 hover:text-white transition-all active:scale-95"
+              className="bg-white/10 backdrop-blur-2xl border-2 border-white/40 text-white px-10 py-5 rounded-[2rem] font-black uppercase text-[11px] tracking-widest hover:bg-white hover:text-slate-900 transition-all active:scale-95"
             >
-              AI Архітектор
+              {t('nav_architect')}
             </button>
           </div>
         </div>
       </section>
 
-      {/* 2. ВИБІР МЕНЮ */}
-      <section className="container mx-auto px-4 -mt-10 relative z-30">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      {/* 2. CATEGORIES */}
+      <section className="container mx-auto px-4 -mt-16 relative z-30">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-5">
           {(['Charging Stations', 'Inverters', 'Batteries', 'Solar Panels', 'Kits'] as Category[]).map((cat) => (
             <button
               key={cat}
               onClick={() => handleCategoryClick(cat)}
-              className="group bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border-2 border-slate-100 shadow-lg hover:shadow-2xl hover:border-emerald-400 hover:-translate-y-2 transition-all duration-300 flex flex-col items-center text-center gap-4"
+              className="group bg-white p-5 md:p-6 rounded-[2rem] border-2 border-slate-100 shadow-xl hover:shadow-2xl hover:border-emerald-500 hover:-translate-y-2 transition-all duration-500 flex flex-col items-center text-center gap-3"
             >
-              <div className="w-16 h-16 bg-emerald-50 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white rounded-2xl flex items-center justify-center transition-all duration-500 shadow-sm border border-emerald-100/50">
+              <div className="w-12 h-12 bg-emerald-50 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white rounded-2xl flex items-center justify-center transition-all duration-500 shadow-sm">
                 {categoryIcons[cat]}
               </div>
-              <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-slate-700 group-hover:text-emerald-600 transition-colors">
+              <span className="text-[11px] font-black uppercase tracking-tighter text-slate-800 leading-tight group-hover:text-emerald-600 transition-colors px-1">
                 {cat}
               </span>
             </button>
@@ -125,13 +135,13 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
         </div>
       </section>
 
-      {/* 3. ЛІДЕРИ ПРОДАЖІВ */}
+      {/* 3. BESTSELLERS PREVIEW (MOVED UP) */}
       {salesLeaders.length > 0 && (
         <section className="container mx-auto px-4 space-y-10 pt-4">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-4">
             <div className="space-y-3 text-center md:text-left">
                <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-600 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border border-amber-100 mx-auto md:mx-0">
-                <Crown size={12} className="fill-amber-600" /> Bestsellers
+                <Crown size={12} className="fill-amber-600" /> Top Rated Equipment
                </div>
                <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">Лідери <span className="text-emerald-500">Продажів</span></h2>
             </div>
@@ -139,7 +149,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
               onClick={() => onNavigateToCatalog(AppView.CATALOG)}
               className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-emerald-600 transition-colors flex items-center gap-2 group mx-auto md:mx-0"
             >
-              Переглянути все <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
+              Дивитись всі <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
             </button>
           </div>
 
@@ -161,176 +171,229 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
         </section>
       )}
 
-      {/* 4. ПРО НАС */}
-      <section className="container mx-auto px-4 pt-12">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <div className="space-y-8">
-            <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-100">
-              <Sparkles size={14} /> Спеціалісти з Енергії
+      {/* 4. INTRODUCTION & MISSION */}
+      <section className="container mx-auto px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+          <div className="space-y-10">
+            <div className="space-y-6">
+              <h2 className="text-4xl md:text-5xl font-black text-slate-900 uppercase tracking-tighter leading-none">
+                Focus on <span className="text-emerald-500">Nature</span>
+              </h2>
+              <p className="text-slate-600 text-lg leading-relaxed font-medium">
+                From the beginning, our focus has been on providing solutions that draw
+                energy from nature. We are specialists in photovoltaic installations and our
+                aim is to help our customers reduce their electricity bills and take care of the
+                environment by popularising renewable energy sources.
+              </p>
             </div>
-            <h2 className="text-5xl md:text-6xl font-black text-slate-900 leading-[0.9] tracking-tighter uppercase">
-              Про <span className="text-emerald-500">Нас</span>
-            </h2>
-            <p className="text-slate-600 text-lg leading-relaxed font-medium">
-              З самого початку нашою метою було надання рішень, які використовують енергію природи. Ми є фахівцями у сфері відновлювальної енергетики, і наша місія — допомогти клієнтам стати енергонезалежними, зменшити витрати та зберегти навколишнє середовище.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="flex items-center gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                <div className="w-12 h-12 bg-emerald-500 text-white rounded-xl flex items-center justify-center shrink-0 shadow-lg">
-                  <Award size={24} />
+
+            <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-1000"></div>
+              <div className="relative z-10 space-y-6">
+                <div className="inline-flex items-center gap-2 bg-emerald-500 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">
+                  <Award size={14} /> Our Mission
                 </div>
-                <div>
-                  <div className="text-[12px] font-black text-slate-900 uppercase tracking-tighter leading-none">Сертифіковано</div>
-                  <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Офіційний дистриб'ютор</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                <div className="w-12 h-12 bg-slate-900 text-emerald-400 rounded-xl flex items-center justify-center shrink-0 shadow-lg">
-                  <ShieldCheck size={24} />
-                </div>
-                <div>
-                  <div className="text-[12px] font-black text-slate-900 uppercase tracking-tighter leading-none">Безпека</div>
-                  <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Гарантія до 25 років</div>
-                </div>
+                <p className="text-slate-700 font-bold leading-relaxed">
+                  Solar energy is not just about saving money, it is also an investment in the
+                  future – yours and the planet’s. We want to make access to green energy
+                  simple and accessible to everyone, which is why we offer comprehensive
+                  support in the transition to photovoltaics. We believe that together we can
+                  build a more sustainable world, starting with small, everyday changes.
+                </p>
               </div>
             </div>
           </div>
           <div className="relative">
-            <div className="absolute -inset-10 bg-emerald-500/10 blur-[100px] rounded-full"></div>
-            <img 
-              src="https://images.unsplash.com/photo-1509391366360-fe5bb58583bb?q=80&w=1200&auto=format&fit=crop" 
-              alt="Solar Panels Installation" 
-              className="relative rounded-[3rem] shadow-2xl border border-white"
-            />
+             <div className="absolute -inset-10 bg-emerald-500/10 blur-[120px] rounded-full"></div>
+             <img 
+               src={MISSION_IMG} 
+               alt="Solar mission" 
+               className="relative rounded-[4rem] shadow-3xl border border-white z-10"
+             />
           </div>
         </div>
       </section>
 
-      {/* МОДАЛЬНЕ ВІКНО ТОВАРУ */}
+      {/* 5. WHY TRUST US? */}
+      <section className="bg-slate-900 py-24 rounded-[5rem] mx-4 px-6 overflow-hidden relative">
+        <div className="absolute inset-0 opacity-10">
+          <img src={INSTALLATION_IMG} className="w-full h-full object-cover" alt="bg" />
+        </div>
+        <div className="container mx-auto relative z-10">
+          <div className="text-center space-y-4 mb-20">
+             <h2 className="text-4xl md:text-6xl font-black text-white uppercase tracking-tighter">Why <span className="text-emerald-400 italic">trust</span> us?</h2>
+             <div className="w-24 h-1 bg-emerald-500 mx-auto rounded-full"></div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                title: "Experience and professionalism",
+                icon: <Award className="text-amber-400" size={32} />,
+                desc: "Our company has been in the market for many years, providing modern and reliable photovoltaic solutions. We have completed hundreds of projects for individual customers, companies and public institutions. As a result, we know how to tailor our offerings to meet a variety of needs, expectations and budgets."
+              },
+              {
+                title: "Comprehensive service",
+                icon: <Settings size={32} className="text-emerald-400" />,
+                desc: "We cover everything from A to Z. Our specialists will help you with: Selecting the right panels and inverters to suit your building and energy consumption. Designing the installation in an efficient and cost-effective manner. Installation of the installation with attention to detail."
+              },
+              {
+                title: "Future technologies",
+                icon: <Rocket size={32} className="text-blue-400" />,
+                desc: "We work exclusively with reputable manufacturers of photovoltaic components. Our installations are based on modern panels and efficient inverters, which guarantee maximum system efficiency. In addition, we also offer energy storage facilities that allow you to store surplus electricity."
+              }
+            ].map((item, i) => (
+              <div key={i} className="bg-white/5 backdrop-blur-xl border border-white/10 p-10 rounded-[3rem] hover:bg-white/10 transition-all group">
+                <div className="mb-6 group-hover:scale-110 transition-transform">{item.icon}</div>
+                <h3 className="text-xl font-black text-white uppercase tracking-tight mb-4">{item.title}</h3>
+                <p className="text-slate-400 text-sm leading-relaxed font-medium">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 6. CORE VALUES */}
+      <section className="container mx-auto px-6">
+        <div className="flex flex-col lg:flex-row gap-20 items-start">
+           <div className="lg:w-1/3 sticky top-32 space-y-6">
+              <h2 className="text-5xl font-black text-slate-900 uppercase tracking-tighter leading-none">Our Core <span className="text-emerald-500">Values</span></h2>
+              <p className="text-slate-500 font-bold text-lg uppercase tracking-widest leading-relaxed">
+                Management of personal assets and access security
+              </p>
+           </div>
+           
+           <div className="lg:w-2/3 grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {[
+                {
+                  title: "Sustainable development",
+                  icon: <Leaf size={24} />,
+                  desc: "We care for the environment by offering solutions that reduce CO₂ emissions and promote the use of renewable energy sources. Each installation is a step towards a better future for us and future generations."
+                },
+                {
+                  title: "Proximity to the customer",
+                  icon: <UserCheck size={24} />,
+                  desc: "Our relationship with our clients is based on trust and a personalised approach. We tailor solutions to your needs and are with you every step of the way, guaranteeing the highest quality of service."
+                },
+                {
+                  title: "Innovation",
+                  icon: <Sparkles size={24} />,
+                  desc: "We rely on state-of-the-art technology to ensure reliability, efficiency and aesthetics. As a result, we provide solutions that meet the needs of today and tomorrow."
+                },
+                {
+                  title: "Quality and safety",
+                  icon: <ShieldCheck size={24} />,
+                  desc: "Our priority is the soundness of workmanship and the safety of use. We work with the best manufacturers and our installations meet the highest standards of quality and durability."
+                }
+              ].map((val, i) => (
+                <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl hover:shadow-2xl transition-all">
+                   <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-emerald-100/50">
+                      {val.icon}
+                   </div>
+                   <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-3">{val.title}</h3>
+                   <p className="text-slate-500 text-sm leading-relaxed font-medium">{val.desc}</p>
+                </div>
+              ))}
+           </div>
+        </div>
+      </section>
+
+      {/* PRODUCT MODAL */}
       {selectedProduct && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 md:p-10 bg-slate-900/40 backdrop-blur-md overflow-y-auto animate-fade-in">
-          <div className="bg-white w-full max-w-6xl rounded-[2.5rem] shadow-3xl border border-white flex flex-col my-auto max-h-[95vh] overflow-hidden">
-            
-            <div className="px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+          <div className="bg-white w-full max-w-6xl rounded-[3rem] shadow-3xl border border-white flex flex-col my-auto max-h-[95vh] overflow-hidden">
+            <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center gap-4">
-                <div className="bg-emerald-600 p-2 rounded-xl text-white">
-                  <Zap size={18} />
+                <div className="bg-emerald-600 p-2.5 rounded-2xl text-white shadow-lg shadow-emerald-200">
+                  <Zap size={20} />
                 </div>
-                <h2 className="text-lg font-black text-slate-900 uppercase tracking-tighter leading-none">{selectedProductNameStr}</h2>
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 uppercase tracking-tighter leading-none">{selectedProductNameStr}</h2>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Детальний огляд активу</p>
+                </div>
               </div>
-              <button onClick={() => setSelectedProduct(null)} className="p-2 hover:bg-slate-100 rounded-xl transition-all"><X size={20} /></button>
+              <button onClick={() => setSelectedProduct(null)} className="p-3 hover:bg-slate-100 rounded-2xl transition-all"><X size={24} /></button>
             </div>
-
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
-              <div className="flex flex-col lg:flex-row gap-10 mb-12">
-                <div className="lg:w-[58%] space-y-4">
-                  <div className="aspect-video bg-slate-50 rounded-3xl overflow-hidden border border-slate-100 relative group/img p-6 flex items-center justify-center">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-8 md:p-12">
+               <div className="flex flex-col lg:flex-row gap-12 mb-16">
+                <div className="lg:w-[55%] space-y-6">
+                  <div className="aspect-video bg-slate-50 rounded-[2.5rem] overflow-hidden border border-slate-100 relative group/img p-10 flex items-center justify-center shadow-inner">
                     <img 
                       src={productImages[activeImageIdx] || IMAGE_FALLBACK} 
-                      className="max-w-full max-h-full object-contain" 
+                      className="max-w-full max-h-full object-contain drop-shadow-2xl" 
                       alt={selectedProductNameStr} 
                       onError={(e) => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }}
                     />
                     {productImages.length > 1 && (
-                      <div className="absolute inset-0 flex items-center justify-between px-3 opacity-0 group-hover/img:opacity-100 transition-opacity">
-                        <button onClick={() => setActiveImageIdx(prev => (prev > 0 ? prev - 1 : productImages.length - 1))} className="p-2 bg-white/80 rounded-xl shadow-md"><ChevronLeft size={18}/></button>
-                        <button onClick={() => setActiveImageIdx(prev => (prev < productImages.length - 1 ? prev + 1 : 0))} className="p-2 bg-white/80 rounded-xl shadow-md"><ChevronRight size={18}/></button>
+                      <div className="absolute inset-0 flex items-center justify-between px-6 opacity-0 group-hover/img:opacity-100 transition-opacity">
+                        <button onClick={() => setActiveImageIdx(prev => (prev > 0 ? prev - 1 : productImages.length - 1))} className="p-3 bg-white/90 backdrop-blur-md rounded-2xl shadow-xl hover:bg-emerald-500 hover:text-white transition-all"><ChevronLeft size={24}/></button>
+                        <button onClick={() => setActiveImageIdx(prev => (prev < productImages.length - 1 ? prev + 1 : 0))} className="p-3 bg-white/90 backdrop-blur-md rounded-2xl shadow-xl hover:bg-emerald-500 hover:text-white transition-all"><ChevronRight size={24}/></button>
                       </div>
                     )}
                   </div>
-                  
-                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                  <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide px-2">
                     {productImages.map((img, idx) => (
                       <button 
                         key={idx} 
                         onClick={() => setActiveImageIdx(idx)}
-                        className={`w-20 h-20 rounded-xl overflow-hidden border-2 shrink-0 transition-all ${activeImageIdx === idx ? 'border-emerald-500 scale-95' : 'border-slate-100 opacity-60 hover:opacity-100'}`}
+                        className={`w-24 h-24 rounded-2xl overflow-hidden border-2 shrink-0 transition-all ${activeImageIdx === idx ? 'border-emerald-500 scale-95 shadow-lg' : 'border-slate-100 opacity-60 hover:opacity-100'}`}
                       >
                         <img src={img || IMAGE_FALLBACK} className="w-full h-full object-cover" alt="" onError={(e) => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }} />
                       </button>
                     ))}
                   </div>
                 </div>
-
-                <div className="lg:w-[42%] flex flex-col gap-6">
-                  <div className="bg-slate-50/50 rounded-3xl border border-slate-100 p-8 flex flex-col gap-6 shadow-sm">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 mb-2">
+                <div className="lg:w-[45%] flex flex-col gap-8">
+                  <div className="bg-slate-50/50 rounded-[3rem] border border-slate-100 p-10 flex flex-col gap-8 shadow-sm">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
                         {selectedProduct.is_leader && (
-                          <span className="bg-amber-400 text-yellow-950 text-[8px] font-black uppercase px-2 py-1 rounded-md flex items-center gap-1">
-                            <Crown size={10} className="fill-yellow-950" /> {t('sales_leader')}
+                          <span className="bg-amber-400 text-yellow-950 text-[9px] font-black uppercase px-3 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
+                            <Crown size={12} className="fill-yellow-950" /> {t('sales_leader')}
                           </span>
                         )}
                         {selectedProduct.is_new && (
-                          <span className="bg-emerald-500 text-white text-[8px] font-black uppercase px-2 py-1 rounded-md">New</span>
+                          <span className="bg-emerald-500 text-white text-[9px] font-black uppercase px-3 py-1 rounded-lg shadow-sm">New</span>
                         )}
                       </div>
-                      <h3 className="font-black text-slate-900 text-sm uppercase tracking-tight leading-tight mb-2">{selectedProductNameStr}</h3>
+                      <h3 className="font-black text-slate-900 text-2xl uppercase tracking-tighter leading-tight">{selectedProductNameStr}</h3>
                     </div>
-
-                    <div className="space-y-0.5">
-                      <div className="text-3xl font-black text-slate-900 tracking-tighter">
-                        {formatPrice(selectedProduct.price)} <span className="text-[10px] text-slate-400 uppercase font-black tracking-widest ml-1">{t('inc_vat')}</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4 py-6 border-y border-slate-200/60">
-                      <div className="flex items-center justify-between">
-                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('availability')}:</span>
-                         <div className="flex items-center gap-1.5">
-                            <div className={`w-2 h-2 rounded-full shadow-sm ${isSelectedInactive ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
-                            <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">
-                              {isSelectedInactive ? 'Замовлення' : t('in_stock')}
-                            </span>
-                         </div>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-3">
-                      <button 
-                        onClick={() => { addItem(selectedProduct); addNotification(t('item_added'), 'success'); }}
-                        className={`flex-1 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg py-5 flex items-center justify-center gap-3 active:scale-95 group ${
-                          isSelectedInactive 
-                            ? 'bg-amber-500 hover:bg-amber-600 text-white' 
-                            : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                        }`}
-                      >
-                        {isSelectedInactive ? <ArrowRight size={18} /> : <ShoppingCart size={18} />} 
-                        {isSelectedInactive ? 'Замовити' : t('add_to_cart')}
-                      </button>
-                    </div>
+                    <div className="text-4xl font-black text-slate-900 tracking-tighter">{formatPrice(selectedProduct.price)}</div>
+                    <button 
+                      onClick={() => { addItem(selectedProduct); addNotification(t('item_added'), 'success'); }}
+                      className={`w-full rounded-2xl font-black text-[12px] uppercase tracking-widest transition-all shadow-xl py-6 flex items-center justify-center gap-4 active:scale-95 group ${
+                        isSelectedInactive ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                      }`}
+                    >
+                      {isSelectedInactive ? <ArrowRight size={22} /> : <ShoppingCart size={22} />} 
+                      {isSelectedInactive ? 'Оформити Спецзамовлення' : t('add_to_cart')}
+                    </button>
                   </div>
-                  <button onClick={() => setSelectedProduct(null)} className="w-full py-4 rounded-2xl bg-slate-100 text-slate-500 font-black text-[9px] uppercase tracking-widest hover:bg-slate-200 transition-all">{t('close')}</button>
                 </div>
-              </div>
-
-              <div className="max-w-4xl space-y-16 pb-20">
-                {selectedProduct.description && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                      <Info size={16} className="text-emerald-500" />
-                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{t('about_product')}</h4>
-                    </div>
-                    <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-wrap">{getLoc(selectedProduct.description)}</p>
-                  </div>
-                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Наша Місія */}
+      {/* FOOTER CALL TO ACTION */}
       <section className="container mx-auto px-4">
         <div className="bg-slate-900 rounded-[4rem] p-12 md:p-20 text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-1/2 h-full opacity-20 pointer-events-none">
-            <img src="https://images.unsplash.com/photo-1497435334941-8c899ee9e8e9?q=80&w=800&auto=format&fit=crop" className="w-full h-full object-cover" alt="Nature" />
+            <img src={INSTALLATION_IMG} className="w-full h-full object-cover" alt="Nature" />
           </div>
-          <div className="relative z-10 max-w-2xl space-y-6">
-            <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tighter">Наша Місія</h2>
-            <p className="text-slate-300 text-lg leading-relaxed">
-              Сонячна енергія — це не просто економія коштів, це інвестиція в майбутнє. Ми робимо зелену енергію простою та доступною для кожного, забезпечуючи повний цикл підтримки: від розрахунку до запуску системи.
+          <div className="relative z-10 max-w-2xl space-y-8">
+            <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter">Ready for <span className="text-emerald-400 italic">Change</span>?</h2>
+            <p className="text-slate-300 text-xl leading-relaxed">
+              We tailor solutions to your needs and are with you every step of the
+              way, guaranteeing the highest quality of service.
             </p>
+            <button 
+              onClick={() => onNavigateToCatalog(AppView.CATALOG)}
+              className="bg-emerald-500 hover:bg-emerald-400 text-white px-12 py-6 rounded-[2rem] font-black uppercase text-[12px] tracking-widest transition-all shadow-2xl active:scale-95"
+            >
+              Start Your Journey
+            </button>
           </div>
         </div>
       </section>

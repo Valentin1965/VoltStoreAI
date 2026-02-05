@@ -3,7 +3,7 @@ import {
   Plus, Edit, Trash2, X, 
   Save, Cpu, Crown, Coins, 
   RefreshCw, Settings, Activity, Zap, Layers, ImageIcon,
-  FileText, Languages, Type
+  FileText, Languages, Type, List, File
 } from 'lucide-react';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -39,15 +39,25 @@ export const AdminPanel: React.FC = () => {
     image: '',
     is_active: true,
     is_leader: false,
+    specs: '[]',
+    docs: '[]'
   });
 
   const handleOpenModal = (product?: Product, defaultCategory: Category = 'Inverters') => {
+    const ensureString = (val: any) => {
+      if (!val) return '[]';
+      if (typeof val === 'string') return val;
+      try { return JSON.stringify(val); } catch { return '[]'; }
+    };
+
     if (product) {
       setEditingProduct(product);
       setFormData({ 
         ...product,
         name: typeof product.name === 'string' ? { en: product.name, uk: product.name } : product.name,
         description: typeof product.description === 'string' ? { en: product.description, uk: product.description } : (product.description || { en: '', uk: '' }),
+        specs: ensureString(product.specs),
+        docs: ensureString(product.docs),
         is_active: product.is_active !== false,
         is_leader: product.is_leader === true
       });
@@ -62,6 +72,8 @@ export const AdminPanel: React.FC = () => {
         image: '',
         is_active: true,
         is_leader: false,
+        specs: '[]',
+        docs: '[]'
       });
     }
     setIsModalOpen(true);
@@ -74,11 +86,21 @@ export const AdminPanel: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Parse specs and docs back to objects if they are strings
+    const processJson = (val: any) => {
+      if (typeof val !== 'string') return val;
+      try { return JSON.parse(val); } catch { return []; }
+    };
+
     const dataToSave = {
       ...formData,
+      specs: processJson(formData.specs),
+      docs: processJson(formData.docs),
       is_active: formData.is_active ?? true,
       is_leader: formData.is_leader ?? false
     };
+
     if (editingProduct) {
       updateProduct(dataToSave as Product);
       addNotification("Asset updated in database", "success");
@@ -197,7 +219,7 @@ export const AdminPanel: React.FC = () => {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 bg-slate-900/70 backdrop-blur-xl animate-fade-in overflow-y-auto">
-          <div className="bg-white w-full max-w-4xl rounded-[4rem] p-12 shadow-3xl border border-white my-auto">
+          <div className="bg-white w-full max-w-5xl rounded-[4rem] p-12 shadow-3xl border border-white my-auto">
             <div className="flex justify-between items-center mb-10">
               <div>
                 <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter leading-none">{editingProduct ? 'Update Asset' : 'Register Asset'}</h2>
@@ -207,74 +229,61 @@ export const AdminPanel: React.FC = () => {
             </div>
             
             <form onSubmit={handleSubmit} className="space-y-8">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {/* Column 1: Core */}
                   <div className="space-y-6">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Unique Identifier</label>
-                      <input 
-                        disabled={!!editingProduct} 
-                        value={formData.id || ''} 
-                        onChange={e => setFormData({...formData, id: e.target.value})} 
-                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none opacity-50 cursor-not-allowed" 
-                      />
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Unique ID</label>
+                      <input disabled={!!editingProduct} value={formData.id || ''} onChange={e => setFormData({...formData, id: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none opacity-50 cursor-not-allowed" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Base Price (EUR)</label>
-                      <input 
-                        type="number" 
-                        value={formData.price ?? 0} 
-                        onChange={e => setFormData({...formData, price: Number(e.target.value)})} 
-                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500 focus:bg-white transition-all shadow-inner" 
-                      />
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Price (EUR)</label>
+                      <input type="number" value={formData.price ?? 0} onChange={e => setFormData({...formData, price: Number(e.target.value)})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 flex items-center gap-2"><Type size={12}/> Title (English)</label>
-                      <input 
-                        value={(formData.name as any)?.en || ''} 
-                        onChange={e => setFormData({...formData, name: { ...formData.name as any, en: e.target.value }})} 
-                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500" 
-                        required 
-                      />
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Title (EN)</label>
+                      <input value={(formData.name as any)?.en || ''} onChange={e => setFormData({...formData, name: { ...formData.name as any, en: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none" required />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 flex items-center gap-2"><Languages size={12}/> Назва (Українська)</label>
-                      <input 
-                        value={(formData.name as any)?.uk || ''} 
-                        onChange={e => setFormData({...formData, name: { ...formData.name as any, uk: e.target.value }})} 
-                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500" 
-                      />
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Назва (UK)</label>
+                      <input value={(formData.name as any)?.uk || ''} onChange={e => setFormData({...formData, name: { ...formData.name as any, uk: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none" />
                     </div>
                   </div>
 
+                  {/* Column 2: Content */}
                   <div className="space-y-6">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Asset Image URL</label>
-                      <div className="flex gap-4">
-                        <input 
-                          value={formData.image || ''} 
-                          onChange={e => setFormData({...formData, image: e.target.value})} 
-                          className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500" 
-                          placeholder="https://..." 
-                        />
-                        {formData.image && <img src={formData.image} className="w-14 h-14 rounded-2xl object-cover border-2 border-slate-100" alt="preview" />}
-                      </div>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Image URL</label>
+                      <input value={formData.image || ''} onChange={e => setFormData({...formData, image: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 flex items-center gap-2"><FileText size={12}/> Description (English)</label>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Description (EN)</label>
+                      <textarea value={(formData.description as any)?.en || ''} onChange={e => setFormData({...formData, description: { ...formData.description as any, en: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-medium outline-none h-24 resize-none" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Опис (UK)</label>
+                      <textarea value={(formData.description as any)?.uk || ''} onChange={e => setFormData({...formData, description: { ...formData.description as any, uk: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-medium outline-none h-24 resize-none" />
+                    </div>
+                  </div>
+
+                  {/* Column 3: Advanced (Specs & Docs) */}
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 flex items-center gap-2"><List size={12}/> Technical Specs (JSON)</label>
                       <textarea 
-                        value={(formData.description as any)?.en || ''} 
-                        onChange={e => setFormData({...formData, description: { ...formData.description as any, en: e.target.value }})} 
-                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-medium outline-none h-24 resize-none focus:border-emerald-500" 
-                        placeholder="Detailed technical description in English..."
+                        value={formData.specs || '[]'} 
+                        onChange={e => setFormData({...formData, specs: e.target.value})} 
+                        className="w-full bg-slate-900 text-emerald-400 border-2 border-slate-800 rounded-3xl px-6 py-4 text-[10px] font-mono outline-none h-44 resize-none shadow-inner" 
+                        placeholder='[{"label": "Power", "value": "5kW"}]'
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 flex items-center gap-2"><Languages size={12}/> Опис (Українська)</label>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 flex items-center gap-2"><File size={12}/> Documents (JSON)</label>
                       <textarea 
-                        value={(formData.description as any)?.uk || ''} 
-                        onChange={e => setFormData({...formData, description: { ...formData.description as any, uk: e.target.value }})} 
-                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-medium outline-none h-24 resize-none focus:border-emerald-500" 
-                        placeholder="Детальний технічний опис українською..."
+                        value={formData.docs || '[]'} 
+                        onChange={e => setFormData({...formData, docs: e.target.value})} 
+                        className="w-full bg-slate-900 text-blue-400 border-2 border-slate-800 rounded-3xl px-6 py-4 text-[10px] font-mono outline-none h-32 resize-none shadow-inner" 
+                        placeholder='[{"title": "Manual", "url": "https://..."}]'
                       />
                     </div>
                   </div>
@@ -286,22 +295,22 @@ export const AdminPanel: React.FC = () => {
                       <div onClick={() => setFormData({...formData, is_active: !formData.is_active})} className={`w-14 h-7 rounded-full relative transition-all duration-500 shadow-inner ${formData.is_active !== false ? 'bg-emerald-500' : 'bg-slate-300'}`}>
                         <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all duration-500 shadow-md ${formData.is_active !== false ? 'left-8' : 'left-1'}`}></div>
                       </div>
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${formData.is_active !== false ? 'text-emerald-600' : 'text-slate-400'}`}>Availability Status</span>
+                      <span className={`text-[10px] font-black uppercase tracking-widest ${formData.is_active !== false ? 'text-emerald-600' : 'text-slate-400'}`}>Active In Catalog</span>
                     </div>
 
                     <div className="flex items-center gap-4 cursor-pointer group">
                       <div onClick={() => setFormData({...formData, is_leader: !formData.is_leader})} className={`w-14 h-7 rounded-full relative transition-all duration-500 shadow-inner ${formData.is_leader ? 'bg-amber-400' : 'bg-slate-300'}`}>
                         <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all duration-500 shadow-md ${formData.is_leader ? 'left-8' : 'left-1'}`}></div>
                       </div>
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${formData.is_leader ? 'text-amber-600' : 'text-slate-400'}`}>Market Leader</span>
+                      <span className={`text-[10px] font-black uppercase tracking-widest ${formData.is_leader ? 'text-amber-600' : 'text-slate-400'}`}>Best Seller</span>
                     </div>
                   </div>
                </div>
 
                <div className="flex justify-end gap-6 pt-6">
                   <button type="button" onClick={() => setIsModalOpen(false)} className="px-10 py-5 rounded-2xl text-[10px] font-black uppercase text-slate-400 tracking-widest hover:text-slate-900 transition-all">Discard</button>
-                  <button type="submit" className="bg-slate-900 text-white px-14 py-5 rounded-3xl font-black uppercase text-[10px] tracking-[0.2em] hover:bg-emerald-500 transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-3">
-                    <Save size={18} /> Sync to Database
+                  <button type="submit" className="bg-slate-900 text-white px-14 py-5 rounded-3xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-3">
+                    <Save size={18} /> Update Database
                   </button>
                </div>
             </form>
