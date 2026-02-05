@@ -1,15 +1,19 @@
+
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Використовуємо (import.meta as any) щоб TypeScript не блокував білд
-const metaEnv = (import.meta as any).env;
+// Use any cast to bypass TypeScript errors for import.meta.env
+const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || (process.env as any).SUPABASE_URL || '';
+const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || (process.env as any).SUPABASE_ANON_KEY || '';
 
-const supabaseUrl = metaEnv?.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = metaEnv?.VITE_SUPABASE_ANON_KEY || '';
-
+// Debugging check to help identify issues in the console
 if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder')) {
-  console.warn('[Supabase Service] Environment variables are missing.');
+  console.warn('[Supabase Service] Environment variables are missing or invalid. Check Vercel/Local .env settings.');
 }
 
+/**
+ * Singleton for SupabaseClient.
+ * Ensures only one connection instance is created.
+ */
 const getSupabaseInstance = (): SupabaseClient => {
   const global = globalThis as any;
   
@@ -17,6 +21,7 @@ const getSupabaseInstance = (): SupabaseClient => {
     return global.__supabaseClientInstance;
   }
 
+  // Initialize with the provided variables or a dummy URL to prevent SDK initialization crash
   const client = createClient(
     supabaseUrl || 'https://placeholder.supabase.co', 
     supabaseAnonKey || 'placeholder-key',
