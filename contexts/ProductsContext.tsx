@@ -23,7 +23,8 @@ export interface ProductsContextType {
 const ProductsContext = createContext<ProductsContextType | undefined>(undefined);
 
 const sanitizeForDb = (product: any) => {
-  const { kitComponents, id, created_at, ...cleanProduct } = product;
+  const { id, created_at, ...cleanProduct } = product;
+  
   const processJsonField = (field: any) => {
     if (field === null || field === undefined) return [];
     if (Array.isArray(field)) return field;
@@ -37,16 +38,21 @@ const sanitizeForDb = (product: any) => {
     }
     return [];
   };
+
   cleanProduct.specs = processJsonField(cleanProduct.specs);
   cleanProduct.docs = processJsonField(cleanProduct.docs);
   cleanProduct.features = Array.isArray(cleanProduct.features) ? cleanProduct.features : [];
+  cleanProduct.kitComponents = Array.isArray(cleanProduct.kitComponents) ? cleanProduct.kitComponents : [];
+  
   cleanProduct.is_active = cleanProduct.is_active !== false;
   cleanProduct.is_leader = cleanProduct.is_leader === true;
   cleanProduct.price = Number(cleanProduct.price) || 0;
   cleanProduct.stock = Number(cleanProduct.stock) || 0;
+  
   if (Array.isArray(cleanProduct.images)) {
     cleanProduct.images = cleanProduct.images.filter((img: string) => img && img.trim() !== '');
   }
+  
   return cleanProduct;
 };
 
@@ -109,13 +115,12 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const getLocalizedValue = (val: any, lang: string): string => {
     if (!val) return "";
     if (typeof val === 'string') return val;
-    if (typeof val === 'object') return val[lang] || val['en'] || Object.values(val)[0] as string || "";
+    if (typeof val === 'object') return (val as any)[lang] || (val as any)['en'] || Object.values(val)[0] as string || "";
     return String(val);
   };
 
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
-      // Показуємо всі товари, навіть неактивні (вони будуть як "під замовлення")
       const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
       const productName = getLocalizedValue(p.name, language || 'en');
       const matchesSearch = productName.toLowerCase().includes(searchQuery.toLowerCase());
@@ -128,7 +133,8 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const kitWithId = { 
         ...newProduct, 
         id: `KIT-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
-        is_active: newProduct.is_active ?? true
+        is_active: newProduct.is_active ?? true,
+        kitComponents: newProduct.kitComponents || []
       } as Product;
       setLocalKits(prev => [kitWithId, ...prev]);
       addNotification('Kit saved locally', 'success');
@@ -209,6 +215,8 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
 export const useProducts = (): ProductsContextType => {
   const context = useContext(ProductsContext);
-  if (!context) return {} as ProductsContextType;
+  if (!context) {
+    throw new Error('useProducts must be used within a ProductsProvider');
+  }
   return context;
 };

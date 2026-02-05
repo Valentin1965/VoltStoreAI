@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useCart } from '../../contexts/CartContext';
@@ -8,9 +9,10 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { 
   ShoppingCart, X, Heart, Loader2, Zap, 
   Sparkles, Scale, Layers, ChevronLeft, ChevronRight, Info, List, 
-  Truck, Clock, FileText, Download, Leaf, Crown, ArrowRight
+  Truck, Clock, FileText, Download, Leaf, Crown, ArrowRight,
+  Plus, Minus, Trash2, ShoppingBag
 } from 'lucide-react';
-import { Product, ProductSpec, ProductDoc, LocalizedText, AppView } from '../../types';
+import { Product, ProductSpec, ProductDoc, LocalizedText, AppView, Category, KitComponent } from '../../types';
 
 // Reliable image fallback
 const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1509391366360-fe5bb58583bb?q=80&w=600&auto=format&fit=crop';
@@ -89,7 +91,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSele
           )}
           {isInactive && (
             <span className="bg-amber-500 text-white text-[8px] font-black uppercase px-2.5 py-1 rounded-lg shadow-lg flex items-center gap-1.5">
-              <Clock size={10} /> {product.is_active === false ? 'Замовлення' : t('out_of_stock')}
+              <Clock size={10} /> {product.is_active === false ? 'Special Order' : t('out_of_stock')}
             </span>
           )}
         </div>
@@ -122,7 +124,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSele
           <div className="flex items-center gap-2">
              <div className={`w-2 h-2 rounded-full ${isInactive ? 'bg-amber-500' : 'bg-emerald-500'} shadow-sm`}></div>
              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
-               {isInactive ? 'Спецзамовлення' : 'В наявності'}
+               {isInactive ? 'Special Order' : 'In Stock'}
              </span>
           </div>
           <button 
@@ -134,7 +136,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSele
             }`}
           >
             {isInactive ? <ArrowRight size={14} /> : <ShoppingCart size={14} />}
-            <span className="text-[9px] font-black uppercase tracking-widest">{isInactive ? 'Замовити' : t('add_to_cart')}</span>
+            <span className="text-[9px] font-black uppercase tracking-widest">{isInactive ? 'Order' : t('add_to_cart')}</span>
           </button>
         </div>
       </div>
@@ -145,25 +147,103 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSele
 export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSelectSystem }) => {
   const { t, formatPrice } = useLanguage();
   const getLoc = useLocalizedText();
-  const { filteredProducts, categories, selectedCategory, setSelectedCategory, isLoading } = useProducts();
+  const { products, filteredProducts, categories, selectedCategory, setSelectedCategory, isLoading } = useProducts();
   const { addItem } = useCart();
   const { addNotification } = useNotification();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const productsRef = useRef<HTMLDivElement>(null);
 
+  // Configuration State for Kits
+  const [kitConfig, setKitConfig] = useState<KitComponent[]>([]);
+  const [configPrice, setConfigPrice] = useState(0);
+  const [selectedConfigCat, setSelectedConfigCat] = useState<Category | ''>('');
+  const [selectedConfigProdId, setSelectedConfigProdId] = useState<string>('');
+
+  const configAvailableProducts = useMemo(() => {
+    if (!selectedConfigCat) return [];
+    return products.filter(p => p.category === selectedConfigCat && p.category !== 'Kits');
+  }, [selectedConfigCat, products]);
+
   useEffect(() => {
     if (selectedProduct) {
       document.body.style.overflow = 'hidden';
       setActiveImageIdx(0);
+      if (selectedProduct.category === 'Kits') {
+        setKitConfig(selectedProduct.kitComponents || []);
+        setConfigPrice(selectedProduct.price);
+      }
     } else {
       document.body.style.overflow = 'unset';
     }
     return () => { document.body.style.overflow = 'unset'; };
   }, [selectedProduct]);
 
-  const scrollToProducts = () => {
-    productsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Handle Kit Updates
+  const updateKitPartQty = (idx: number, delta: number) => {
+    const updated = [...kitConfig];
+    updated[idx].quantity = Math.max(1, updated[idx].quantity + delta);
+    setKitConfig(updated);
+    recalcConfigPrice(updated);
+  };
+
+  const removeKitPart = (idx: number) => {
+    const updated = kitConfig.filter((_, i) => i !== idx);
+    setKitConfig(updated);
+    recalcConfigPrice(updated);
+    addNotification("Part removed from configuration", "info");
+  };
+
+  const addPartToConfig = () => {
+    if (!selectedConfigProdId) return;
+    const prod = products.find(p => p.id === selectedConfigProdId);
+    if (!prod) return;
+
+    const newPart: KitComponent = {
+      id: prod.id,
+      name: getLoc(prod.name),
+      price: prod.price,
+      quantity: 1,
+      alternatives: []
+    };
+
+    const updated = [...kitConfig, newPart];
+    setKitConfig(updated);
+    recalcConfigPrice(updated);
+    
+    setSelectedConfigProdId('');
+    addNotification(`Added ${newPart.name} to kit`, 'success');
+  };
+
+  const recalcConfigPrice = (parts: KitComponent[]) => {
+    const total = parts.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    setConfigPrice(total);
+  };
+
+  const handleConfigAddToCart = () => {
+    if (!selectedProduct) return;
+    
+    // Create a customized version of the product
+    const customProduct: Product = {
+      ...selectedProduct,
+      price: configPrice,
+      kitComponents: kitConfig,
+      name: typeof selectedProduct.name === 'string' 
+        ? `${selectedProduct.name} (Custom)` 
+        : { ...selectedProduct.name as any, en: `${(selectedProduct.name as any).en} (Custom)` }
+    };
+
+    // Use specific part mapping for cart
+    const cartParts = kitConfig.map(c => ({
+      id: c.id,
+      name: c.name,
+      price: c.price,
+      quantity: c.quantity
+    }));
+
+    addItem(customProduct, cartParts);
+    addNotification("Customized kit added to cart", "success");
+    setSelectedProduct(null);
   };
 
   const parseJsonData = (data: any): any[] => {
@@ -200,7 +280,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
             onClick={() => setSelectedCategory('All')} 
             className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${selectedCategory === 'All' ? 'bg-slate-900 border-slate-900 text-white shadow-2xl' : 'bg-white text-slate-400 border-slate-100 hover:border-emerald-500 hover:text-emerald-600'}`}
           >
-            Всі Активи
+            All Assets
           </button>
           {categories.map((cat) => (
             <button 
@@ -213,7 +293,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
           ))}
         </div>
         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-6">
-          Знайдено <span className="text-slate-900">{filteredProducts.length}</span> позицій
+          Found <span className="text-slate-900">{filteredProducts.length}</span> items
         </div>
       </div>
 
@@ -242,7 +322,9 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                 <div className="bg-emerald-600 p-2.5 rounded-2xl text-white shadow-lg">
                   <Zap size={20} />
                 </div>
-                <h2 className="text-xl font-black text-slate-900 uppercase tracking-tighter leading-none">{selectedProductNameStr}</h2>
+                <h2 className="text-xl font-black text-slate-900 uppercase tracking-tighter leading-none">
+                  {selectedProduct.category === 'Kits' ? 'Solution Configurator' : selectedProductNameStr}
+                </h2>
               </div>
               <button onClick={() => setSelectedProduct(null)} className="p-3 hover:bg-slate-100 rounded-2xl transition-all"><X size={24} /></button>
             </div>
@@ -253,7 +335,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                   <div className="aspect-video bg-slate-50 rounded-[2.5rem] overflow-hidden border border-slate-100 relative group/img p-10 flex items-center justify-center">
                     <img 
                       src={productImages[activeImageIdx] || IMAGE_FALLBACK} 
-                      className="max-w-full max-h-full object-contain" 
+                      className="max-w-full max-h-full object-contain transition-all duration-700 group-hover:scale-105 drop-shadow-lg" 
                       alt={selectedProductNameStr} 
                     />
                   </div>
@@ -268,10 +350,80 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                       </button>
                     ))}
                   </div>
+
+                  {/* Configurator UI for Kits */}
+                  {selectedProduct.category === 'Kits' && (
+                    <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white space-y-8 animate-fade-in border border-white/5 shadow-2xl">
+                        <div className="flex items-center gap-3 border-b border-white/10 pb-6">
+                           <Layers className="text-emerald-400" size={24} />
+                           <div>
+                             <h3 className="text-xl font-black uppercase tracking-tighter leading-none">Interactive Configurator</h3>
+                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-2">Adjust system components to your needs</p>
+                           </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <div className="space-y-2">
+                             <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest px-2">Add New Hardware</label>
+                             <select 
+                               value={selectedConfigCat}
+                               onChange={e => setSelectedConfigCat(e.target.value as Category)}
+                               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[10px] font-black uppercase outline-none focus:border-emerald-400 appearance-none cursor-pointer"
+                             >
+                               <option value="" className="text-slate-900">Select Category...</option>
+                               {categories.filter(c => c !== 'Kits').map(c => <option key={c} value={c} className="text-slate-900">{c}</option>)}
+                             </select>
+                           </div>
+                           <div className="space-y-2 flex items-end gap-2">
+                              <select 
+                                disabled={!selectedConfigCat}
+                                value={selectedConfigProdId}
+                                onChange={e => setSelectedConfigProdId(e.target.value)}
+                                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[10px] font-black uppercase outline-none focus:border-emerald-400 disabled:opacity-20 appearance-none cursor-pointer"
+                              >
+                                <option value="" className="text-slate-900">Choose Device...</option>
+                                {configAvailableProducts.map(p => <option key={p.id} value={p.id} className="text-slate-900">{getLoc(p.name)}</option>)}
+                              </select>
+                              <button 
+                                onClick={addPartToConfig}
+                                disabled={!selectedConfigProdId}
+                                className="bg-emerald-500 text-white p-3 rounded-xl hover:bg-emerald-400 transition-all shadow-lg active:scale-95 disabled:opacity-30"
+                              >
+                                <Plus size={18} />
+                              </button>
+                           </div>
+                        </div>
+
+                        <div className="space-y-4">
+                           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Configured Assets</h4>
+                           <div className="grid grid-cols-1 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                              {kitConfig.map((item, idx) => (
+                                <div key={idx} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex items-center justify-between group hover:border-emerald-400 transition-all">
+                                   <div className="flex items-center gap-4">
+                                      <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-emerald-400"><Zap size={18} /></div>
+                                      <div>
+                                         <div className="text-[10px] font-black uppercase leading-none truncate max-w-[150px]">{item.name}</div>
+                                         <div className="text-[8px] font-bold text-slate-500 uppercase mt-1">{formatPrice(item.price)} per unit</div>
+                                      </div>
+                                   </div>
+                                   <div className="flex items-center gap-4">
+                                      <div className="flex items-center gap-2 bg-black/30 rounded-lg p-1">
+                                         <button onClick={() => updateKitPartQty(idx, -1)} className="p-1 hover:text-emerald-400 transition-colors"><Minus size={12}/></button>
+                                         <span className="text-[10px] font-black w-4 text-center">{item.quantity}</span>
+                                         <button onClick={() => updateKitPartQty(idx, 1)} className="p-1 hover:text-emerald-400 transition-colors"><Plus size={12}/></button>
+                                      </div>
+                                      <button onClick={() => removeKitPart(idx)} className="text-white/20 hover:text-rose-400 transition-colors"><Trash2 size={16}/></button>
+                                   </div>
+                                </div>
+                              ))}
+                           </div>
+                        </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="lg:w-[45%] flex flex-col gap-8">
-                  <div className="bg-slate-50/50 rounded-[3rem] border border-slate-100 p-10 flex flex-col gap-8 shadow-sm">
+                  <div className="bg-slate-50/50 rounded-[3rem] border border-slate-100 p-10 flex flex-col gap-8 shadow-sm h-full">
                     <div className="space-y-4">
                       <div className="flex items-center gap-2">
                         {selectedProduct.is_leader && (
@@ -283,32 +435,57 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                           <span className="bg-emerald-500 text-white text-[9px] font-black uppercase px-3 py-1 rounded-lg">New</span>
                         )}
                       </div>
-                      <h3 className="font-black text-slate-900 text-2xl uppercase tracking-tighter leading-tight">{selectedProductNameStr}</h3>
+                      <h3 className="font-black text-slate-900 text-2xl uppercase tracking-tighter leading-tight">
+                        {selectedProduct.category === 'Kits' ? selectedProductNameStr : selectedProductNameStr}
+                      </h3>
                     </div>
 
-                    <div className="text-4xl font-black text-slate-900 tracking-tighter">
-                      {formatPrice(selectedProduct.price)}
+                    <div className="text-4xl font-black text-slate-900 tracking-tighter flex items-center gap-3">
+                      {formatPrice(selectedProduct.category === 'Kits' ? configPrice : selectedProduct.price)}
+                      {selectedProduct.category === 'Kits' && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg uppercase">Config Price</span>}
                     </div>
 
                     <div className="py-6 border-y border-slate-200/60 flex flex-col gap-4">
                       <div className="flex items-center justify-between">
-                         <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Наявність:</span>
+                         <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Availability:</span>
                          <div className="flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full ${isSelectedInactive ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
                             <span className="text-[11px] font-black text-slate-900 uppercase">
-                              {isSelectedInactive ? 'Спецзамовлення' : 'В наявності'}
+                              {isSelectedInactive ? 'Special Order' : 'In Stock'}
                             </span>
                          </div>
                       </div>
+                      {selectedProduct.category === 'Kits' && (
+                        <div className="flex items-center justify-between">
+                           <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Kit Components:</span>
+                           <span className="text-[11px] font-black text-slate-900 uppercase">{kitConfig.length} Assets</span>
+                        </div>
+                      )}
                     </div>
 
-                    <button 
-                      onClick={() => { addItem(selectedProduct); addNotification(t('item_added'), 'success'); }}
-                      className={`w-full rounded-2xl font-black text-[12px] uppercase tracking-widest py-6 flex items-center justify-center gap-4 shadow-xl transition-all active:scale-95 ${isSelectedInactive ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-slate-900 hover:bg-emerald-600 text-white'}`}
-                    >
-                      {isSelectedInactive ? <ArrowRight size={22} /> : <ShoppingCart size={22} />} 
-                      {isSelectedInactive ? 'Замовити Активацію' : t('add_to_cart')}
-                    </button>
+                    <div className="mt-auto space-y-4">
+                      <button 
+                        onClick={() => { 
+                          if (selectedProduct.category === 'Kits') {
+                            handleConfigAddToCart();
+                          } else {
+                            addItem(selectedProduct); 
+                            addNotification(t('item_added'), 'success'); 
+                            setSelectedProduct(null);
+                          }
+                        }}
+                        className={`w-full rounded-2xl font-black text-[12px] uppercase tracking-widest py-6 flex items-center justify-center gap-4 shadow-xl transition-all active:scale-95 ${isSelectedInactive ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-slate-900 hover:bg-emerald-600 text-white'}`}
+                      >
+                        {isSelectedInactive ? <ArrowRight size={22} /> : (selectedProduct.category === 'Kits' ? <ShoppingBag size={22}/> : <ShoppingCart size={22} />)} 
+                        {isSelectedInactive ? 'Order Activation' : (selectedProduct.category === 'Kits' ? 'Add Custom Kit to Cart' : t('add_to_cart'))}
+                      </button>
+                      
+                      {selectedProduct.category === 'Kits' && (
+                        <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest text-center px-6">
+                          * Changes made in the configurator will be saved for this specific order.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -318,7 +495,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 border-b-2 border-slate-100 pb-4">
                       <Info size={20} className="text-emerald-500" />
-                      <h4 className="text-[12px] font-black text-slate-900 uppercase tracking-widest">Опис Продукту</h4>
+                      <h4 className="text-[12px] font-black text-slate-900 uppercase tracking-widest">Product Description</h4>
                     </div>
                     <p className="text-slate-600 text-lg leading-relaxed font-medium">{getLoc(selectedProduct.description)}</p>
                   </div>
@@ -328,7 +505,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 border-b-2 border-slate-100 pb-4">
                       <List size={20} className="text-emerald-500" />
-                      <h4 className="text-[12px] font-black text-slate-900 uppercase tracking-widest">Технічні Специфікації</h4>
+                      <h4 className="text-[12px] font-black text-slate-900 uppercase tracking-widest">Technical Specifications</h4>
                     </div>
                     <div className="bg-slate-50 rounded-3xl overflow-hidden border border-slate-100">
                       <table className="w-full">
@@ -349,7 +526,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 border-b-2 border-slate-100 pb-4">
                       <FileText size={20} className="text-emerald-500" />
-                      <h4 className="text-[12px] font-black text-slate-900 uppercase tracking-widest">Файли для завантаження</h4>
+                      <h4 className="text-[12px] font-black text-slate-900 uppercase tracking-widest">Files for Download</h4>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {productDocs.map((doc: ProductDoc, i: number) => (

@@ -1,14 +1,16 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Plus, Edit, Trash2, X, 
   Save, Cpu, Crown, Coins, 
   RefreshCw, Settings, Activity, Zap, Layers, ImageIcon,
-  FileText, Languages, Type, List, File
+  FileText, Languages, Type, List, File, ArrowRight,
+  PlusCircle, MinusCircle, ShoppingBag, Calculator
 } from 'lucide-react';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Product, Category } from '../../types';
+import { Product, Category, KitComponent } from '../../types';
 
 const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?q=80&w=400&auto=format&fit=crop';
 
@@ -19,6 +21,11 @@ export const AdminPanel: React.FC = () => {
   const { rates, updateRates, language, formatPrice } = useLanguage();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Kit Builder Selection States
+  const [selectedBuilderCat, setSelectedBuilderCat] = useState<Category | ''>('');
+  const [selectedBuilderProdId, setSelectedBuilderProdId] = useState<string>('');
+  const [builderQty, setBuilderQty] = useState<number>(1);
 
   const [currencyForm, setCurrencyForm] = useState({
     USD: rates.USD,
@@ -40,8 +47,20 @@ export const AdminPanel: React.FC = () => {
     is_active: true,
     is_leader: false,
     specs: '[]',
-    docs: '[]'
+    docs: '[]',
+    kitComponents: []
   });
+
+  const builderAvailableProducts = useMemo(() => {
+    if (!selectedBuilderCat) return [];
+    return dbProductsList.filter(p => p.category === selectedBuilderCat);
+  }, [selectedBuilderCat, dbProductsList]);
+
+  const getDisplayValue = (val: any) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val;
+    return val?.[language] || val?.en || Object.values(val)[0] || '';
+  };
 
   const handleOpenModal = (product?: Product, defaultCategory: Category = 'Inverters') => {
     const ensureString = (val: any) => {
@@ -59,7 +78,8 @@ export const AdminPanel: React.FC = () => {
         specs: ensureString(product.specs),
         docs: ensureString(product.docs),
         is_active: product.is_active !== false,
-        is_leader: product.is_leader === true
+        is_leader: product.is_leader === true,
+        kitComponents: product.kitComponents || []
       });
     } else {
       setEditingProduct(null);
@@ -73,21 +93,67 @@ export const AdminPanel: React.FC = () => {
         is_active: true,
         is_leader: false,
         specs: '[]',
-        docs: '[]'
+        docs: '[]',
+        kitComponents: []
       });
     }
+    // Reset builder selectors
+    setSelectedBuilderCat('');
+    setSelectedBuilderProdId('');
+    setBuilderQty(1);
     setIsModalOpen(true);
   };
 
-  const getDisplayValue = (val: any) => {
-    if (typeof val === 'string') return val;
-    return val?.[language] || val?.en || '—';
+  const syncPriceWithComponents = () => {
+    const currentComponents = formData.kitComponents || [];
+    const newTotal = currentComponents.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    setFormData({ ...formData, price: newTotal });
+    addNotification("Price synced with component total", "info");
+  };
+
+  const addComponentToKit = () => {
+    if (!selectedBuilderProdId) return;
+    const prod = products.find(p => p.id === selectedBuilderProdId);
+    if (!prod) return;
+
+    const newComponent: KitComponent = {
+      id: prod.id,
+      name: getDisplayValue(prod.name),
+      price: prod.price,
+      quantity: builderQty,
+      alternatives: []
+    };
+
+    const currentComponents = formData.kitComponents || [];
+    const updatedComponents = [...currentComponents, newComponent];
+    const newTotal = updatedComponents.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    
+    setFormData({
+      ...formData,
+      kitComponents: updatedComponents,
+      price: newTotal // Initial auto-calc, but admin can change it later
+    });
+
+    setSelectedBuilderProdId('');
+    setBuilderQty(1);
+    addNotification(`Added ${newComponent.name}`, 'success');
+  };
+
+  const removeComponentFromKit = (index: number) => {
+    const currentComponents = formData.kitComponents || [];
+    const updatedComponents = currentComponents.filter((_, i) => i !== index);
+    const newTotal = updatedComponents.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    
+    setFormData({
+      ...formData,
+      kitComponents: updatedComponents,
+      price: newTotal
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Parse specs and docs back to objects if they are strings
     const processJson = (val: any) => {
       if (typeof val !== 'string') return val;
       try { return JSON.parse(val); } catch { return []; }
@@ -103,10 +169,10 @@ export const AdminPanel: React.FC = () => {
 
     if (editingProduct) {
       updateProduct(dataToSave as Product);
-      addNotification("Asset updated in database", "success");
+      addNotification("Solution updated", "success");
     } else {
       addProduct(dataToSave as Omit<Product, 'id'>);
-      addNotification("New asset created", "success");
+      addNotification("New solution deployed", "success");
     }
     setIsModalOpen(false);
   };
@@ -219,7 +285,7 @@ export const AdminPanel: React.FC = () => {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 bg-slate-900/70 backdrop-blur-xl animate-fade-in overflow-y-auto">
-          <div className="bg-white w-full max-w-5xl rounded-[4rem] p-12 shadow-3xl border border-white my-auto">
+          <div className="bg-white w-full max-w-6xl rounded-[4rem] p-12 shadow-3xl border border-white my-auto">
             <div className="flex justify-between items-center mb-10">
               <div>
                 <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter leading-none">{editingProduct ? 'Update Asset' : 'Register Asset'}</h2>
@@ -229,88 +295,186 @@ export const AdminPanel: React.FC = () => {
             </div>
             
             <form onSubmit={handleSubmit} className="space-y-8">
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {/* Column 1: Core */}
-                  <div className="space-y-6">
+               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                  <div className="lg:col-span-4 space-y-6">
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Unique ID</label>
-                      <input disabled={!!editingProduct} value={formData.id || ''} onChange={e => setFormData({...formData, id: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none opacity-50 cursor-not-allowed" />
+                      <input disabled value={formData.id || ''} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none opacity-50 cursor-not-allowed" />
                     </div>
+                    
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Price (EUR)</label>
-                      <input type="number" value={formData.price ?? 0} onChange={e => setFormData({...formData, price: Number(e.target.value)})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500" />
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Name of Asset (EN)</label>
+                      <input value={(formData.name as any)?.en || ''} onChange={e => setFormData({...formData, name: { ...formData.name as any, en: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500" required placeholder="Ex: Home Independence Kit Pro" />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Title (EN)</label>
-                      <input value={(formData.name as any)?.en || ''} onChange={e => setFormData({...formData, name: { ...formData.name as any, en: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none" required />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Назва (UK)</label>
-                      <input value={(formData.name as any)?.uk || ''} onChange={e => setFormData({...formData, name: { ...formData.name as any, uk: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none" />
-                    </div>
-                  </div>
 
-                  {/* Column 2: Content */}
-                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 flex items-center justify-between">
+                        Price (EUR) 
+                        {formData.category === 'Kits' && (
+                          <button 
+                            type="button" 
+                            onClick={syncPriceWithComponents}
+                            className="text-[8px] bg-slate-100 hover:bg-emerald-100 text-slate-500 hover:text-emerald-700 px-2 py-1 rounded-md transition-all flex items-center gap-1"
+                          >
+                            <Calculator size={10} /> Sync Total
+                          </button>
+                        )}
+                      </label>
+                      <input 
+                        type="number" 
+                        value={formData.price ?? 0} 
+                        onChange={e => setFormData({...formData, price: Number(e.target.value)})} 
+                        className={`w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none focus:border-emerald-500`} 
+                      />
+                    </div>
+
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Image URL</label>
-                      <input value={formData.image || ''} onChange={e => setFormData({...formData, image: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none" />
+                      <input value={formData.image || ''} onChange={e => setFormData({...formData, image: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-black outline-none" placeholder="https://..." />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Description (EN)</label>
-                      <textarea value={(formData.description as any)?.en || ''} onChange={e => setFormData({...formData, description: { ...formData.description as any, en: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-medium outline-none h-24 resize-none" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Опис (UK)</label>
-                      <textarea value={(formData.description as any)?.uk || ''} onChange={e => setFormData({...formData, description: { ...formData.description as any, uk: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-4 text-xs font-medium outline-none h-24 resize-none" />
+
+                    <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 space-y-4">
+                      <div className="flex items-center gap-4 cursor-pointer" onClick={() => setFormData({...formData, is_active: !formData.is_active})}>
+                        <div className={`w-10 h-5 rounded-full relative transition-all ${formData.is_active !== false ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${formData.is_active !== false ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                        </div>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Active Status</span>
+                      </div>
+                      <div className="flex items-center gap-4 cursor-pointer" onClick={() => setFormData({...formData, is_leader: !formData.is_leader})}>
+                        <div className={`w-10 h-5 rounded-full relative transition-all ${formData.is_leader ? 'bg-amber-400' : 'bg-slate-300'}`}>
+                          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${formData.is_leader ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                        </div>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Sales Leader</span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Column 3: Advanced (Specs & Docs) */}
-                  <div className="space-y-6">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 flex items-center gap-2"><List size={12}/> Technical Specs (JSON)</label>
-                      <textarea 
-                        value={formData.specs || '[]'} 
-                        onChange={e => setFormData({...formData, specs: e.target.value})} 
-                        className="w-full bg-slate-900 text-emerald-400 border-2 border-slate-800 rounded-3xl px-6 py-4 text-[10px] font-mono outline-none h-44 resize-none shadow-inner" 
-                        placeholder='[{"label": "Power", "value": "5kW"}]'
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 flex items-center gap-2"><File size={12}/> Documents (JSON)</label>
-                      <textarea 
-                        value={formData.docs || '[]'} 
-                        onChange={e => setFormData({...formData, docs: e.target.value})} 
-                        className="w-full bg-slate-900 text-blue-400 border-2 border-slate-800 rounded-3xl px-6 py-4 text-[10px] font-mono outline-none h-32 resize-none shadow-inner" 
-                        placeholder='[{"title": "Manual", "url": "https://..."}]'
-                      />
-                    </div>
+                  <div className="lg:col-span-8 space-y-8">
+                    {formData.category === 'Kits' ? (
+                      <div className="animate-fade-in space-y-8">
+                        <div className="bg-slate-900 p-8 md:p-10 rounded-[3rem] text-white space-y-8 border border-white/5 shadow-2xl">
+                           <div className="flex items-center gap-3 border-b border-white/10 pb-6">
+                              <Layers className="text-emerald-400" size={24} />
+                              <div>
+                                <h3 className="text-xl font-black uppercase tracking-tighter">Kit Component Builder</h3>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Select assets from database</p>
+                              </div>
+                           </div>
+                           
+                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                              <div className="space-y-2">
+                                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest px-2">1. Select Category</label>
+                                 <select 
+                                   value={selectedBuilderCat}
+                                   onChange={e => { setSelectedBuilderCat(e.target.value as Category); setSelectedBuilderProdId(''); }}
+                                   className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3.5 text-[10px] font-black uppercase outline-none focus:border-emerald-400 transition-all appearance-none cursor-pointer"
+                                 >
+                                   <option value="" className="text-slate-900">Choose...</option>
+                                   {categories.filter(c => c !== 'Kits').map(c => (
+                                     <option key={c} value={c} className="text-slate-900">{c}</option>
+                                   ))}
+                                 </select>
+                              </div>
+
+                              <div className="space-y-2">
+                                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest px-2">2. Choose Device</label>
+                                 <select 
+                                   disabled={!selectedBuilderCat}
+                                   value={selectedBuilderProdId}
+                                   onChange={e => setSelectedBuilderProdId(e.target.value)}
+                                   className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3.5 text-[10px] font-black uppercase outline-none focus:border-emerald-400 disabled:opacity-30 transition-all appearance-none cursor-pointer"
+                                 >
+                                   <option value="" className="text-slate-900">Select Item...</option>
+                                   {builderAvailableProducts.map(p => (
+                                     <option key={p.id} value={p.id} className="text-slate-900">{getDisplayValue(p.name)}</option>
+                                   ))}
+                                 </select>
+                              </div>
+
+                              <div className="space-y-2 flex items-end gap-2">
+                                 <div className="flex-1 space-y-2">
+                                   <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest px-2">3. Qty</label>
+                                   <input 
+                                     type="number" 
+                                     min="1"
+                                     value={builderQty}
+                                     onChange={e => setBuilderQty(Number(e.target.value))}
+                                     className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3.5 text-[10px] font-black outline-none focus:border-emerald-400 transition-all"
+                                   />
+                                 </div>
+                                 <button 
+                                   type="button"
+                                   disabled={!selectedBuilderProdId}
+                                   onClick={addComponentToKit}
+                                   className="bg-emerald-500 text-white p-3.5 rounded-xl hover:bg-emerald-400 transition-all shadow-lg active:scale-95 disabled:opacity-30"
+                                 >
+                                   <Plus size={20} />
+                                 </button>
+                              </div>
+                           </div>
+                        </div>
+
+                        <div className="space-y-6">
+                           <div className="flex items-center justify-between px-4">
+                             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Selected Components ({formData.kitComponents?.length || 0})</h4>
+                             <div className="text-[11px] font-black text-slate-900 uppercase">Sum of Parts: {formatPrice(formData.kitComponents?.reduce((s,i)=>s+(i.price*i.quantity),0)||0)}</div>
+                           </div>
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             {(!formData.kitComponents || formData.kitComponents.length === 0) ? (
+                               <div className="col-span-2 py-12 border-2 border-dashed border-slate-100 rounded-[3rem] flex flex-col items-center justify-center text-slate-300">
+                                  <ShoppingBag size={40} className="mb-3 opacity-20" />
+                                  <span className="text-[10px] font-black uppercase tracking-widest">No assets added to the kit</span>
+                               </div>
+                             ) : (
+                               formData.kitComponents.map((comp, idx) => (
+                                 <div key={idx} className="bg-white border border-slate-100 p-6 rounded-3xl flex items-center justify-between group hover:border-emerald-500 hover:shadow-xl transition-all">
+                                    <div className="flex items-center gap-4">
+                                       <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-sm"><Zap size={20} /></div>
+                                       <div>
+                                          <div className="text-[11px] font-black text-slate-900 uppercase leading-none truncate max-w-[150px]">{comp.name}</div>
+                                          <div className="text-[8px] font-bold text-slate-400 uppercase mt-2 tracking-widest">x{comp.quantity} • {formatPrice(comp.price)}</div>
+                                       </div>
+                                    </div>
+                                    <button onClick={() => removeComponentFromKit(idx)} type="button" className="p-2 text-slate-300 hover:text-rose-500 transition-colors bg-slate-50 hover:bg-rose-50 rounded-lg">
+                                       <Trash2 size={16} />
+                                    </button>
+                                 </div>
+                               ))
+                             )}
+                           </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-6">
+                           <div className="space-y-2">
+                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Technical Specs (JSON)</label>
+                             <textarea value={formData.specs || '[]'} onChange={e => setFormData({...formData, specs: e.target.value})} className="w-full bg-slate-900 text-emerald-400 border-2 border-slate-800 rounded-3xl px-6 py-6 text-[10px] font-mono outline-none h-48 resize-none shadow-inner" />
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">General Description (EN)</label>
+                             <textarea value={(formData.description as any)?.en || ''} onChange={e => setFormData({...formData, description: { ...formData.description as any, en: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-6 text-xs font-medium outline-none h-32 resize-none focus:border-emerald-500" />
+                           </div>
+                        </div>
+                        <div className="space-y-6">
+                           <div className="space-y-2">
+                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Documentation (JSON)</label>
+                             <textarea value={formData.docs || '[]'} onChange={e => setFormData({...formData, docs: e.target.value})} className="w-full bg-slate-900 text-blue-400 border-2 border-slate-800 rounded-3xl px-6 py-6 text-[10px] font-mono outline-none h-48 resize-none shadow-inner" />
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Опис (UK)</label>
+                             <textarea value={(formData.description as any)?.uk || ''} onChange={e => setFormData({...formData, description: { ...formData.description as any, uk: e.target.value }})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl px-6 py-6 text-xs font-medium outline-none h-32 resize-none focus:border-emerald-500" />
+                           </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                </div>
 
-               <div className="bg-slate-50 p-8 rounded-[3rem] border-2 border-slate-100 space-y-6">
-                  <div className="flex flex-wrap gap-10">
-                    <div className="flex items-center gap-4 cursor-pointer group">
-                      <div onClick={() => setFormData({...formData, is_active: !formData.is_active})} className={`w-14 h-7 rounded-full relative transition-all duration-500 shadow-inner ${formData.is_active !== false ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                        <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all duration-500 shadow-md ${formData.is_active !== false ? 'left-8' : 'left-1'}`}></div>
-                      </div>
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${formData.is_active !== false ? 'text-emerald-600' : 'text-slate-400'}`}>Active In Catalog</span>
-                    </div>
-
-                    <div className="flex items-center gap-4 cursor-pointer group">
-                      <div onClick={() => setFormData({...formData, is_leader: !formData.is_leader})} className={`w-14 h-7 rounded-full relative transition-all duration-500 shadow-inner ${formData.is_leader ? 'bg-amber-400' : 'bg-slate-300'}`}>
-                        <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all duration-500 shadow-md ${formData.is_leader ? 'left-8' : 'left-1'}`}></div>
-                      </div>
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${formData.is_leader ? 'text-amber-600' : 'text-slate-400'}`}>Best Seller</span>
-                    </div>
-                  </div>
-               </div>
-
-               <div className="flex justify-end gap-6 pt-6">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-10 py-5 rounded-2xl text-[10px] font-black uppercase text-slate-400 tracking-widest hover:text-slate-900 transition-all">Discard</button>
-                  <button type="submit" className="bg-slate-900 text-white px-14 py-5 rounded-3xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-3">
-                    <Save size={18} /> Update Database
+               <div className="flex justify-end gap-6 pt-10 border-t border-slate-50">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-12 py-5 rounded-3xl text-[10px] font-black uppercase text-slate-400 tracking-widest hover:text-slate-900 transition-all">Discard</button>
+                  <button type="submit" className="bg-slate-900 text-white px-16 py-6 rounded-[2.5rem] font-black uppercase text-[11px] tracking-widest hover:bg-emerald-500 transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-3">
+                    <Save size={20} /> {editingProduct ? 'Update System' : 'Deploy Asset'}
                   </button>
                </div>
             </form>
