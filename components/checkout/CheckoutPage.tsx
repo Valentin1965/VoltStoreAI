@@ -9,7 +9,9 @@ import {
   ChevronLeft, ChevronRight, Truck, CreditCard, CheckCircle2, 
   MapPin, Loader2, User, Search, ArrowRight, ShieldCheck, 
   UserCheck, Home, CreditCard as CardIcon,
-  ShieldAlert, AtSign, UserPlus, Building2, UserCircle
+  ShieldAlert, AtSign, UserPlus, Building2, UserCircle,
+  ExternalLink,
+  Globe
 } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 
@@ -25,7 +27,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
   const { formatPrice, t } = useLanguage();
   const { findUser, currentUser } = useUser();
   
-  const [step, setStep] = useState(0); // 0: Identification, 1: Payment & Delivery (Contacts merged or profile used)
+  const [step, setStep] = useState(0); // 0: Identification, 1: Payment & Delivery
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSearchingUser, setIsSearchingUser] = useState(false);
   const [foundProfile, setFoundProfile] = useState<any>(null);
@@ -33,6 +35,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
   
   const [deliveryType, setDeliveryType] = useState<'profile' | 'custom'>('custom');
   const [payerType, setPayerType] = useState<'private' | 'company'>('private');
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'mollie' | 'invoice'>('mollie');
   const [selectedCardId, setSelectedCardId] = useState<string>('');
 
   const [formData, setFormData] = useState({
@@ -40,11 +43,10 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
     email: '', 
     phone: '', 
     city: '', 
-    department: '', // Used for address/details
+    department: '', 
     companyDetails: ''
   });
 
-  // Auto-fill if logged in or profile found
   useEffect(() => {
     if (currentUser && step === 0) {
       setFoundProfile(currentUser);
@@ -58,7 +60,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
       });
       setSelectedCardId(currentUser.cards?.[0]?.id || '');
       setDeliveryType('profile');
-      setStep(1); // Skip Step 0 if already logged in
+      setStep(1);
     }
   }, [currentUser, step]);
 
@@ -84,14 +86,16 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
         });
         setSelectedCardId(profile.cards?.[0]?.id || '');
         setDeliveryType('profile');
+        setPaymentMethod('card');
         addNotification(`Profile linked: ${profile.email}`, 'success');
-        setStep(1); // Proceed straight to Payment & Delivery
+        setStep(1);
       } else {
         setFoundProfile(null);
         setFormData(prev => ({ ...prev, email: searchQuery }));
         setDeliveryType('custom');
+        setPaymentMethod('mollie');
         addNotification("Guest checkout initialized.", "info");
-        setStep(1); // Proceed straight to Payment & Delivery
+        setStep(1);
       }
       setIsSearchingUser(false);
     }, 600);
@@ -105,17 +109,46 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
       return;
     }
 
-    if (!foundProfile && payerType === 'company' && !formData.companyDetails) {
-      addNotification("Please enter company details", "error");
+    setIsProcessing(true);
+    
+    // MOLLIE INTEGRATION FLOW SIMULATION
+    if (paymentMethod === 'mollie') {
+      addNotification("Redirecting to Mollie secure payment gateway...", "info");
+      // In a real app, you'd call your backend to get the Mollie checkout URL
+      // const response = await fetch('/api/create-mollie-payment', { method: 'POST', body: JSON.stringify({ amount: totalPrice }) });
+      // const { checkoutUrl } = await response.json();
+      // window.location.href = checkoutUrl;
+      
+      setTimeout(async () => {
+        // Mocking order creation after "successful" redirection
+        try {
+          const finalAddress = deliveryType === 'profile' && foundProfile ? foundProfile.address : formData.department;
+          await supabase.from('orders').insert([{
+            customer_name: formData.name,
+            customer_email: formData.email,
+            customer_phone: formData.phone,
+            total_price: totalPrice,
+            items: items,
+            shipping_address: finalAddress,
+            status: 'processing',
+            payment_method: 'Mollie (Apple Pay/iDEAL/Card)',
+            meta: { payerType, companyDetails: formData.companyDetails, mollie_payment: 'simulated' }
+          }]);
+          clearCart();
+          onOrderSuccess();
+          addNotification('Payment confirmed via Mollie!', 'success');
+        } catch (err: any) {
+          addNotification(err.message, 'error');
+        } finally {
+          setIsProcessing(false);
+        }
+      }, 2000);
       return;
     }
 
-    setIsProcessing(true);
+    // Standard flow for other methods
     try {
-      const finalAddress = deliveryType === 'profile' && foundProfile 
-        ? foundProfile.address 
-        : formData.department;
-
+      const finalAddress = deliveryType === 'profile' && foundProfile ? foundProfile.address : formData.department;
       const { error } = await supabase.from('orders').insert([{
         customer_name: formData.name,
         customer_email: formData.email,
@@ -124,7 +157,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
         items: items,
         shipping_address: finalAddress,
         status: 'processing',
-        payment_method: foundProfile ? `Card (${selectedCardId})` : 'Invoice/Guest',
+        payment_method: paymentMethod === 'card' ? `Card (${selectedCardId})` : 'Invoice',
         meta: { payerType, companyDetails: formData.companyDetails }
       }]);
 
@@ -161,7 +194,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
       </div>
 
       <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] relative overflow-hidden">
-        
         {step === 0 && (
           <div className="space-y-6 animate-fade-in py-2">
             <div className="text-center max-w-lg mx-auto space-y-2">
@@ -228,7 +260,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
                 {foundProfile && <span className="bg-emerald-500 text-white px-2.5 py-1 rounded-lg text-[8px] font-black uppercase shadow-sm">{foundProfile.name}</span>}
              </div>
 
-             {/* Payer Type Selection */}
              <div className="space-y-3">
                 <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2">{t('payer_type')}</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -260,7 +291,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
                 )}
              </div>
 
-             {/* Guest Contact Details */}
              {!foundProfile && (
                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 animate-fade-in">
                   <div className="space-y-1">
@@ -274,7 +304,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
                </div>
              )}
 
-             {/* Delivery Address */}
              <div className="space-y-4">
                 <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2 flex items-center gap-2"><Truck size={14} className="text-emerald-500" /> Delivery Address</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -305,34 +334,57 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
                 )}
              </div>
 
-             {/* Payment Method Selection */}
              <div className="space-y-4 pt-2">
                 <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2 flex items-center gap-2"><CardIcon size={14} className="text-emerald-500" /> Payment Method</h4>
-                {foundProfile ? (
-                  <div className="grid grid-cols-1 gap-2">
-                    {foundProfile.cards?.map((card: any) => (
-                      <button key={card.id} onClick={() => setSelectedCardId(card.id)} className={`w-full p-3 border rounded-xl flex items-center justify-between transition-all ${selectedCardId === card.id ? 'border-emerald-500 bg-emerald-50 shadow-sm' : 'border-slate-50 hover:bg-slate-50 transition-colors'}`}>
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-md ${selectedCardId === card.id ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                            <CardIcon size={16}/>
-                          </div>
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-900">{card.brand} •••• {card.last4}</span>
+                <div className="grid grid-cols-1 gap-2">
+                   {/* MOLLIE PAYMENT METHOD */}
+                   <button 
+                     onClick={() => setPaymentMethod('mollie')} 
+                     className={`w-full p-4 border rounded-xl flex items-center justify-between transition-all ${paymentMethod === 'mollie' ? 'border-emerald-500 bg-emerald-50 shadow-sm' : 'border-slate-50 hover:bg-slate-50'}`}
+                   >
+                     <div className="flex items-center gap-4">
+                        <div className={`p-3 rounded-xl ${paymentMethod === 'mollie' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-100 text-slate-400'}`}>
+                           <Globe size={18}/>
                         </div>
-                        {selectedCardId === card.id && <CheckCircle2 className="text-emerald-600" size={16} />}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl flex items-center gap-4 text-amber-900">
-                    <ShieldAlert size={20} className="shrink-0 text-amber-600" />
-                    <div>
-                      <div className="text-[10px] font-black uppercase tracking-tighter leading-none">Invoice Mode</div>
-                      <p className="text-[8px] font-bold uppercase tracking-widest opacity-70 mt-1 leading-tight">
-                        Guest orders via direct invoice.
-                      </p>
-                    </div>
-                  </div>
-                )}
+                        <div className="text-left">
+                           <div className="text-[10px] font-black uppercase tracking-widest text-slate-900">Mollie Secure Gateway</div>
+                           <div className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">Apple Pay, MobilePay, Cards, iDEAL</div>
+                        </div>
+                     </div>
+                     {paymentMethod === 'mollie' && <CheckCircle2 className="text-emerald-600" size={18} />}
+                   </button>
+
+                   {foundProfile && foundProfile.cards?.map((card: any) => (
+                     <button key={card.id} onClick={() => { setPaymentMethod('card'); setSelectedCardId(card.id); }} className={`w-full p-4 border rounded-xl flex items-center justify-between transition-all ${paymentMethod === 'card' && selectedCardId === card.id ? 'border-emerald-500 bg-emerald-50 shadow-sm' : 'border-slate-50 hover:bg-slate-50'}`}>
+                       <div className="flex items-center gap-4">
+                         <div className={`p-3 rounded-xl ${paymentMethod === 'card' && selectedCardId === card.id ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-100 text-slate-400'}`}>
+                           <CardIcon size={18}/>
+                         </div>
+                         <div className="text-left">
+                           <div className="text-[10px] font-black uppercase tracking-widest text-slate-900">{card.brand} Saved Card</div>
+                           <div className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">•••• {card.last4}</div>
+                         </div>
+                       </div>
+                       {paymentMethod === 'card' && selectedCardId === card.id && <CheckCircle2 className="text-emerald-600" size={18} />}
+                     </button>
+                   ))}
+
+                   <button 
+                     onClick={() => setPaymentMethod('invoice')} 
+                     className={`w-full p-4 border rounded-xl flex items-center justify-between transition-all ${paymentMethod === 'invoice' ? 'border-emerald-500 bg-emerald-50 shadow-sm' : 'border-slate-50 hover:bg-slate-50'}`}
+                   >
+                     <div className="flex items-center gap-4">
+                        <div className={`p-3 rounded-xl ${paymentMethod === 'invoice' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-100 text-slate-400'}`}>
+                           <ShieldAlert size={18}/>
+                        </div>
+                        <div className="text-left">
+                           <div className="text-[10px] font-black uppercase tracking-widest text-slate-900">Direct Invoice</div>
+                           <div className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">Bank Transfer / Pay later</div>
+                        </div>
+                     </div>
+                     {paymentMethod === 'invoice' && <CheckCircle2 className="text-emerald-600" size={18} />}
+                   </button>
+                </div>
              </div>
 
              <div className="bg-slate-900 p-6 rounded-2xl text-white flex flex-col md:flex-row justify-between items-center gap-4 shadow-xl mt-6 border border-white/5">
@@ -345,7 +397,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
                   disabled={isProcessing} 
                   className="w-full md:w-auto px-10 py-4 rounded-xl font-black uppercase text-[11px] tracking-widest bg-emerald-500 hover:bg-emerald-400 text-white transition-all shadow-lg active:scale-95 disabled:opacity-50"
                 >
-                  {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <><ShieldCheck size={18} className="inline mr-2" /> Complete</>}
+                  {isProcessing ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <>
+                      {paymentMethod === 'mollie' ? <ExternalLink size={18} className="inline mr-2" /> : <ShieldCheck size={18} className="inline mr-2" />}
+                      {paymentMethod === 'mollie' ? 'Pay with Mollie' : 'Complete Order'}
+                    </>
+                  )}
                 </button>
              </div>
           </div>

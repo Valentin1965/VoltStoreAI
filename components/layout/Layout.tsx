@@ -54,7 +54,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
     { code: 'en', label: 'EN' },
     { code: 'da', label: 'DA' },
     { code: 'no', label: 'NO' },
-    { code: 'sv', label: 'SV' }
+    { code: 'se', label: 'SE' }
   ];
 
   const displayRates = [
@@ -68,7 +68,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
     <div className="min-h-screen flex flex-col bg-slate-50" translate="no">
       <header className="sticky top-0 z-[100] bg-white/80 backdrop-blur-xl border-b border-slate-100 px-2 md:px-6">
         <div className="max-w-[99%] mx-auto h-24 md:h-28 flex items-center justify-between gap-6">
-          {/* Logo Block - Shifted Left by using max-w-[99%] */}
           <div className="flex items-center gap-6 shrink-0">
             <div className="flex items-center gap-4 cursor-pointer group" onClick={() => setView(AppView.ABOUT)}>
               <div className="group-hover:scale-110 transition-transform duration-500"><GreenLightLogo /></div>
@@ -79,7 +78,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
             </div>
           </div>
 
-          {/* Navigation - Centered, scroll removed */}
           <nav className="hidden lg:flex items-center bg-slate-100/50 p-2 rounded-2xl border border-slate-100 mx-auto">
             {navItems.map((item) => (
               <button
@@ -95,7 +93,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
             ))}
           </nav>
 
-          {/* Utility Block - Shifted Right by using max-w-[99%] */}
           <div className="flex items-center gap-2 md:gap-3 shrink-0 justify-end">
             <div className="flex items-center gap-2 md:gap-2">
               <div className="hidden md:flex items-center relative">

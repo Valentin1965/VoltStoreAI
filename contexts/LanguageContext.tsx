@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import { translations, TranslationKey } from '../utils/translations';
 
-export type Language = 'en' | 'da' | 'no' | 'sv';
+export type Language = 'en' | 'da' | 'no' | 'se';
 
 export interface ExchangeRates {
   EUR: number; // Base currency, always 1.0
@@ -17,7 +17,7 @@ const STABLE_RATES: ExchangeRates = {
   EUR: 1.0,
   DKK: 7.46,
   NOK: 11.38,
-  SEK: 11.45, // Updated SEK rate
+  SEK: 11.45,
   USD: 1.09,
   timestamp: Date.now()
 };
@@ -78,11 +78,9 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const currencySymbol = currentLangData.currency_symbol;
 
   const formatPrice = useCallback((priceInEUR: number): string => {
-    // If currency is EUR, rate is 1.0. All prices stored as EUR.
     const rate = rates[currencyCode as keyof ExchangeRates] || 1.0;
     const converted = (priceInEUR || 0) * rate;
     
-    // Formatting based on locale
     const locale = language === 'en' ? 'en-US' : (language === 'da' ? 'da-DK' : (language === 'no' ? 'nb-NO' : 'sv-SE'));
     
     return `${currencySymbol}${converted.toLocaleString(locale, {

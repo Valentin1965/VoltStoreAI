@@ -333,7 +333,7 @@ export const translations = {
     company_details: "Bedriftsopplysninger (Org.nr)",
     full_shipping_address: "Full leveringsadresse"
   },
-  sv: {
+  se: {
     currency_symbol: "€",
     currency_code: "EUR",
     nav_catalog: "Katalog",
@@ -446,5 +446,4 @@ export const translations = {
   }
 };
 
-// Added TranslationKey export to resolve the error in LanguageContext.tsx
 export type TranslationKey = keyof typeof translations.en;
