@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Product, Category } from '../types';
 
@@ -6,7 +7,9 @@ export const CATEGORIES: Category[] = [
   'Inverters',
   'Batteries',
   'Solar Panels',
-  'Kits'
+  'Kits',
+  'Heat Pumps',
+  'Mounting Systems'
 ];
 
 export const MOCK_PRODUCTS: Product[] = [

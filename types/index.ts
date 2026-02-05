@@ -11,7 +11,7 @@ export enum AppView {
   CABINET = 'cabinet'
 }
 
-export type Category = 'Charging Stations' | 'Inverters' | 'Batteries' | 'Solar Panels' | 'Kits';
+export type Category = 'Charging Stations' | 'Inverters' | 'Batteries' | 'Solar Panels' | 'Kits' | 'Heat Pumps' | 'Mounting Systems';
 
 export interface ProductDoc {
   title: string;

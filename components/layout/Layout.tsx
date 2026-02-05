@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { ShoppingCart, LayoutGrid, Calculator, Heart, User, Search, Scale, X, Info, MapPin, Phone, Mail, Lock } from 'lucide-react';
+import { ShoppingCart, LayoutGrid, Calculator, Heart, User, Search, Scale, X, Info, MapPin, Phone, Mail, Lock, Globe } from 'lucide-react';
 import { AppView } from '../../types';
 import { useCart } from '../../contexts/CartContext';
 import { useProducts } from '../../contexts/ProductsContext';
@@ -58,14 +58,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
   ];
 
   const displayRates = [
-    { code: 'USD', value: rates.USD },
     { code: 'DKK', value: rates.DKK },
     { code: 'NOK', value: rates.NOK },
     { code: 'SEK', value: rates.SEK },
+    { code: 'USD', value: rates.USD },
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className="min-h-screen flex flex-col bg-slate-50" translate="no">
       <header className="sticky top-0 z-[100] bg-white/80 backdrop-blur-xl border-b border-slate-100 px-4 md:px-6">
         <div className="container mx-auto h-20 md:h-24 flex items-center justify-between">
           <div className="flex items-center gap-6 shrink-0">
@@ -88,7 +88,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
                 }`}
               >
                 <item.icon size={12} className={currentView === item.id ? 'text-emerald-500' : ''} />
-                {item.label}
+                <span>{item.label}</span>
               </button>
             ))}
           </nav>
@@ -118,16 +118,20 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
               <div className="flex flex-col gap-0.5">
                 {languages.map(lang => (
                   <button key={lang.code} onClick={() => setLanguage(lang.code)} className={`px-1.5 py-0.5 rounded-md text-[7px] font-black transition-all ${language === lang.code ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-                    {lang.label}
+                    <span>{lang.label}</span>
                   </button>
                 ))}
               </div>
 
-              <div className="hidden xl:flex flex-col gap-0.5 border-l border-slate-200 pl-2 ml-0.5 min-w-[65px]">
+              <div className="hidden xl:flex flex-col gap-0.5 border-l border-slate-200 pl-2 ml-0.5 min-w-[75px]">
+                <div className="flex items-center gap-1 mb-0.5">
+                   <Globe size={8} className="text-emerald-500" />
+                   <span className="text-[6px] font-black text-slate-400 uppercase">1 EUR =</span>
+                </div>
                 {displayRates.slice(0, 3).map(rate => (
                   <div key={rate.code} className="flex items-center justify-between gap-2">
-                    <span className="text-[6.5px] font-black text-slate-400 uppercase leading-none">{rate.code}</span>
-                    <span className="text-[7.5px] font-black text-slate-900 tabular-nums leading-none">{rate.value.toFixed(2)}</span>
+                    <span className="text-[6.5px] font-black text-slate-400 uppercase">{rate.code}</span>
+                    <span className="text-[7.5px] font-black text-slate-900 tabular-nums">{rate.value.toFixed(2)}</span>
                   </div>
                 ))}
               </div>
@@ -150,7 +154,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
               <MapPin size={14} className="text-emerald-500 shrink-0 mt-0.5" />
               <span>Green Light Scandinavia<br/>Øster Teglgårdsvej 6<br/>8800 Viborg, Danmark</span>
             </div>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest leading-loose max-sm:text-[10px]">{t('footer_tagline')}</p>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest leading-loose max-sm:text-[10px]">
+              <span>{t('footer_tagline')}</span>
+            </p>
           </div>
           <div className="space-y-6 md:text-center">
             <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.3em]">Navigation</h4>
@@ -158,7 +164,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
               <button onClick={() => setView(AppView.CATALOG)} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-600 transition-colors">{t('nav_catalog')}</button>
               <button onClick={() => setView(AppView.ABOUT)} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-600 transition-colors">{t('nav_about')}</button>
               <button onClick={() => setView(AppView.CALCULATOR)} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-600 transition-colors">{t('nav_architect')}</button>
-              <button onClick={() => setView(AppView.ADMIN)} className={`text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2 ${currentView === AppView.ADMIN ? 'text-emerald-600' : 'text-slate-400 hover:text-emerald-600'}`}><Lock size={12} /> {t('nav_admin')}</button>
+              <button 
+                onClick={() => setView(AppView.ADMIN)} 
+                className={`px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 hover:bg-emerald-500 shadow-lg ${currentView === AppView.ADMIN ? 'bg-emerald-600' : ''}`}
+              >
+                <Lock size={12} /> <span>{t('nav_admin')}</span>
+              </button>
             </div>
           </div>
           <div className="space-y-6 md:text-right">

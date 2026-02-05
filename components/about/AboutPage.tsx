@@ -9,7 +9,7 @@ import {
   ChevronRight, Mail, Phone, MapPin, Sparkles, Crown,
   Layers, Battery, Sun, Cpu, X, ShoppingCart, Info, ArrowRight,
   ChevronLeft, FileText, Download, List, Check, Rocket, Leaf, UserCheck,
-  Settings
+  Settings, ThermometerSun, Hammer
 } from 'lucide-react';
 import { AppView, Category, Product, ProductSpec, ProductDoc } from '../../types';
 import { ProductCard, useLocalizedText } from '../catalog/CatalogSection';
@@ -45,7 +45,9 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
     'Inverters': <Cpu size={22} />,
     'Batteries': <Battery size={22} />,
     'Solar Panels': <Sun size={22} />,
-    'Kits': <Layers size={22} />
+    'Kits': <Layers size={22} />,
+    'Heat Pumps': <ThermometerSun size={22} />,
+    'Mounting Systems': <Hammer size={22} />
   };
 
   useEffect(() => {
@@ -91,9 +93,9 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
           <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-xl border border-white/30 text-white px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-[0.4em] mb-8 shadow-xl">
             <Sparkles size={16} className="text-yellow-400" /> The Future is Here
           </div>
-          <h1 className="text-6xl md:text-8xl font-black text-white leading-[0.8] tracking-tighter uppercase mb-8 drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
-            VOLT<br/>
-            <span className="text-emerald-400 italic">STORE</span>
+          <h1 className="text-5xl md:text-7xl font-black text-white leading-[1.0] tracking-tighter uppercase mb-8 drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+            the energy<br/>
+            <span className="text-emerald-400 italic">of your home</span>
           </h1>
           <p className="text-white text-base md:text-xl font-bold max-w-2xl mb-12 tracking-tight leading-snug opacity-95">
             We don't just sell equipment — we create your personal independence from energy grids.
@@ -117,18 +119,18 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
 
       {/* 2. CATEGORIES */}
       <section className="container mx-auto px-4 -mt-16 relative z-30">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-5">
-          {(['Charging Stations', 'Inverters', 'Batteries', 'Solar Panels', 'Kits'] as Category[]).map((cat) => (
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3 md:gap-4">
+          {(['Charging Stations', 'Inverters', 'Batteries', 'Solar Panels', 'Kits', 'Heat Pumps', 'Mounting Systems'] as Category[]).map((cat) => (
             <button
               key={cat}
               onClick={() => handleCategoryClick(cat)}
-              className="group bg-white p-5 md:p-6 rounded-[2rem] border-2 border-slate-100 shadow-xl hover:shadow-2xl hover:border-emerald-500 hover:-translate-y-2 transition-all duration-500 flex flex-col items-center text-center gap-3"
+              className="group bg-white p-4 md:p-5 rounded-[2rem] border-2 border-slate-100 shadow-xl hover:shadow-2xl hover:border-emerald-500 hover:-translate-y-2 transition-all duration-500 flex flex-col items-center text-center gap-2"
             >
-              <div className="w-12 h-12 bg-emerald-50 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white rounded-2xl flex items-center justify-center transition-all duration-500 shadow-sm">
+              <div className="w-10 h-10 md:w-12 md:h-12 bg-emerald-50 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white rounded-2xl flex items-center justify-center transition-all duration-500 shadow-sm">
                 {categoryIcons[cat]}
               </div>
-              <span className="text-[11px] font-black uppercase tracking-tighter text-slate-800 leading-tight group-hover:text-emerald-600 transition-colors px-1">
-                {cat}
+              <span className="text-[9px] md:text-[10px] font-black uppercase tracking-tighter text-slate-800 leading-tight group-hover:text-emerald-600 transition-colors px-1">
+                {cat === 'Heat Pumps' ? 'Heat Pumps' : cat === 'Mounting Systems' ? 'Mounting' : cat}
               </span>
             </button>
           ))}

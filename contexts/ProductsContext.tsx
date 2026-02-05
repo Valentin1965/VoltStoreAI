@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useMemo, useEffect, useCallback } from 'react';
 import { Product, Category } from '../types';
 import { supabase } from '../services/supabase';
@@ -204,7 +205,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   return (
     <ProductsContext.Provider value={{
-      products, isLoading, categories: ['Charging Stations', 'Inverters', 'Batteries', 'Solar Panels', 'Kits'],
+      products, isLoading, categories: ['Charging Stations', 'Inverters', 'Batteries', 'Solar Panels', 'Kits', 'Heat Pumps', 'Mounting Systems'],
       selectedCategory, setSelectedCategory, searchQuery, setSearchQuery, filteredProducts,
       fetchProducts, addProduct, updateProduct, deleteProduct
     }}>

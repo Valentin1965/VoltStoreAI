@@ -32,10 +32,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
   const [builderQty, setBuilderQty] = useState<number>(1);
 
   const [currencyForm, setCurrencyForm] = useState({
-    USD: rates.USD,
     DKK: rates.DKK,
     NOK: rates.NOK,
-    SEK: rates.SEK
+    SEK: rates.SEK,
+    USD: rates.USD
   });
 
   const kits = useMemo(() => products.filter(p => p.category === 'Kits'), [products]);
@@ -273,12 +273,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
         <div className="max-w-md mx-auto bg-white p-12 rounded-[4rem] border border-slate-100 shadow-3xl space-y-10 animate-fade-in">
            <div className="text-center space-y-2">
              <div className="w-16 h-16 bg-yellow-400 rounded-3xl flex items-center justify-center mx-auto shadow-lg shadow-yellow-200"><Coins className="text-yellow-950" size={32} /></div>
-             <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Global Rates</h2>
+             <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Global Rates (Base: EUR)</h2>
            </div>
            <form onSubmit={(e) => { e.preventDefault(); updateRates(currencyForm); addNotification("Rates Updated Successfully", "success"); }} className="space-y-6">
               {Object.keys(currencyForm).map(curr => (
                 <div key={curr} className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase px-4 tracking-widest">{curr} Base (vs EUR)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase px-4 tracking-widest">1 EUR = X {curr}</label>
                   <input 
                     type="number" step="0.001" 
                     value={(currencyForm as any)[curr] || 0} 

@@ -5,7 +5,7 @@ import { translations, TranslationKey } from '../utils/translations';
 export type Language = 'en' | 'da' | 'no' | 'sv';
 
 export interface ExchangeRates {
-  EUR: number;
+  EUR: number; // Base currency, always 1.0
   DKK: number;
   NOK: number;
   SEK: number;
@@ -17,8 +17,8 @@ const STABLE_RATES: ExchangeRates = {
   EUR: 1.0,
   DKK: 7.46,
   NOK: 11.38,
-  SEK: 11.23,
-  USD: 1.08,
+  SEK: 11.45, // Updated SEK rate
+  USD: 1.09,
   timestamp: Date.now()
 };
 
@@ -42,11 +42,10 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   );
   
   const [rates, setRates] = useState<ExchangeRates>(() => {
-    const saved = localStorage.getItem('voltstoreai_rates_v3');
+    const saved = localStorage.getItem('voltstoreai_rates_v4');
     return saved ? JSON.parse(saved) : STABLE_RATES;
   });
 
-  // Keep the HTML lang attribute in sync to prevent browser translate conflicts
   useEffect(() => {
     document.documentElement.lang = language;
   }, [language]);
@@ -58,8 +57,8 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const updateRates = useCallback((newRates: Partial<ExchangeRates>) => {
     setRates(prev => {
-      const updated = { ...prev, ...newRates, timestamp: Date.now() };
-      localStorage.setItem('voltstoreai_rates_v3', JSON.stringify(updated));
+      const updated = { ...prev, ...newRates, EUR: 1.0, timestamp: Date.now() };
+      localStorage.setItem('voltstoreai_rates_v4', JSON.stringify(updated));
       return updated;
     });
   }, []);
@@ -79,9 +78,14 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const currencySymbol = currentLangData.currency_symbol;
 
   const formatPrice = useCallback((priceInEUR: number): string => {
+    // If currency is EUR, rate is 1.0. All prices stored as EUR.
     const rate = rates[currencyCode as keyof ExchangeRates] || 1.0;
     const converted = (priceInEUR || 0) * rate;
-    return `${currencySymbol}${converted.toLocaleString(language === 'en' ? 'en-US' : 'de-DE', {
+    
+    // Formatting based on locale
+    const locale = language === 'en' ? 'en-US' : (language === 'da' ? 'da-DK' : (language === 'no' ? 'nb-NO' : 'sv-SE'));
+    
+    return `${currencySymbol}${converted.toLocaleString(locale, {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     })}`;
