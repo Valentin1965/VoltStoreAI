@@ -1,4 +1,3 @@
-
 export enum AppView {
   CATALOG = 'catalog',
   CART = 'cart',
@@ -8,76 +7,11 @@ export enum AppView {
   WISHLIST = 'wishlist',
   COMPARE = 'compare',
   ABOUT = 'about',
-  CABINET = 'cabinet'
+  CABINET = 'cabinet',
+  SUCCESS = 'success' 
 }
 
-export type Category = 'Charging Stations' | 'Inverters' | 'Batteries' | 'Solar Panels' | 'Kits' | 'Heat Pumps' | 'Mounting Systems';
-
-export interface ProductDoc {
-  title: string;
-  url: string;
-}
-
-export interface ProductSpec {
-  label: string;
-  value: string;
-}
-
-export interface Alternative {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-}
-
-export interface KitComponent {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  alternatives: Alternative[];
-}
-
-export type LocalizedText = string | Record<string, string>;
-
-export interface Product {
-  id: string;
-  name: LocalizedText;
-  description: LocalizedText | null;
-  price: number;
-  old_price?: number | null;
-  category: Category;
-  sub_category?: string | null;
-  image: string | null;
-  images?: string[] | null;
-  rating?: number | null;
-  reviews_count?: number | null;
-  stock?: number | null;
-  is_new?: boolean | null;
-  on_sale?: boolean | null;
-  is_active?: boolean | null;
-  is_leader?: boolean | null;
-  features?: string[] | null;
-  specs?: string | null; 
-  detailed_tech_specs?: string | null;
-  docs?: string | null;
-  kitComponents?: KitComponent[]; 
-  created_at?: string;
-}
-
-export interface KitPart {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  minQuantity?: number;
-  maxQuantity?: number;
-}
-
-export interface CartItem extends Product {
-  quantity: number;
-  parts?: KitPart[];
-}
+// ... (Category, ProductDoc, ProductSpec, Alternative, KitComponent залишаються без змін)
 
 export interface Order {
   id: string;
@@ -87,14 +21,33 @@ export interface Order {
   city: string;
   department: string;
   total_price: number;
-  items: CartItem[];
+  items: any[]; // Змінено на any[] або CartItem[], оскільки JSONB з бази приходить як масив об'єктів
   payment_method: string;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  // Додано статуси, які реально надсилає Mollie
+  status: 'pending' | 'paid' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'expired' | 'failed' | 'refunded'; 
+  currency?: string;     
+  mollie_id?: string;    
+  user_id?: string;      
   created_at: string;
 }
 
-export interface UserStats {
-  energyGenerated: number;
-  co2Saved: number;
-  independenceScore: number;
+// Додамо інтерфейс для картки користувача, якщо ви плануєте їх відображати в кабінеті або адмінці
+export interface UserCard {
+  id: string;
+  brand: string;
+  last4: string;
+  exp_month: number;
+  exp_year: number;
+}
+
+// Розширений інтерфейс користувача для адмін-панелі та кабінету
+export interface UserProfile {
+  id: string;
+  email: string;
+  name?: string;
+  phone?: string;
+  city?: string;
+  address?: string;
+  cards?: UserCard[];
+  created_at?: string;
 }

@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Layout } from './components/layout/Layout';
 import { CatalogSection } from './components/catalog/CatalogSection';
 import { CartPage } from './components/cart/CartPage';
 import { CheckoutPage } from './components/checkout/CheckoutPage';
+import { OrderSuccessPage } from './components/checkout/OrderSuccessPage'; // Новий компонент
 import { AdminPanel } from './components/admin/AdminPanel';
 import { AdminPasswordPrompt } from './components/admin/AdminPasswordPrompt';
 import { Calculator } from './components/calculator/Calculator';
@@ -56,7 +56,14 @@ const AppContent: React.FC = () => {
     handleSetView(AppView.ABOUT);
   }, [handleSetView]);
 
+  // --- ЕФЕКТ ДЛЯ MOLLIE REDIRECT ---
   useEffect(() => {
+    // Перевіряємо URL на наявність параметрів успішної оплати (напр. ?id=...)
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('id')) {
+      handleSetView(AppView.SUCCESS);
+    }
+
     const handleViewChange = (e: any) => {
       if (e.detail) handleSetView(e.detail as AppView);
     };
@@ -71,7 +78,15 @@ const AppContent: React.FC = () => {
       case AppView.CART:
         return <CartPage onCheckout={() => handleSetView(AppView.CHECKOUT)} />;
       case AppView.CHECKOUT:
-        return <CheckoutPage onBackToCart={() => handleSetView(AppView.CART)} onOrderSuccess={() => handleSetView(AppView.CATALOG)} setView={handleSetView} />;
+        return (
+          <CheckoutPage 
+            onBackToCart={() => handleSetView(AppView.CART)} 
+            onOrderSuccess={() => handleSetView(AppView.SUCCESS)} 
+            setView={handleSetView} 
+          />
+        );
+      case AppView.SUCCESS:
+        return <OrderSuccessPage onBackToCatalog={() => handleSetView(AppView.CATALOG)} />;
       case AppView.ADMIN:
         return isAdminAuthenticated 
           ? <AdminPanel onLogout={handleAdminLogout} /> 

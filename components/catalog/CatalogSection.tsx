@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useCart } from '../../contexts/CartContext';
@@ -103,7 +102,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index, onSele
               isReserved ? 'bg-rose-500 text-white' : 'bg-white text-slate-400 hover:text-rose-500'
             }`}
           >
-            <Heart size={14} fill={isReserved ? "currentColor" : "none"} />
+            <Heart size={14} fill={isReserved ? "currentColor" : "none"} className={isReserved ? "text-rose-500" : ""} />
           </button>
           <button 
             onClick={(e) => { e.stopPropagation(); toggleCompare(product); }}
@@ -273,12 +272,12 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
 
   return (
     <div className="space-y-20">
-      {/* Search & Filter Header */}
+      {/* Search & Filter Header - Increased text size for filter buttons */}
       <div ref={productsRef} className="flex flex-col md:flex-row items-center justify-between border-b border-slate-200 pb-10 scroll-mt-32 gap-8">
         <div className="flex gap-4 overflow-x-auto scrollbar-hide w-full md:w-auto px-4 md:px-0">
           <button 
             onClick={() => setSelectedCategory('All')} 
-            className={`px-10 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${selectedCategory === 'All' ? 'bg-slate-900 border-slate-900 text-white shadow-2xl' : 'bg-white text-slate-400 border-slate-100 hover:border-emerald-500 hover:text-emerald-600'}`}
+            className={`px-10 py-3 rounded-2xl text-[14px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${selectedCategory === 'All' ? 'bg-slate-900 border-slate-900 text-white shadow-2xl' : 'bg-white text-slate-400 border-slate-100 hover:border-emerald-500 hover:text-emerald-600'}`}
           >
             All Assets
           </button>
@@ -286,7 +285,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
             <button 
               key={cat} 
               onClick={() => setSelectedCategory(cat)} 
-              className={`px-10 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${selectedCategory === cat ? 'bg-slate-900 border-slate-900 text-white shadow-2xl' : 'bg-white text-slate-400 border-slate-100 hover:border-emerald-500 hover:text-emerald-600'}`}
+              className={`px-10 py-3 rounded-2xl text-[14px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${selectedCategory === cat ? 'bg-slate-900 border-slate-900 text-white shadow-2xl' : 'bg-white text-slate-400 border-slate-100 hover:border-emerald-500 hover:text-emerald-600'}`}
             >
               {cat}
             </button>
@@ -326,7 +325,7 @@ export const CatalogSection: React.FC<{ onSelectSystem?: () => void }> = ({ onSe
                   {selectedProduct.category === 'Kits' ? 'Solution Configurator' : selectedProductNameStr}
                 </h2>
               </div>
-              <button onClick={() => setSelectedProduct(null)} className="p-3 hover:bg-slate-100 rounded-2xl transition-all"><X size={28} /></button>
+              <button onClick={() => setSelectedProduct(null)} className="p-3 hover:bg-slate-100 rounded-2xl transition-all"><X size={24} /></button>
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-8 md:p-12">
