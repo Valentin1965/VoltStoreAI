@@ -1,0 +1,7 @@
+{
+  "name": "Green Light Scandinavia",
+  "description": "Professional solar distribution group providing high-performance energy solutions and AI-driven support across Scandinavia.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

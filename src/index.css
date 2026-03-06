@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    /* Додано захист від safe-areas на iOS та покращено згладжування */
+    @apply bg-slate-50 text-slate-900 antialiased overflow-x-hidden;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Запобігання виділенню тексту на кнопках для кращого досвіду в PWA */
+  button, a {
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+}
+
+@layer components {
+  .btn-action {
+    @apply relative overflow-hidden bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 shadow-xl active:scale-95 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .input-premium {
+    @apply w-full bg-white border-2 border-slate-200 rounded-2xl px-6 py-4 text-sm font-black outline-none focus:border-emerald-500 transition-all placeholder:text-slate-400 shadow-sm hover:border-slate-300;
+  }
+
+  .glass-panel {
+    @apply bg-white/80 backdrop-blur-xl border border-white/40 shadow-xl;
+  }
+
+  .status-badge {
+    @apply px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest inline-flex items-center;
+  }
+
+  .status-paid {
+    @apply bg-emerald-100 text-emerald-600;
+  }
+
+  .status-pending {
+    @apply bg-amber-100 text-amber-600;
+  }
+
+  /* Скелетон для плавного завантаження (Hydration Fix) */
+  .skeleton-ui {
+    @apply bg-slate-200 animate-pulse rounded-2xl;
+  }
+}
+
+/* Custom Scrollbar */
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-slate-200 rounded-full;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-emerald-500;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}

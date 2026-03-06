@@ -1,0 +1,18 @@
+# Спрямовано на всі пошукові роботи
+User-agent: *
+
+# Дозволити індексацію всього сайту (це автоматично включає /catalog, /about тощо)
+Allow: /
+
+# Заборонити сканування конфіденційних та технічних сторінок
+Disallow: /admin
+Disallow: /admin/
+Disallow: /login
+Disallow: /register
+Disallow: /profile
+Disallow: /cart
+Disallow: /checkout
+Disallow: /api/
+
+# Вказати шлях до карти сайту для ВАШОГО НОВОГО ДОМЕНУ
+Sitemap: https://www.glsolargroup.dk/sitemap.xml
