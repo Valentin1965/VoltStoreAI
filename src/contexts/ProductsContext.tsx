@@ -220,42 +220,56 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         panels,
         chargers,
         pumps,
+        prods,
       ] = await Promise.all([
         fetchTable('batteries'),
         fetchTable('inverters'),
         fetchTable('solar_panels'),
         fetchTable('ev_chargers'),
         fetchTable('heat_pumps'),
-        // 'products' table disabled — outdated data
+        fetchTable('products'),   // ← re-enabled: main product table
       ]);
 
+      // Debug: log counts from each table
+      console.log('[Products] Loaded from Supabase:',{
+        batteries: bats?.length ?? 0,
+        inverters: invs?.length ?? 0,
+        solar_panels: panels?.length ?? 0,
+        ev_chargers: chargers?.length ?? 0,
+        heat_pumps: pumps?.length ?? 0,
+        products: prods?.length ?? 0,
+      });
+
       const mapProduct = (p: any, category: Category): Product => {
-        // Construct name from Brand and Model if needed
         const name = p.name || (p.BrandProd && p.ModelName ? `${p.BrandProd} ${p.ModelName}` : p.ModelName || p.BrandProd || 'Unnamed Asset');
-        
         return {
           ...p,
-          id: `${category}-${p.id}`, // Ensure ID is unique across tables
+          id: `${category}-${p.id}`,
           name: typeof name === 'string' ? { da: name, en: name } : name,
           description: p.description || { da: '', en: '' },
           price: p.PriceEurExVat || p.price || 0,
           category: p.category || category,
-          image: p.image || '',
-          stock: p.StockLvl || p.stock || 0,
+          image: p.image || (p.images?.[0] || ''),
+          images: p.images || (p.image ? [p.image] : []),
+          stock: p.StockLvl ?? p.stock ?? 0,
           specs: safeJsonParse(p.specs, 'specs'),
           docs: safeJsonParse(p.docs, 'docs'),
-          kitComponents: safeJsonParse(p.kit_components, 'kit')
+          kitComponents: safeJsonParse(p.kit_components, 'kit'),
+          is_active: p.is_active ?? true,   // default true if column missing
+          is_leader: p.is_leader ?? false,
         };
       };
 
       const allUnified: Product[] = [
-        ...(bats || []).map(p => mapProduct(p, 'Batterier')),
-        ...(invs || []).map(p => mapProduct(p, 'Invertere')),
+        ...(bats   || []).map(p => mapProduct(p, 'Batterier')),
+        ...(invs   || []).map(p => mapProduct(p, 'Invertere')),
         ...(panels || []).map(p => mapProduct(p, 'Solpaneler')),
         ...(chargers || []).map(p => mapProduct(p, 'Power Station')),
-        ...(pumps || []).map(p => mapProduct(p, 'Varmepumper')),
-        // products table disabled
+        ...(pumps  || []).map(p => mapProduct(p, 'Varmepumper')),
+        ...(prods  || []).map(p => mapProduct(p, (p.category as Category) || 'Power Station')),
       ];
+
+      console.log('[Products] Total unified:', allUnified.length);
 
       setDbProducts(allUnified);
     } catch (err: any) {
@@ -448,7 +462,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     result = result.filter(p => {
-      // Always hide inactive products from public catalog
+      // Hide only explicitly deactivated products (null/undefined = visible)
       if (p.is_active === false) return false;
 
       const productName = (typeof p.name === 'string' ? p.name : (p.name as any)[language || 'da'] || "").toLowerCase();
@@ -497,6 +511,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return true;
     });
 
+    console.log('[Products] filteredProducts count:', result.length);
     if (sortBy === 'price-asc') result.sort((a, b) => a.price - b.price);
     else if (sortBy === 'price-desc') result.sort((a, b) => b.price - a.price);
     else if (sortBy === 'rating') result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
