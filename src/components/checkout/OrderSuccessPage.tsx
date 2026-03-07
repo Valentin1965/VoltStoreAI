@@ -1,15 +1,12 @@
 import React, { useEffect } from 'react';
 import { CheckCircle2, ShoppingBag, ArrowRight } from 'lucide-react';
-import { useCart } from '../../contexts/CartContext';
 
 export const OrderSuccessPage: React.FC<{ onBackToCatalog: () => void }> = ({ onBackToCatalog }) => {
-  const { clearCart } = useCart();
-
   useEffect(() => {
-    clearCart(); // Clear cart after successful payment
-    // Remove ID from URL so page refresh does not stay on success forever
+    // Cart already cleared in CheckoutPage after successful INSERT
+    // Just clean up URL so page refresh doesn't stay on success
     window.history.replaceState({}, '', window.location.pathname);
-  }, [clearCart]);
+  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in">

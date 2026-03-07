@@ -139,7 +139,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
         </div>
       )}
 
-      <main className="flex-1 max-w-7xl mx-auto w-full py-8 md:py-12 px-4 relative">
+      <main className={currentView === AppView.ABOUT ? "flex-1 w-full relative" : "flex-1 max-w-7xl mx-auto w-full py-8 md:py-12 px-4 relative"}>
         {children}
       </main>
 

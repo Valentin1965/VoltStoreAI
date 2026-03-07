@@ -77,3 +77,7 @@
     display: none;
   }
 }
+@keyframes zoomIn {
+  from { transform: scale(1.03); }
+  to   { transform: scale(1); }
+}

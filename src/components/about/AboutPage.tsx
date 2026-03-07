@@ -19,7 +19,7 @@ interface AboutPageProps {
 }
 
 const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?q=80&w=600&auto=format&fit=crop';
-const HERO_VIBRANT = 'https://images.unsplash.com/photo-1542332213-31f87348057f?q=80&w=2000&auto=format&fit=crop';
+const HERO_FULLSCREEN = 'https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?q=90&w=2560&auto=format&fit=crop';
 const ABOUT_BG = 'https://images.unsplash.com/photo-1497435334941-8c899ee9e8e9?q=80&w=1500&auto=format&fit=crop';
 
 const getYoutubeEmbedUrl = (url?: string) => {
@@ -91,44 +91,71 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
 
   return (
     <>
-      <div className="animate-fade-in space-y-12 md:space-y-16 pb-16">
-        {/* HERO SECTION */}
-        <section className="relative h-[400px] md:h-[500px] -mt-10 overflow-hidden md:rounded-[3rem] shadow-3xl flex items-center justify-center text-center group">
-          <div className="absolute inset-0 bg-slate-900/40 z-10 transition-colors duration-700 group-hover:bg-slate-900/30"></div>
-          <img src={HERO_VIBRANT} className="absolute inset-0 w-full h-full object-cover scale-105 group-hover:scale-100 transition-transform duration-[3s]" alt="" />
-          <div className="relative z-20 px-6 max-w-4xl">
-            <div className="inline-flex items-center gap-3 bg-emerald-500/20 backdrop-blur-md border border-emerald-500/30 px-6 py-2 rounded-full text-emerald-400 text-[10px] font-black uppercase tracking-[0.3em] mb-6 animate-fade-in">
-              <ShieldCheck size={14} /> Green Light Scandinavia
-            </div>
-            <h1 className="text-3xl md:text-7xl font-black text-white uppercase tracking-tighter leading-tight mb-6 drop-shadow-2xl">
-              {t('language') === 'da' ? 'Energi til ' : 'Energy for the '}<span className="text-emerald-400 italic">{t('language') === 'da' ? 'fremtiden' : 'future'}</span>
-            </h1>
-            <p className="text-white/80 text-sm md:text-lg font-medium mb-8 max-w-xl mx-auto leading-relaxed">
-              {t('language') === 'da' ? 'Højtydende solenergiløsninger til private og professionelle fra Green Light Scandinavia.' : 'High-performance solar solutions for residential and professional clients from Green Light Scandinavia.'}
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              <button onClick={() => onNavigateToCatalog(AppView.CATALOG)} className="bg-emerald-500 hover:bg-emerald-400 text-white px-8 md:px-10 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-2xl transition-all active:scale-95">{t('see_all_products')}</button>
-              <button onClick={() => {
-                const el = document.getElementById('about-intro');
-                el?.scrollIntoView({ behavior: 'smooth' });
-              }} className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white border border-white/20 px-8 md:px-10 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all">{t('nav_about')}</button>
-            </div>
-          </div>
-        </section>
+      {/* ══════════════════════════════════════════
+          FULLSCREEN HERO — image fills 100vh
+      ══════════════════════════════════════════ */}
+      <section className="relative w-full flex flex-col items-center justify-center overflow-hidden" style={{height: '84vh'}}>
 
-        {/* CATEGORIES QUICK ACCESS */}
-        <section className="w-full px-4 -mt-12 md:-mt-20 relative z-30">
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 md:gap-3 max-w-full md:max-w-[95%] mx-auto">
-            {(['Power Station', 'Invertere', 'Batterier', 'Solpaneler', 'Sæt', 'Varmepumper', 'Monteringssystemer'] as Category[]).map((cat) => (
-              <button key={cat} onClick={() => { setSelectedCategory(cat); onNavigateToCatalog(AppView.CATALOG); }} className="group bg-white p-3 md:p-4 rounded-2xl md:rounded-[2rem] border border-slate-100 shadow-xl hover:border-emerald-500 hover:-translate-y-2 transition-all duration-500 flex flex-col items-center text-center gap-2">
-                <div className="w-10 h-10 md:w-14 md:h-14 bg-emerald-50 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white rounded-xl md:rounded-2xl flex items-center justify-center transition-all shadow-sm">{categoryIcons[cat]}</div>
-                <span className="text-[8px] md:text-[10px] font-black uppercase text-slate-900 leading-tight">
-                  {t(`cat_${cat}`)}
-                </span>
-              </button>
-            ))}
+        {/* Background image — brighter (reduced overlay) */}
+        <img
+          src={HERO_FULLSCREEN}
+          className="absolute inset-0 w-full h-full object-cover object-center scale-[1.03] animate-[zoomIn_12s_ease-out_forwards]"
+          alt="Solar panels"
+        />
+
+        {/* Lighter overlay for brighter image feel */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/40 z-10" />
+
+        {/* Content */}
+        <div className="relative z-20 flex flex-col items-center justify-center flex-1 px-6 text-center max-w-5xl mx-auto pt-24 pb-8 w-full">
+          <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-xl border border-white/20 px-6 py-2.5 rounded-full text-emerald-300 text-[9px] font-black uppercase tracking-[0.35em] mb-8 shadow-lg">
+            <ShieldCheck size={13} /> Green Light Scandinavia
           </div>
-        </section>
+
+          <h1 className="text-4xl sm:text-6xl md:text-8xl font-black text-white uppercase tracking-tighter leading-[0.9] mb-8 drop-shadow-2xl">
+            {t('language') === 'da' ? 'Energi til' : 'Energy for'}
+            <br />
+            <span className="text-emerald-400 italic drop-shadow-[0_0_40px_rgba(52,211,153,0.5)]">
+              {t('language') === 'da' ? 'fremtiden' : 'the future'}
+            </span>
+          </h1>
+
+          <p className="text-white/80 text-sm md:text-base font-medium mb-12 max-w-lg mx-auto leading-relaxed drop-shadow-md">
+            {t('language') === 'da'
+              ? 'Højtydende solenergiløsninger til private og professionelle.'
+              : 'High-performance solar solutions for residential and professional clients.'}
+          </p>
+
+          {/* Category quick-nav — yellow-bordered frosted pills */}
+          <div className="w-full max-w-4xl mb-8">
+            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+              {(['Power Station', 'Invertere', 'Batterier', 'Solpaneler', 'Sæt', 'Varmepumper', 'Monteringssystemer'] as Category[]).map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => { setSelectedCategory(cat); onNavigateToCatalog(AppView.CATALOG); }}
+                  className="group bg-black/25 hover:bg-yellow-400/20 backdrop-blur-xl border border-yellow-400/50 hover:border-yellow-300 p-3 rounded-2xl transition-all duration-300 flex flex-col items-center gap-2 text-center hover:-translate-y-1 shadow-[0_0_12px_rgba(250,204,21,0.15)] hover:shadow-[0_0_20px_rgba(250,204,21,0.35)]"
+                >
+                  <div className="w-9 h-9 bg-white/10 group-hover:bg-yellow-400/30 rounded-xl flex items-center justify-center text-yellow-300 group-hover:text-yellow-200 transition-all">
+                    {categoryIcons[cat]}
+                  </div>
+                  <span className="text-[7px] md:text-[8px] font-black uppercase text-yellow-100/90 group-hover:text-yellow-200 leading-tight tracking-wide">
+                    {t(`cat_${cat}`)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Scroll indicator */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 text-white/50 animate-bounce">
+          <div className="w-5 h-8 rounded-full border-2 border-white/30 flex items-start justify-center pt-1.5">
+            <div className="w-1 h-2 bg-white/50 rounded-full" />
+          </div>
+        </div>
+      </section>
+
+      <div id="about-main" className="animate-fade-in space-y-12 md:space-y-16 pb-16 max-w-7xl mx-auto px-4 pt-12">
 
         {/* BEST SELLERS SECTION */}
         <section className="container mx-auto px-4 py-4">
