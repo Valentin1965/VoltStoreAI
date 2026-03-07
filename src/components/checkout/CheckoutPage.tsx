@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useCart } from '../../contexts/CartContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -10,6 +10,7 @@ import {
   Mail, MessageSquare, Package, ChevronDown, ChevronUp, User
 } from 'lucide-react';
 import { supabase } from '../../services/supabase';
+import { sendOrderEmails } from '../../services/emailService';
 
 interface CheckoutPageProps {
   onBackToCart: () => void;
@@ -17,109 +18,152 @@ interface CheckoutPageProps {
   setView?: (view: AppView) => void;
 }
 
+interface FormData {
+  first_name: string; last_name: string; email: string; phone: string;
+  company_name: string; vat_number: string;
+  country: string; city: string; street: string; house_number: string; apartment: string; postal_code: string;
+  delivery_same: boolean;
+  delivery_country: string; delivery_city: string; delivery_street: string;
+  delivery_house_number: string; delivery_apartment: string; delivery_postal_code: string; delivery_phone: string;
+}
+
+const emptyForm: FormData = {
+  first_name: '', last_name: '', email: '', phone: '',
+  company_name: '', vat_number: '',
+  country: 'Denmark', city: '', street: '', house_number: '', apartment: '', postal_code: '',
+  delivery_same: true,
+  delivery_country: 'Denmark', delivery_city: '', delivery_street: '',
+  delivery_house_number: '', delivery_apartment: '', delivery_postal_code: '', delivery_phone: '',
+};
+
 export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrderSuccess }) => {
   const { items, totalPrice, clearCart, isVatEnabled } = useCart();
   const { addNotification } = useNotification();
   const { formatPrice, t, language, currencyCode } = useLanguage();
   const { findUser, currentUser } = useUser();
 
-  // Steps: 0 = profile-or-guest choice (shown when logged in), 1 = method, 2 = form, 3 = payment
   const [step, setStep] = useState(currentUser ? 0 : 1);
   const [clientMessage, setClientMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [payerType, setPayerType] = useState<'private' | 'company'>('private');
+  const [payerType, setPayerType] = useState<'private' | 'business'>('private');
   const [showProfileLoad, setShowProfileLoad] = useState(false);
   const [profileEmail, setProfileEmail] = useState('');
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [formData, setFormData] = useState<FormData>(emptyForm);
 
-  const [formData, setFormData] = useState({
-    name: '', email: '', phone: '', city: '', department: '', companyDetails: ''
-  });
+  const set = (field: keyof FormData, value: any) => setFormData(prev => ({ ...prev, [field]: value }));
 
   const fillFromProfile = (profile: any) => {
-    setFormData({
-      name: profile.name || '',
-      email: profile.email || '',
-      phone: profile.phone || '',
-      city: profile.city || '',
-      department: profile.address || '',
-      companyDetails: ''
-    });
+    const parts = (profile.name || '').split(' ');
+    setFormData({ ...emptyForm, first_name: parts[0] || '', last_name: parts.slice(1).join(' ') || '',
+      email: profile.email || '', phone: profile.phone || '', city: profile.city || '', street: profile.address || '' });
     setProfileLoaded(true);
   };
 
   const handleLoadProfile = () => {
     if (!profileEmail.includes('@')) return;
     const profile = findUser(profileEmail);
-    if (profile) {
-      setFormData({ name: profile.name || '', email: profile.email || '', phone: profile.phone || '', city: profile.city || '', department: profile.address || '', companyDetails: '' });
-      setProfileLoaded(true);
-      addNotification(`Velkommen tilbage, ${profile.name}`, 'success');
-    } else {
-      setFormData(prev => ({ ...prev, email: profileEmail }));
-      addNotification('Ingen profil fundet — udfyld manuelt', 'info');
-    }
+    if (profile) { fillFromProfile(profile); addNotification(`Velkommen tilbage, ${profile.name}`, 'success'); }
+    else { setFormData(prev => ({ ...prev, email: profileEmail })); addNotification('Ingen profil fundet', 'info'); }
     setShowProfileLoad(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.email || !formData.city || !formData.department) {
-      addNotification('Udfyld venligst alle obligatoriske felter', 'error');
-      return;
+    if (!formData.first_name || !formData.email || !formData.city) {
+      addNotification('Udfyld venligst alle obligatoriske felter', 'error'); return;
     }
     setIsProcessing(true);
     const finalPrice = isVatEnabled ? totalPrice * 1.25 : totalPrice;
+    const fullName = `${formData.first_name} ${formData.last_name}`.trim();
     const serializedItems = items.map(item => ({
       id: item.id,
       name: typeof item.name === 'string' ? item.name : (item.name as any)?.en || (item.name as any)?.da || '',
-      price: item.price || 0,
-      quantity: item.quantity || 1,
-      category: item.category || '',
-      ...(item.parts ? { parts: item.parts.map(p => ({ id: p.id, name: p.name, price: p.price, quantity: p.quantity })) } : {})
+      price: item.price || 0, quantity: item.quantity || 1, category: item.category || '',
     }));
-    const orderPayload: Record<string, any> = {
-      customer_name: formData.name,
-      customer_email: formData.email,
-      customer_phone: formData.phone || 'N/A',
-      city: formData.city,
-      department: formData.department,
-      total_price: finalPrice,
-      items: serializedItems,
-      payment_method: 'Email Order',
-      status: 'processing',
-      currency: currencyCode || 'EUR',
-    };
-    if (clientMessage) orderPayload.customer_message = clientMessage;
-    if (payerType === 'company' && formData.companyDetails)
-      orderPayload.metadata = { cvr: formData.companyDetails };
+
     try {
-      const { data, error: dbError } = await supabase.from('orders').insert([orderPayload]).select('id').single();
-      if (dbError) {
-        console.error('[Order] error:', dbError.code, dbError.message);
-        console.error('[Order] payload:', JSON.stringify(orderPayload, null, 2));
-        addNotification(`DB: ${dbError.message || dbError.code}`, 'error');
-        return;
-      }
-      console.log('[Order] Created:', data?.id);
+      // 1. Upsert client
+      const { data: clientRow } = await supabase.from('clients').upsert([{
+        email: formData.email, client_type: payerType,
+        first_name: formData.first_name, last_name: formData.last_name, phone: formData.phone || null,
+        company_name: payerType === 'business' ? formData.company_name || null : null,
+        vat_number: payerType === 'business' ? formData.vat_number || null : null,
+        country: formData.country, city: formData.city, street: formData.street,
+        house_number: formData.house_number, apartment: formData.apartment || null, postal_code: formData.postal_code,
+        delivery_same_as_billing: formData.delivery_same,
+        delivery_country: formData.delivery_same ? formData.country : formData.delivery_country,
+        delivery_city: formData.delivery_same ? formData.city : formData.delivery_city,
+        delivery_street: formData.delivery_same ? formData.street : formData.delivery_street,
+        delivery_house_number: formData.delivery_same ? formData.house_number : formData.delivery_house_number,
+        delivery_apartment: formData.delivery_same ? formData.apartment || null : formData.delivery_apartment || null,
+        delivery_postal_code: formData.delivery_same ? formData.postal_code : formData.delivery_postal_code,
+        delivery_phone: formData.delivery_same ? formData.phone || null : formData.delivery_phone || null,
+      }], { onConflict: 'email' }).select('id').single();
+
+      // 2. Insert order
+      const { error: dbError } = await supabase.from('orders').insert([{
+        customer_name: fullName, customer_email: formData.email, customer_phone: formData.phone || 'N/A',
+        city: formData.city, department: `${formData.street} ${formData.house_number}`.trim(),
+        total_price: finalPrice, items: serializedItems, payment_method: 'Email Order',
+        status: 'processing', currency: currencyCode || 'EUR',
+        client_id: clientRow?.id || null, client_type: payerType,
+        first_name: formData.first_name, last_name: formData.last_name,
+        street: formData.street, house_number: formData.house_number,
+        apartment: formData.apartment || null, postal_code: formData.postal_code, country: formData.country,
+        company_name: payerType === 'business' ? formData.company_name || null : null,
+        vat_number: payerType === 'business' ? formData.vat_number || null : null,
+        delivery_same_as_billing: formData.delivery_same,
+        delivery_country: formData.delivery_same ? formData.country : formData.delivery_country,
+        delivery_city: formData.delivery_same ? formData.city : formData.delivery_city,
+        delivery_street: formData.delivery_same ? formData.street : formData.delivery_street,
+        delivery_house_number: formData.delivery_same ? formData.house_number : formData.delivery_house_number,
+        delivery_postal_code: formData.delivery_same ? formData.postal_code : formData.delivery_postal_code,
+        delivery_phone: formData.delivery_same ? formData.phone || null : formData.delivery_phone || null,
+        ...(clientMessage ? { customer_message: clientMessage } : {}),
+        ...(payerType === 'business' && formData.vat_number ? { metadata: { vat: formData.vat_number, company: formData.company_name } } : {}),
+      }]);
+
+      if (dbError) { console.error('[Order]', dbError.code, dbError.message); addNotification(`DB: ${dbError.message}`, 'error'); return; }
+
+      // Send confirmation emails to company + customer
+      const orderNo = String(Math.random()).slice(2, 10).toUpperCase();
+      const addr = [formData.street, formData.house_number].filter(Boolean).join(' ');
+      const city = [formData.postal_code, formData.city, formData.country].filter(Boolean).join(', ');
+      const delAddr = formData.delivery_same ? addr : [formData.delivery_street, formData.delivery_house_number].filter(Boolean).join(' ');
+      const delCity = formData.delivery_same ? city : [formData.delivery_postal_code, formData.delivery_city, formData.delivery_country].filter(Boolean).join(', ');
+      await sendOrderEmails({
+        orderNo,
+        orderDate: new Date().toLocaleDateString('da-DK'),
+        customerName: fullName,
+        customerEmail: formData.email,
+        customerPhone: formData.phone || '—',
+        clientType: payerType,
+        companyName: formData.company_name || undefined,
+        vatNumber: formData.vat_number || undefined,
+        billingAddress: [addr, city].filter(Boolean).join(', '),
+        deliveryAddress: formData.delivery_same ? 'Samme som fakturering' : [delAddr, delCity].filter(Boolean).join(', '),
+        items: serializedItems,
+        totalPrice: finalPrice,
+        currency: currencyCode || 'EUR',
+        customerMessage: clientMessage || undefined,
+      });
+
       addNotification(language === 'da' ? 'Ordre sendt!' : 'Order sent!', 'success');
-      clearCart();
-      onOrderSuccess();
-    } catch (err: any) {
-      addNotification(`Error: ${err.message}`, 'error');
-    } finally {
-      setIsProcessing(false);
-    }
+      clearCart(); onOrderSuccess();
+    } catch (err: any) { addNotification(`Error: ${err.message}`, 'error'); }
+    finally { setIsProcessing(false); }
   };
 
   const finalPrice = isVatEnabled ? totalPrice * 1.25 : totalPrice;
+  const inp = 'input-premium';
+  const lbl = 'text-[9px] font-black text-slate-400 uppercase tracking-widest px-1';
 
   return (
     <div className="max-w-3xl mx-auto animate-fade-in pb-12 text-left">
-      {/* Nav */}
       <div className="flex items-center justify-between mb-8 px-4 font-black uppercase text-[9px] tracking-widest text-slate-400">
-        <button onClick={() => { if (step <= 1 || step === 0) onBackToCart(); else setStep(step === 2 ? 1 : 1); }} className="flex items-center gap-2 hover:text-slate-900 transition-all">
-          <ChevronLeft size={14} /> {step === 0 || step === 1 ? t('back_to_cart') : 'Tilbage'}
+        <button onClick={() => { if (step <= 1) onBackToCart(); else setStep(1); }} className="flex items-center gap-2 hover:text-slate-900 transition-all">
+          <ChevronLeft size={14} /> {step <= 1 ? t('back_to_cart') : 'Tilbage'}
         </button>
         <div className="flex items-center gap-3">
           {currentUser && <><span className={step === 0 ? 'text-slate-900' : 'text-slate-300'}>00 Konto</span><div className="w-6 h-[1px] bg-slate-100" /></>}
@@ -131,80 +175,47 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
 
       <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-3xl overflow-hidden">
 
-        {/* ── STEP 0: Profile or guest (shown when logged in) ── */}
         {step === 0 && currentUser && (
           <div className="p-10 space-y-8 animate-fade-in text-center">
             <div className="space-y-3">
-              <div className="w-16 h-16 bg-emerald-500/10 text-emerald-600 rounded-[1.5rem] flex items-center justify-center mx-auto shadow-inner">
-                <ShieldCheck size={28} />
-              </div>
+              <div className="w-16 h-16 bg-emerald-500/10 text-emerald-600 rounded-[1.5rem] flex items-center justify-center mx-auto"><ShieldCheck size={28} /></div>
               <h2 className="text-2xl font-black text-slate-900 tracking-tighter uppercase">Velkommen, {currentUser.name}</h2>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Hvordan vil du fortsætte?</p>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-lg mx-auto">
-              {/* Use profile data */}
-              <button
-                onClick={() => { fillFromProfile(currentUser); setStep(1); }}
-                className="group p-8 rounded-[2rem] border-2 border-emerald-100 hover:border-emerald-500 bg-emerald-50/40 hover:bg-emerald-50/70 transition-all flex flex-col items-center gap-4 text-center"
-              >
-                <div className="w-14 h-14 bg-emerald-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-200">
-                  <ShieldCheck size={24} />
-                </div>
-                <div>
-                  <div className="text-sm font-black text-slate-900 uppercase tracking-tight">Brug min profil</div>
-                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1 leading-relaxed">
-                    {currentUser.email}
-                    {currentUser.city && <><br />{currentUser.city}</>}
-                  </div>
-                </div>
+              <button onClick={() => { fillFromProfile(currentUser); setStep(1); }}
+                className="p-8 rounded-[2rem] border-2 border-emerald-100 hover:border-emerald-500 bg-emerald-50/40 transition-all flex flex-col items-center gap-4 text-center">
+                <div className="w-14 h-14 bg-emerald-500 text-white rounded-2xl flex items-center justify-center shadow-lg"><ShieldCheck size={24} /></div>
+                <div><div className="text-sm font-black text-slate-900 uppercase">Brug min profil</div><div className="text-[9px] text-slate-400 mt-1">{currentUser.email}</div></div>
               </button>
-
-              {/* Continue as guest */}
-              <button
-                onClick={() => { setProfileLoaded(false); setFormData({ name: '', email: '', phone: '', city: '', department: '', companyDetails: '' }); setStep(1); }}
-                className="group p-8 rounded-[2rem] border-2 border-slate-100 hover:border-slate-400 hover:bg-slate-50/50 transition-all flex flex-col items-center gap-4 text-center"
-              >
-                <div className="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center group-hover:bg-slate-700 transition-colors shadow-lg">
-                  <User size={24} />
-                </div>
-                <div>
-                  <div className="text-sm font-black text-slate-900 uppercase tracking-tight">Fortsæt som gæst</div>
-                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Udfyld formular manuelt</div>
-                </div>
+              <button onClick={() => { setProfileLoaded(false); setFormData(emptyForm); setStep(1); }}
+                className="p-8 rounded-[2rem] border-2 border-slate-100 hover:border-slate-400 transition-all flex flex-col items-center gap-4 text-center">
+                <div className="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center"><User size={24} /></div>
+                <div><div className="text-sm font-black text-slate-900 uppercase">Fortsæt som gæst</div></div>
               </button>
             </div>
           </div>
         )}
 
-        {/* ── STEP 1: Method ── */}
         {step === 1 && (
           <div className="p-10 space-y-8 animate-fade-in">
             <div className="text-center space-y-2">
               <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">Vælg bestillingsmetode</h2>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Ingen registrering nødvendig</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <button onClick={() => setStep(2)} className="group p-8 rounded-[2rem] border-2 border-slate-50 hover:border-emerald-500 hover:bg-emerald-50/30 transition-all flex flex-col items-center gap-4 text-center">
                 <div className="w-16 h-16 bg-slate-900 text-white rounded-2xl flex items-center justify-center group-hover:bg-emerald-500 transition-colors shadow-xl"><Mail size={28} /></div>
-                <div>
-                  <div className="text-sm font-black text-slate-900 uppercase tracking-tight">E-mail Bestilling</div>
-                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Hurtigt og nemt — ingen konto</div>
-                </div>
+                <div><div className="text-sm font-black text-slate-900 uppercase">E-mail Bestilling</div><div className="text-[9px] text-slate-400 mt-1">Hurtigt og nemt</div></div>
               </button>
               <button onClick={() => setStep(3)} className="group p-8 rounded-[2rem] border-2 border-slate-50 hover:border-blue-500 hover:bg-blue-50/30 transition-all flex flex-col items-center gap-4 text-center">
                 <div className="w-16 h-16 bg-slate-900 text-white rounded-2xl flex items-center justify-center group-hover:bg-blue-500 transition-colors shadow-xl"><CreditCard size={28} /></div>
-                <div>
-                  <div className="text-sm font-black text-slate-900 uppercase tracking-tight">Betalingssystem</div>
-                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Kort, MobilePay, Apple Pay</div>
-                </div>
+                <div><div className="text-sm font-black text-slate-900 uppercase">Betalingssystem</div><div className="text-[9px] text-slate-400 mt-1">Kort, MobilePay</div></div>
               </button>
             </div>
             {!currentUser && (
               <div className="flex items-center justify-center gap-3 pt-2">
                 <div className="h-[1px] flex-1 bg-slate-100" />
                 <button onClick={() => window.dispatchEvent(new CustomEvent('changeView', { detail: AppView.CABINET }))}
-                  className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-500 transition-all flex items-center gap-2">
+                  className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-500 flex items-center gap-2">
                   <User size={12} /> Log ind for at bruge gemte adresser
                 </button>
                 <div className="h-[1px] flex-1 bg-slate-100" />
@@ -213,38 +224,26 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
           </div>
         )}
 
-        {/* ── STEP 3: Payment placeholder ── */}
         {step === 3 && (
           <div className="p-12 text-center space-y-8 animate-fade-in">
-            <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto">
-              <Loader2 size={40} className="animate-spin" />
-            </div>
-            <div className="space-y-3">
-              <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Under Udvikling</h2>
-              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest max-w-xs mx-auto leading-relaxed">
-                Online betalingssystem er under opsætning. Brug venligst e-mail bestilling.
-              </p>
-            </div>
-            <button onClick={() => setStep(2)} className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 transition-all shadow-xl">
-              Fortsæt med E-mail Bestilling
-            </button>
+            <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto"><Loader2 size={40} className="animate-spin" /></div>
+            <h2 className="text-2xl font-black text-slate-900 uppercase">Under Udvikling</h2>
+            <button onClick={() => setStep(2)} className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 transition-all">Fortsæt med E-mail</button>
           </div>
         )}
 
-        {/* ── STEP 2: Form ── */}
         {step === 2 && (
           <div className="animate-fade-in">
             <div className="p-8 border-b border-slate-50 flex justify-between items-center">
               <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">E-mail Bestilling</h3>
               {profileLoaded
-                ? <div className="flex items-center gap-2 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest"><ShieldCheck size={12} /> Profil indlæst</div>
-                : <div className="flex items-center gap-2 bg-slate-50 text-slate-400 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest"><User size={12} /> Gæst</div>
+                ? <div className="flex items-center gap-2 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full text-[9px] font-black uppercase"><ShieldCheck size={12} /> Profil indlæst</div>
+                : <div className="flex items-center gap-2 bg-slate-50 text-slate-400 px-3 py-1.5 rounded-full text-[9px] font-black uppercase"><User size={12} /> Gæst</div>
               }
             </div>
 
             <form onSubmit={handleSubmit} className="p-8 space-y-7">
 
-              {/* Load profile (guests only) */}
               {!currentUser && (
                 <div className="rounded-2xl border border-slate-100 overflow-hidden">
                   <button type="button" onClick={() => setShowProfileLoad(v => !v)}
@@ -254,13 +253,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
                   </button>
                   {showProfileLoad && (
                     <div className="p-4 flex gap-3">
-                      <input type="email" value={profileEmail} onChange={e => setProfileEmail(e.target.value)}
-                        placeholder="din@email.dk"
+                      <input type="email" value={profileEmail} onChange={e => setProfileEmail(e.target.value)} placeholder="din@email.dk"
                         className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-emerald-400 transition-all" />
-                      <button type="button" onClick={handleLoadProfile}
-                        className="px-5 py-3 bg-slate-900 text-white rounded-xl text-xs font-black hover:bg-emerald-500 transition-all">
-                        <ArrowRight size={14} />
-                      </button>
+                      <button type="button" onClick={handleLoadProfile} className="px-5 py-3 bg-slate-900 text-white rounded-xl font-black hover:bg-emerald-500 transition-all"><ArrowRight size={14} /></button>
                     </div>
                   )}
                 </div>
@@ -268,10 +263,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
 
               {/* Order summary */}
               <div className="bg-slate-50 rounded-3xl p-6 space-y-3 border border-slate-100">
-                <div className="flex items-center gap-2 mb-1">
-                  <Package size={14} className="text-emerald-500" />
-                  <span className="text-[9px] font-black uppercase tracking-widest">Din Bestilling</span>
-                </div>
+                <div className="flex items-center gap-2 mb-1"><Package size={14} className="text-emerald-500" /><span className="text-[9px] font-black uppercase tracking-widest">Din Bestilling</span></div>
                 {items.map(item => (
                   <div key={item.id} className="flex justify-between text-[10px] font-bold uppercase tracking-tight">
                     <span className="text-slate-600 truncate max-w-[200px]">{item.quantity}× {typeof item.name === 'string' ? item.name : (item.name as any)[language] || (item.name as any)['en']}</span>
@@ -279,72 +271,82 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
                   </div>
                 ))}
                 <div className="pt-3 border-t border-slate-200 space-y-1">
-                  <div className="flex justify-between text-[10px] font-black text-slate-400">
-                    <span>Ekskl. moms</span><span>{formatPrice(totalPrice)}</span>
-                  </div>
-                  <div className="flex justify-between text-[10px] font-black text-emerald-600">
-                    <span>Inkl. moms (25%)</span><span>{formatPrice(totalPrice * 1.25)}</span>
-                  </div>
+                  <div className="flex justify-between text-[10px] font-black text-slate-400"><span>Ekskl. moms</span><span>{formatPrice(totalPrice)}</span></div>
+                  <div className="flex justify-between text-[10px] font-black text-emerald-600"><span>Inkl. moms (25%)</span><span>{formatPrice(totalPrice * 1.25)}</span></div>
                 </div>
               </div>
 
-              {/* Payer type */}
-              <div className="grid grid-cols-2 gap-3">
-                {(['private', 'company'] as const).map(type => (
-                  <button key={type} type="button" onClick={() => setPayerType(type)}
-                    className={`p-4 rounded-2xl border-2 flex items-center justify-center gap-2 transition-all text-[10px] font-black uppercase tracking-widest ${payerType === type ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-100 text-slate-400 hover:border-slate-200'}`}>
-                    {type === 'private' ? <UserCircle size={18} /> : <Building2 size={18} />}
-                    {type === 'private' ? t('private_person') : t('company')}
-                  </button>
-                ))}
+              {/* Client type */}
+              <div>
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Kundetype</div>
+                <div className="grid grid-cols-2 gap-3">
+                  {(['private', 'business'] as const).map(type => (
+                    <button key={type} type="button" onClick={() => setPayerType(type)}
+                      className={`p-4 rounded-2xl border-2 flex items-center justify-center gap-2 transition-all text-[10px] font-black uppercase tracking-widest ${payerType === type ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-100 text-slate-400 hover:border-slate-200'}`}>
+                      {type === 'private' ? <UserCircle size={18} /> : <Building2 size={18} />}
+                      {type === 'private' ? 'Privat' : 'Virksomhed'}
+                    </button>
+                  ))}
+                </div>
               </div>
-              {payerType === 'company' && (
-                <input placeholder="CVR — DK 00000000" value={formData.companyDetails}
-                  onChange={e => setFormData({ ...formData, companyDetails: e.target.value })}
-                  className="w-full bg-slate-50 rounded-xl p-4 text-[10px] font-bold outline-none border border-transparent focus:border-emerald-500 transition-all" />
+
+              {payerType === 'business' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="space-y-1"><label className={lbl}>Virksomhedsnavn</label><input value={formData.company_name} onChange={e => set('company_name', e.target.value)} className={inp} placeholder="Virksomhed A/S" /></div>
+                  <div className="space-y-1"><label className={lbl}>VAT / CVR nummer</label><input value={formData.vat_number} onChange={e => set('vat_number', e.target.value)} className={inp} placeholder="DK 00000000" /></div>
+                </div>
               )}
 
               {/* Contact */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">{t('profile_name')} *</label>
-                  <input required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="input-premium" placeholder="Fornavn Efternavn" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">{t('profile_phone')}</label>
-                  <input value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="input-premium" placeholder="+45 00 00 00 00" />
-                </div>
-                <div className="space-y-1 md:col-span-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Email *</label>
-                  <input required type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className="input-premium" placeholder="din@email.dk" />
+              <div>
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Kontaktperson</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1"><label className={lbl}>Fornavn *</label><input required value={formData.first_name} onChange={e => set('first_name', e.target.value)} className={inp} placeholder="Fornavn" /></div>
+                  <div className="space-y-1"><label className={lbl}>Efternavn</label><input value={formData.last_name} onChange={e => set('last_name', e.target.value)} className={inp} placeholder="Efternavn" /></div>
+                  <div className="space-y-1"><label className={lbl}>Email *</label><input required type="email" value={formData.email} onChange={e => set('email', e.target.value)} className={inp} placeholder="din@email.dk" /></div>
+                  <div className="space-y-1"><label className={lbl}>Telefon</label><input value={formData.phone} onChange={e => set('phone', e.target.value)} className={inp} placeholder="+45 00 00 00 00" /></div>
                 </div>
               </div>
 
-              {/* Delivery */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Truck size={15} className="text-emerald-500" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">{t('delivery')}</span>
+              {/* Billing address */}
+              <div>
+                <div className="flex items-center gap-2 mb-3"><MapPin size={14} className="text-emerald-500" /><span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Faktureringsadresse</span></div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="col-span-2 md:col-span-4 space-y-1"><label className={lbl}>Land</label><input value={formData.country} onChange={e => set('country', e.target.value)} className={inp} placeholder="Denmark" /></div>
+                  <div className="col-span-2 space-y-1"><label className={lbl}>By *</label><input required value={formData.city} onChange={e => set('city', e.target.value)} className={inp} placeholder="By" /></div>
+                  <div className="col-span-1 space-y-1"><label className={lbl}>Postnummer</label><input value={formData.postal_code} onChange={e => set('postal_code', e.target.value)} className={inp} placeholder="8800" /></div>
+                  <div className="col-span-1 space-y-1"><label className={lbl}>Lejlighed</label><input value={formData.apartment} onChange={e => set('apartment', e.target.value)} className={inp} placeholder="2. tv" /></div>
+                  <div className="col-span-2 space-y-1"><label className={lbl}>Gade</label><input value={formData.street} onChange={e => set('street', e.target.value)} className={inp} placeholder="Gadenavn" /></div>
+                  <div className="col-span-2 space-y-1"><label className={lbl}>Husnummer</label><input value={formData.house_number} onChange={e => set('house_number', e.target.value)} className={inp} placeholder="16" /></div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <input required placeholder="Postnr. & By" value={formData.city}
-                    onChange={e => setFormData({ ...formData, city: e.target.value })} className="input-premium" />
-                  <div className="md:col-span-2 relative">
-                    <MapPin size={13} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
-                    <input required placeholder="Gade og husnummer" value={formData.department}
-                      onChange={e => setFormData({ ...formData, department: e.target.value })} className="input-premium pl-11" />
+              </div>
+
+              {/* Delivery address */}
+              <div>
+                <div className="flex items-center gap-2 mb-3"><Truck size={14} className="text-emerald-500" /><span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Leveringsadresse</span></div>
+                <label className="flex items-center gap-3 cursor-pointer mb-4 select-none" onClick={() => set('delivery_same', !formData.delivery_same)}>
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${formData.delivery_same ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>
+                    {formData.delivery_same && <div className="w-2 h-2 bg-white rounded-sm" />}
                   </div>
-                </div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Samme som faktureringsadresse</span>
+                </label>
+                {!formData.delivery_same && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="col-span-2 md:col-span-4 space-y-1"><label className={lbl}>Land</label><input value={formData.delivery_country} onChange={e => set('delivery_country', e.target.value)} className={inp} placeholder="Denmark" /></div>
+                    <div className="col-span-2 space-y-1"><label className={lbl}>By</label><input value={formData.delivery_city} onChange={e => set('delivery_city', e.target.value)} className={inp} placeholder="By" /></div>
+                    <div className="col-span-1 space-y-1"><label className={lbl}>Postnummer</label><input value={formData.delivery_postal_code} onChange={e => set('delivery_postal_code', e.target.value)} className={inp} placeholder="8800" /></div>
+                    <div className="col-span-1 space-y-1"><label className={lbl}>Lejlighed</label><input value={formData.delivery_apartment} onChange={e => set('delivery_apartment', e.target.value)} className={inp} placeholder="2. tv" /></div>
+                    <div className="col-span-2 space-y-1"><label className={lbl}>Gade</label><input value={formData.delivery_street} onChange={e => set('delivery_street', e.target.value)} className={inp} placeholder="Gadenavn" /></div>
+                    <div className="col-span-1 space-y-1"><label className={lbl}>Husnummer</label><input value={formData.delivery_house_number} onChange={e => set('delivery_house_number', e.target.value)} className={inp} placeholder="16" /></div>
+                    <div className="col-span-1 space-y-1"><label className={lbl}>Telefon</label><input value={formData.delivery_phone} onChange={e => set('delivery_phone', e.target.value)} className={inp} placeholder="+45 00 00 00" /></div>
+                  </div>
+                )}
               </div>
 
               {/* Message */}
               <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <MessageSquare size={15} className="text-emerald-500" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Besked til os</span>
-                </div>
-                <textarea value={clientMessage} onChange={e => setClientMessage(e.target.value)}
-                  placeholder="Eventuelle bemærkninger..."
+                <div className="flex items-center gap-2"><MessageSquare size={15} className="text-emerald-500" /><span className="text-[10px] font-black uppercase tracking-widest">Besked til os</span></div>
+                <textarea value={clientMessage} onChange={e => setClientMessage(e.target.value)} placeholder="Eventuelle bemærkninger..."
                   className="w-full bg-slate-50 rounded-2xl p-5 text-[10px] font-bold outline-none border-2 border-transparent focus:border-emerald-500 transition-all min-h-[90px] resize-none" />
               </div>
 
