@@ -172,16 +172,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
                 <div className="flex flex-col md:items-end text-[8px] font-bold text-slate-400 leading-tight uppercase tracking-wider">
                   <div className="flex items-center gap-1">
                     <MapPin size={8} className="text-emerald-500" />
-                    <span>Øster Teglgårdsvej 6, 8800 Viborg, Danmark</span>
+                    <span>Katmosevej 16, Viborg 8800, Denmark</span>
                   </div>
                 </div>
              </div>
              <div className="flex flex-col md:items-end gap-1">
-                <a href="tel:+4531185819" className="text-xs font-black text-slate-900 hover:text-emerald-500 tracking-tight transition-colors flex items-center gap-1.5">
-                  <Phone size={12} className="text-emerald-500" /> +45 31 18 58 19
+                <a href="tel:+4561485219" className="text-xs font-black text-slate-900 hover:text-emerald-500 tracking-tight transition-colors flex items-center gap-1.5">
+                  <Phone size={12} className="text-emerald-500" /> +45 61 48 52 19
                 </a>
-                <a href="mailto:info@glsolargroup.dk" className="text-[9px] font-black text-slate-500 hover:text-emerald-500 tracking-tight transition-colors flex items-center gap-1.5">
-                  <Mail size={10} className="text-emerald-500" /> info@glsolargroup.dk
+                <a href="mailto:sales@glsolargroup.dk" className="text-[9px] font-black text-slate-500 hover:text-emerald-500 tracking-tight transition-colors flex items-center gap-1.5">
+                  <Mail size={10} className="text-emerald-500" /> sales@glsolargroup.dk
                 </a>
              </div>
           </div>
@@ -314,7 +314,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
                       <li><strong>Deletion:</strong> Request complete deletion of your information.</li>
                       <li><strong>Withdrawal of consent:</strong> Stop processing your data at any time.</li>
                     </ul><br/>
-                    For inquiries or complaints, please contact: <a href="mailto:info@glsolargroup.dk" className="text-emerald-500 font-black hover:underline">info@glsolargroup.dk</a>
+                    For inquiries or complaints, please contact: <a href="mailto:sales@glsolargroup.dk" className="text-emerald-500 font-black hover:underline">sales@glsolargroup.dk</a>
                   </div>
                 </section>
               </div>

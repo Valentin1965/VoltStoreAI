@@ -192,11 +192,12 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const fetchProducts = useCallback(async () => {
     if (!isSupabaseConfigured) {
+      console.warn('[DB] Supabase not configured — check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env');
       setIsLoading(false);
-      // Fallback to mock products so UI is never empty
       setDbProducts(MOCK_PRODUCTS as any);
       return;
     }
+    console.log('[DB] Supabase configured, fetching products...');
     setIsLoading(true);
     try {
       // Fetch from all specialized tables in parallel with individual error handling
@@ -204,12 +205,13 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         try {
           const { data, error } = await supabase.from(tableName).select('*');
           if (error) {
-            console.warn(`[ProductsContext] Error fetching ${tableName}:`, error.message);
+            console.error(`[DB] ${tableName}: ${error.code} — ${error.message}${error.hint ? ' | hint: ' + error.hint : ''}`);
             return [];
           }
+          console.log(`[DB] ${tableName}: ${data?.length ?? 0} rows`);
           return data || [];
         } catch (e: any) {
-          console.warn(`[ProductsContext] Exception fetching ${tableName}:`, e.message);
+          console.error(`[DB] ${tableName} exception:`, e.message);
           return [];
         }
       };
@@ -511,7 +513,6 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return true;
     });
 
-    console.log('[Products] filteredProducts count:', result.length);
     if (sortBy === 'price-asc') result.sort((a, b) => a.price - b.price);
     else if (sortBy === 'price-desc') result.sort((a, b) => b.price - a.price);
     else if (sortBy === 'rating') result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
