@@ -92,65 +92,54 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
   return (
     <>
       {/* ══════════════════════════════════════════
-          FULLSCREEN HERO — image fills 100vh
+          HERO — 50% width, compact height, centered
       ══════════════════════════════════════════ */}
-      <section className="relative w-full flex flex-col items-center justify-center overflow-hidden" style={{height: '84vh'}}>
+      <section className="w-full flex flex-col items-center justify-center py-8 px-4 bg-slate-50">
 
-        {/* Background image — brighter (reduced overlay) */}
-        <img
-          src={HERO_FULLSCREEN}
-          className="absolute inset-0 w-full h-full object-cover object-center scale-[1.03] animate-[zoomIn_12s_ease-out_forwards]"
-          alt="Solar panels"
-        />
+        {/* Image block — 50% wide, rounded, with overlay and text */}
+        <div className="relative w-full md:w-[72.6%] overflow-hidden rounded-[2.5rem] shadow-2xl" style={{height: '477px'}}>
 
-        {/* Lighter overlay for brighter image feel */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/40 z-10" />
+          <img
+            src={HERO_FULLSCREEN}
+            className="absolute inset-0 w-full h-full object-cover object-center scale-[1.03] animate-[zoomIn_12s_ease-out_forwards]"
+            alt="Solar panels"
+          />
 
-        {/* Content */}
-        <div className="relative z-20 flex flex-col items-center justify-center flex-1 px-6 text-center max-w-5xl mx-auto pt-24 pb-8 w-full">
-          <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-xl border border-white/20 px-6 py-2.5 rounded-full text-emerald-300 text-[9px] font-black uppercase tracking-[0.35em] mb-8 shadow-lg">
-            <ShieldCheck size={13} /> Green Light Scandinavia
-          </div>
+          {/* Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/60 z-10" />
 
-          <h1 className="text-4xl sm:text-6xl md:text-8xl font-black text-white uppercase tracking-tighter leading-[0.9] mb-8 drop-shadow-2xl">
-            {t('language') === 'da' ? 'Energi til' : 'Energy for'}
-            <br />
-            <span className="text-emerald-400 italic drop-shadow-[0_0_40px_rgba(52,211,153,0.5)]">
-              {t('language') === 'da' ? 'fremtiden' : 'the future'}
-            </span>
-          </h1>
-
-          <p className="text-white/80 text-sm md:text-base font-medium mb-12 max-w-lg mx-auto leading-relaxed drop-shadow-md">
-            {t('language') === 'da'
-              ? 'Højtydende solenergiløsninger til private og professionelle.'
-              : 'High-performance solar solutions for residential and professional clients.'}
-          </p>
-
-          {/* Category quick-nav — yellow-bordered frosted pills */}
-          <div className="w-full max-w-4xl mb-8">
-            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-              {(['Power Station', 'Invertere', 'Batterier', 'Solpaneler', 'Sæt', 'Varmepumper', 'Monteringssystemer'] as Category[]).map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => { setSelectedCategory(cat); onNavigateToCatalog(AppView.CATALOG); }}
-                  className="group bg-black/25 hover:bg-yellow-400/20 backdrop-blur-xl border border-yellow-400/50 hover:border-yellow-300 p-3 rounded-2xl transition-all duration-300 flex flex-col items-center gap-2 text-center hover:-translate-y-1 shadow-[0_0_12px_rgba(250,204,21,0.15)] hover:shadow-[0_0_20px_rgba(250,204,21,0.35)]"
-                >
-                  <div className="w-9 h-9 bg-white/10 group-hover:bg-yellow-400/30 rounded-xl flex items-center justify-center text-yellow-300 group-hover:text-yellow-200 transition-all">
-                    {categoryIcons[cat]}
-                  </div>
-                  <span className="text-[7px] md:text-[8px] font-black uppercase text-yellow-100/90 group-hover:text-yellow-200 leading-tight tracking-wide">
-                    {t(`cat_${cat}`)}
-                  </span>
-                </button>
-              ))}
+          {/* Badge + title inside image */}
+          <div className="relative z-20 flex flex-col items-center justify-center h-full px-6 text-center">
+            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-xl border border-white/20 px-4 py-1.5 rounded-full text-emerald-300 text-[8px] font-black uppercase tracking-[0.3em] mb-4 shadow-lg">
+              <ShieldCheck size={11} /> Green Light Scandinavia
             </div>
+            <h1 className="text-2xl sm:text-4xl font-black text-white uppercase tracking-tighter leading-[0.95] drop-shadow-2xl">
+              {t('language') === 'da' ? 'Energi til' : 'Energy for'}
+              {' '}
+              <span className="text-emerald-400 italic">
+                {t('language') === 'da' ? 'fremtiden' : 'the future'}
+              </span>
+            </h1>
           </div>
         </div>
 
-        {/* Scroll indicator */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 text-white/50 animate-bounce">
-          <div className="w-5 h-8 rounded-full border-2 border-white/30 flex items-start justify-center pt-1.5">
-            <div className="w-1 h-2 bg-white/50 rounded-full" />
+        {/* Category quick-nav — below image, full width */}
+        <div className="w-full max-w-5xl mt-6">
+          <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+            {(['Power Station', 'Invertere', 'Batterier', 'Solpaneler', 'Sæt', 'Varmepumper', 'Monteringssystemer'] as Category[]).map((cat) => (
+              <button
+                key={cat}
+                onClick={() => { setSelectedCategory(cat); onNavigateToCatalog(AppView.CATALOG); }}
+                className="group bg-slate-100 hover:bg-slate-200 border-2 border-slate-900 hover:border-yellow-400 p-3 rounded-2xl transition-all duration-300 flex flex-col items-center gap-2 text-center hover:-translate-y-1 shadow-sm hover:shadow-[0_0_14px_rgba(250,204,21,0.3)]"
+              >
+                <div className="w-9 h-9 bg-slate-100 group-hover:bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-500 group-hover:text-emerald-600 transition-all">
+                  {categoryIcons[cat]}
+                </div>
+                <span className="text-[9px] md:text-[11px] font-black uppercase text-slate-900 group-hover:text-yellow-600 leading-tight tracking-wide">
+                  {t(`cat_${cat}`)}
+                </span>
+              </button>
+            ))}
           </div>
         </div>
       </section>
