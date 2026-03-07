@@ -110,10 +110,10 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
 
           {/* Badge + title inside image */}
           <div className="relative z-20 flex flex-col items-center justify-center h-full px-6 text-center">
-            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-xl border border-white/20 px-4 py-1.5 rounded-full text-emerald-300 text-[8px] font-black uppercase tracking-[0.3em] mb-4 shadow-lg">
+            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-xl border border-white/20 px-4 py-1.5 rounded-full text-emerald-300 text-[16px] font-black uppercase tracking-[0.3em] mb-4 shadow-lg">
               <ShieldCheck size={11} /> Green Light Scandinavia
             </div>
-            <h1 className="text-2xl sm:text-4xl font-black text-white uppercase tracking-tighter leading-[0.95] drop-shadow-2xl">
+            <h1 className="text-4xl sm:text-7xl font-black text-white uppercase tracking-tighter leading-[0.95] drop-shadow-2xl">
               {t('language') === 'da' ? 'Energi til' : 'Energy for'}
               {' '}
               <span className="text-emerald-400 italic">
