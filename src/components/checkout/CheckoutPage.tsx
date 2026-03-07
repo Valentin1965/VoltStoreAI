@@ -110,38 +110,61 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
 
     const finalPrice = isVatEnabled ? totalPrice * 1.25 : totalPrice;
 
-    const orderPayload = {
-      customer_name: formData.name,
+    // Serialize items — only essential fields, no heavy product objects
+    const serializedItems = items.map(item => ({
+      id: item.id,
+      name: typeof item.name === 'string' ? item.name : (item.name as any)?.en || (item.name as any)?.da || '',
+      price: item.price || 0,
+      quantity: item.quantity || 1,
+      category: item.category || '',
+      ...(item.parts ? { parts: item.parts.map(p => ({ id: p.id, name: p.name, price: p.price, quantity: p.quantity })) } : {})
+    }));
+
+    // Minimal payload — only columns that exist in the orders table
+    const orderPayload: Record<string, any> = {
+      customer_name:  formData.name,
       customer_email: formData.email,
-      customer_phone: formData.phone,
-      city: formData.city,
-      department: formData.department,
-      total_price: finalPrice, 
-      currency: 'EUR',
-      items: items,
-      user_id: foundProfile?.id || null,
+      customer_phone: formData.phone || 'N/A',  // NOT NULL — fallback if empty
+      city:           formData.city,
+      department:     formData.department,
+      total_price:    finalPrice,
+      items:          serializedItems,
       payment_method: 'Email Order',
-      status: 'processing',
-      customer_message: clientMessage,
-      metadata: { 
-        ...(payerType === 'company' ? { cvr: formData.companyDetails } : {}),
-        vat_exempt: !isVatEnabled
-      }
+      status:         'processing',
+      currency:       currencyCode || 'EUR',
     };
 
+    // Only add optional columns if they have real values
+    if (clientMessage)    orderPayload.customer_message = clientMessage;
+    if (currencyCode)     orderPayload.currency = currencyCode;
+    // NOTE: user_id must be a real Supabase auth.users UUID — skip local IDs
+    // if (foundProfile?.supabase_uid) orderPayload.user_id = foundProfile.supabase_uid;
+
     try {
-      // Simulate sending email and saving to DB
-      const { error: dbError } = await supabase
+      const { data, error: dbError } = await supabase
         .from('orders')
-        .insert([orderPayload]);
+        .insert([orderPayload])
+        .select('id')
+        .single();
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        // Show exact Supabase error so we know which column is missing
+        console.error('[Order] Supabase error code:', dbError.code);
+        console.error('[Order] Supabase error message:', dbError.message);
+        console.error('[Order] Supabase error details:', dbError.details);
+        console.error('[Order] Supabase error hint:', dbError.hint);
+        console.error('[Order] Payload sent:', JSON.stringify(orderPayload, null, 2));
+        addNotification(`DB: ${dbError.message || dbError.code || JSON.stringify(dbError)}`, 'error');
+        return;
+      }
 
+      console.log('[Order] Created:', data?.id);
       addNotification(language === 'da' ? 'Ordre sendt via email!' : 'Order sent via email!', 'success');
       clearCart();
       onOrderSuccess();
     } catch (err: any) {
-      addNotification(err.message, 'error');
+      console.error('[Order] Unexpected error:', err);
+      addNotification(`Error: ${err.message}`, 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -324,6 +347,10 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
                 <div className="space-y-2">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">{t('profile_phone')}</label>
                   <input required value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="input-premium" placeholder="+45 00 00 00 00" />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Email *</label>
+                  <input required type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="input-premium" placeholder="din@email.dk" />
                 </div>
               </div>
 
