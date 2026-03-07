@@ -19,7 +19,7 @@ interface AboutPageProps {
 }
 
 const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?q=80&w=600&auto=format&fit=crop';
-const HERO_FULLSCREEN = 'https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?q=90&w=2560&auto=format&fit=crop';
+const HERO_FULLSCREEN = 'https://images.unsplash.com/photo-1466611653911-95081537e5b7?q=90&w=2560&auto=format&fit=crop';
 const ABOUT_BG = 'https://images.unsplash.com/photo-1497435334941-8c899ee9e8e9?q=80&w=1500&auto=format&fit=crop';
 
 const getYoutubeEmbedUrl = (url?: string) => {
