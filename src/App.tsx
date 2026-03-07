@@ -56,8 +56,18 @@ const AppContent: React.FC = () => {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
 
   useEffect(() => {
-    const isAuth = safeStorage.getItem('voltstore_admin_auth_v5') === 'true';
-    if (isAuth) setIsAdminAuthenticated(true);
+    const stored = safeStorage.getItem('voltstore_admin_auth_v5');
+    if (stored) {
+      const expiry = Number(stored);
+      // Only accept new timestamp format — reject old 'true' string sessions
+      const isValid = expiry > 0 && Date.now() < expiry;
+      if (isValid) {
+        setIsAdminAuthenticated(true);
+      } else {
+        // Expired or old format — force re-login
+        safeStorage.removeItem('voltstore_admin_auth_v5');
+      }
+    }
   }, []);
 
   const handleSetView = useCallback((view: AppView) => {

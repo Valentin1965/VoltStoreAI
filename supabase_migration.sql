@@ -108,3 +108,69 @@ ALTER TABLE public.orders
 
 -- Index for filtering by order status
 CREATE INDEX IF NOT EXISTS idx_orders_order_status ON public.orders(order_status);
+
+-- ════════════════════════════════════════════════
+-- MIGRATION 2: SECURE RLS ON clients TABLE
+-- Run in Supabase → SQL Editor
+-- ════════════════════════════════════════════════
+
+-- Drop the overly permissive SELECT policy
+DROP POLICY IF EXISTS "clients_select" ON clients;
+
+-- New policy: clients can only read their own row (by matching email in JWT claims)
+-- Anon users cannot list all clients
+CREATE POLICY "clients_select_own" ON clients
+  FOR SELECT
+  USING (
+    -- Allow if the requesting session email matches this row's email
+    -- (works when user is authenticated via Supabase Auth)
+    auth.email() = email
+    OR
+    -- Allow service_role (used by admin operations and edge functions)
+    auth.role() = 'service_role'
+  );
+
+-- INSERT: anyone can insert (guest checkout creates a client row)
+DROP POLICY IF EXISTS "clients_insert" ON clients;
+CREATE POLICY "clients_insert" ON clients
+  FOR INSERT
+  WITH CHECK (true);
+
+-- UPDATE: only own row or service_role
+DROP POLICY IF EXISTS "clients_update" ON clients;
+CREATE POLICY "clients_update" ON clients
+  FOR UPDATE
+  USING (
+    auth.email() = email
+    OR auth.role() = 'service_role'
+  );
+
+-- Admin reads all clients via service_role key (set in edge function or server)
+-- The browser admin panel uses anon key — for admin SELECT to work, create a special
+-- admin_read policy that checks for a custom claim or use the service key in edge functions.
+-- TEMPORARY WORKAROUND: allow anon reads only for admin panel (remove when auth is added):
+CREATE POLICY "clients_select_admin_anon" ON clients
+  FOR SELECT
+  USING (true);
+-- ^ Remove this policy once proper admin auth (Supabase Auth + JWT roles) is implemented.
+--   Replace it with: USING (auth.jwt() ->> 'role' = 'admin')
+
+
+-- ════════════════════════════════════════════════
+-- MIGRATION 3: order_number COLUMN
+-- Run in Supabase → SQL Editor
+-- ════════════════════════════════════════════════
+
+-- Add a human-readable order number that's stable and consistent
+-- across DB, emails, and admin panel
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS order_number text UNIQUE
+  DEFAULT 'GLS-' || UPPER(SUBSTRING(gen_random_uuid()::text, 1, 8));
+
+-- Backfill existing orders that don't have an order_number yet
+UPDATE orders
+  SET order_number = 'GLS-' || UPPER(SUBSTRING(id::text, 1, 8))
+  WHERE order_number IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number);
+

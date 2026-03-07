@@ -27,9 +27,13 @@ export const AdminPasswordPrompt: React.FC<AdminPasswordPromptProps> = ({ onSucc
     
     if (!cleanPassword) return;
 
-    // PASSWORD: 19952010
-    if (cleanPassword === '19952010') {
-      safeStorage.setItem('voltstore_admin_auth_v5', 'true');
+    const envPassword = import.meta.env.VITE_ADMIN_PASSWORD;
+    const isValid = envPassword ? cleanPassword === envPassword : cleanPassword === '19952010';
+
+    if (isValid) {
+      // Store session with expiry timestamp (8 hours)
+      const expiry = Date.now() + 8 * 60 * 60 * 1000;
+      safeStorage.setItem('voltstore_admin_auth_v5', String(expiry));
       addNotification("System Unlocked. Redirecting...", "success");
       onSuccess();
     } else {

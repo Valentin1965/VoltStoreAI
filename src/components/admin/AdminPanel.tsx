@@ -199,12 +199,6 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
     }
   }, [addNotification]);
 
-  useEffect(() => {
-    if (isMounted && activeTab === 'orders') fetchOrders();
-    if (isMounted && activeTab === 'bookings') fetchBookings();
-    if (isMounted && activeTab === 'clients') fetchDbClients();
-  }, [activeTab, isMounted, fetchOrders]);
-
   const fetchDbClients = useCallback(async () => {
     try {
       const { data } = await supabase.from('clients').select('*').order('created_at', { ascending: false });
@@ -239,6 +233,12 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
       console.warn('[Admin] bookings fetch:', e.message);
     }
   }, []);
+
+  useEffect(() => {
+    if (isMounted && activeTab === 'orders') fetchOrders();
+    if (isMounted && activeTab === 'bookings') fetchBookings();
+    if (isMounted && activeTab === 'clients') fetchDbClients();
+  }, [activeTab, isMounted, fetchOrders, fetchDbClients, fetchBookings]);
 
   const updateBookingStatus = async (id: string, status: string) => {
     await supabase.from('bookings').update({ status }).eq('id', id);
@@ -723,25 +723,26 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                  <tr className="bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-widest">
                    <th className="p-6">Klient</th>
                    <th className="p-6 text-center">Type</th>
-                   <th className="p-6 text-center">Land</th>
+                   <th className="p-6 text-center">By / Land</th>
                    <th className="p-6 text-center">Telefon</th>
+                   <th className="p-6 text-center">Oprettet</th>
                    <th className="p-6 text-right">Historik</th>
                  </tr>
                </thead>
                <tbody className="divide-y divide-slate-50">
                  {dbClients.length === 0 && (
-                   <tr><td colSpan={5} className="p-10 text-center text-[10px] text-slate-300 font-bold uppercase tracking-widest">Ingen klienter endnu</td></tr>
+                   <tr><td colSpan={6} className="p-10 text-center text-[10px] text-slate-300 font-bold uppercase tracking-widest">Ingen klienter endnu</td></tr>
                  )}
                  {dbClients.map((c: any) => (
                    <tr key={c.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => openClientHistory(c)}>
                      <td className="p-6">
                        <div className="flex items-center gap-4">
-                         <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-500 shrink-0">
+                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${c.client_type === 'business' ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-500'}`}>
                            {c.client_type === 'business' ? <Building2 size={18} /> : <UserCheck size={18} />}
                          </div>
                          <div>
                            <div className="text-[11px] font-black uppercase text-slate-900">{c.first_name} {c.last_name}</div>
-                           {c.company_name && <div className="text-[9px] font-bold text-slate-500">{c.company_name}</div>}
+                           {c.company_name && <div className="text-[9px] font-bold text-blue-600">{c.company_name}{c.vat_number ? <span className="text-slate-400 font-normal ml-1">· {c.vat_number}</span> : ''}</div>}
                            <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{c.email}</div>
                          </div>
                        </div>
@@ -751,8 +752,14 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                          {c.client_type === 'business' ? 'Firma' : 'Privat'}
                        </span>
                      </td>
-                     <td className="p-6 text-center text-[10px] font-bold text-slate-500">{c.country || '—'}</td>
+                     <td className="p-6 text-center">
+                       <div className="text-[10px] font-bold text-slate-700">{c.city || '—'}</div>
+                       <div className="text-[8px] text-slate-400">{c.country || ''}</div>
+                     </td>
                      <td className="p-6 text-center text-[10px] font-bold text-slate-500">{c.phone || '—'}</td>
+                     <td className="p-6 text-center text-[9px] text-slate-400 font-bold">
+                       {c.created_at ? new Date(c.created_at).toLocaleDateString('da-DK') : '—'}
+                     </td>
                      <td className="p-6 text-right">
                        <button onClick={e => { e.stopPropagation(); openClientHistory(c); }}
                          className="flex items-center gap-1.5 ml-auto px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
@@ -838,7 +845,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
         const delAddr = o.delivery_same_as_billing ? addr : [o.delivery_street, o.delivery_house_number].filter(Boolean).join(' ');
         const delCity = o.delivery_same_as_billing ? city : [o.delivery_postal_code, o.delivery_city, o.delivery_country].filter(Boolean).join(', ');
         const orderDate = o.created_at ? new Date(o.created_at).toLocaleDateString('da-DK') : '-';
-        const orderNo = String(o.id || '').slice(0, 8).toUpperCase();
+        const orderNo = o.order_number || ('GLS-' + String(o.id || '').slice(0, 8).toUpperCase());
 
         const exportWord = async () => {
           const border = { style: BorderStyle.SINGLE, size: 1, color: 'DDDDDD' };
@@ -1051,7 +1058,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                       setSelectedOrder({ ...o, ...patch });
 
                       // Send status notification email to customer
-                      const orderNo = String(o.id || '').slice(0, 8).toUpperCase();
+                      const orderNo = o.order_number || ('GLS-' + String(o.id || '').slice(0, 8).toUpperCase());
                       await sendStatusChangeEmail({
                         customerName: `${o.first_name || ''} ${o.last_name || ''}`.trim() || o.customer_name || '',
                         customerEmail: o.customer_email,
@@ -1186,7 +1193,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                 new Paragraph({ spacing: { before: 400, after: 120 }, children: [new TextRun({ text: 'ORDREHISTORIK', bold: true, size: 22, color: '111827', font: 'Arial' })] }),
                 ...clientHistory.map((o: any, oi: number) => {
                   const oDate = o.created_at ? new Date(o.created_at).toLocaleDateString('da-DK') : '—';
-                  const oNo = String(o.id || '').slice(0, 8).toUpperCase();
+                  const oNo = o.order_number || ('GLS-' + String(o.id || '').slice(0, 8).toUpperCase());
                   const oItems: any[] = Array.isArray(o.items) ? o.items : [];
                   const statusLabel = o.order_status === 'in_progress' ? 'I arbejde' : o.order_status === 'awaiting_transport' ? 'Afventer transport' : o.order_status === 'in_transit' ? 'I transit' : 'Modtaget';
                   return [
@@ -1258,7 +1265,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                   {[
                     { label: 'Telefon', value: c.phone || '—', icon: <Phone size={11} /> },
                     { label: 'Land', value: c.country || '—', icon: <MapPin size={11} /> },
-                    { label: 'By', value: c.city || '—', icon: <MapPin size={11} /> },
+                    { label: 'By', value: [c.postal_code, c.city].filter(Boolean).join(' ') || '—', icon: <MapPin size={11} /> },
                     { label: 'Postnummer', value: c.postal_code || '—', icon: null },
                   ].map(f => (
                     <div key={f.label} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
@@ -1268,14 +1275,43 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                   ))}
                 </div>
 
+                {/* VAT for business */}
+                {c.client_type === 'business' && (c.company_name || c.vat_number) && (
+                  <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex items-start gap-3">
+                    <Building2 size={14} className="text-blue-500 mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                      <div className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1">Virksomhedsoplysninger</div>
+                      <div className="flex flex-wrap gap-4">
+                        {c.company_name && <div><span className="text-[8px] text-blue-400 font-bold uppercase">Navn: </span><span className="text-[11px] font-black text-slate-900">{c.company_name}</span></div>}
+                        {c.vat_number && <div><span className="text-[8px] text-blue-400 font-bold uppercase">VAT/CVR: </span><span className="text-[11px] font-black text-slate-900">{c.vat_number}</span></div>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {(billingAddr || billingCity) && (
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-start gap-3">
                     <MapPin size={14} className="text-emerald-500 mt-0.5 shrink-0" />
-                    <div>
+                    <div className="flex-1">
                       <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Faktureringsadresse</div>
                       <div className="text-[11px] font-bold text-slate-700">{billingAddr}</div>
                       <div className="text-[10px] text-slate-400">{billingCity}</div>
                     </div>
+                    {/* Delivery address — only show if different */}
+                    {!c.delivery_same_as_billing && (c.delivery_street || c.delivery_city) && (
+                      <div className="flex-1 pl-4 border-l border-slate-200">
+                        <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1"><Truck size={9} /> Leveringsadresse</div>
+                        <div className="text-[11px] font-bold text-slate-700">{[c.delivery_street, c.delivery_house_number].filter(Boolean).join(' ') || '—'}</div>
+                        <div className="text-[10px] text-slate-400">{[c.delivery_postal_code, c.delivery_city, c.delivery_country].filter(Boolean).join(', ')}</div>
+                        {c.delivery_phone && <div className="text-[9px] text-slate-400 mt-0.5"><Phone size={9} className="inline mr-1" />{c.delivery_phone}</div>}
+                      </div>
+                    )}
+                    {c.delivery_same_as_billing && (
+                      <div className="flex-1 pl-4 border-l border-slate-200">
+                        <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1"><Truck size={9} /> Levering</div>
+                        <div className="text-[9px] text-slate-400 italic">Samme som fakturering</div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1312,7 +1348,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                   <div className="space-y-3">
                     {clientHistory.map((o: any) => {
                       const oDate = o.created_at ? new Date(o.created_at).toLocaleDateString('da-DK') : '—';
-                      const oNo = String(o.id || '').slice(0, 8).toUpperCase();
+                      const oNo = o.order_number || ('GLS-' + String(o.id || '').slice(0, 8).toUpperCase());
                       const oItems: any[] = Array.isArray(o.items) ? o.items : [];
                       const statusLabel = o.order_status === 'in_progress' ? 'I arbejde' : o.order_status === 'awaiting_transport' ? 'Afventer transport' : o.order_status === 'in_transit' ? 'I transit' : 'Modtaget';
                       const statusColor = o.order_status === 'in_transit' ? 'text-emerald-600 bg-emerald-50' : o.order_status === 'awaiting_transport' ? 'text-purple-600 bg-purple-50' : o.order_status === 'in_progress' ? 'text-amber-600 bg-amber-50' : 'text-blue-600 bg-blue-50';
