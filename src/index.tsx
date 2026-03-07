@@ -1,27 +1,31 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { ErrorBoundary } from './App';
 import './index.css';
 
 const setupApp = () => {
   const container = document.getElementById('root');
-  
-  if (container) {
-    // Clean the container from any platform injections
-    // before initializing React.
-    while (container.firstChild) {
-      container.removeChild(container.firstChild);
-    }
-    
-    const root = createRoot(container);
-    root.render(<App />);
-  } else {
-    // If container is not available yet, wait
+  if (!container) {
     setTimeout(setupApp, 20);
+    return;
   }
+
+  // Create a fresh isolated div — prevents browser extensions (Edge Copilot etc.)
+  // from injecting text nodes that trigger React hydration error #418
+  const freshMount = document.createElement('div');
+  freshMount.style.display = 'contents';
+  container.innerHTML = '';
+  container.appendChild(freshMount);
+
+  const root = createRoot(freshMount);
+  root.render(
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
 };
 
-// Prevent hydration issues caused by third-party scripts
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', setupApp);
 } else {

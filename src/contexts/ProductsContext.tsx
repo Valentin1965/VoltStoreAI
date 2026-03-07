@@ -192,12 +192,10 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const fetchProducts = useCallback(async () => {
     if (!isSupabaseConfigured) {
-      console.warn('[DB] Supabase not configured — check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env');
       setIsLoading(false);
       setDbProducts(MOCK_PRODUCTS as any);
       return;
     }
-    console.log('[DB] Supabase configured, fetching products...');
     setIsLoading(true);
     try {
       // Fetch from all specialized tables in parallel with individual error handling
@@ -232,15 +230,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         fetchTable('products'),   // ← re-enabled: main product table
       ]);
 
-      // Debug: log counts from each table
-      console.log('[Products] Loaded from Supabase:',{
-        batteries: bats?.length ?? 0,
-        inverters: invs?.length ?? 0,
-        solar_panels: panels?.length ?? 0,
-        ev_chargers: chargers?.length ?? 0,
-        heat_pumps: pumps?.length ?? 0,
-        products: prods?.length ?? 0,
-      });
+
 
       const mapProduct = (p: any, category: Category): Product => {
         const name = p.name || (p.BrandProd && p.ModelName ? `${p.BrandProd} ${p.ModelName}` : p.ModelName || p.BrandProd || 'Unnamed Asset');
@@ -270,8 +260,6 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ...(pumps  || []).map(p => mapProduct(p, 'Varmepumper')),
         ...(prods  || []).map(p => mapProduct(p, (p.category as Category) || 'Power Station')),
       ];
-
-      console.log('[Products] Total unified:', allUnified.length);
 
       setDbProducts(allUnified);
     } catch (err: any) {

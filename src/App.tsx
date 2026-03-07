@@ -23,6 +23,7 @@ import { LanguageProvider } from './contexts/LanguageContext';
 import { UserProvider } from './contexts/UserContext';
 import { AppView } from './types';
 
+
 const GA_MEASUREMENT_ID = "G-YDHWKZZ7HT";
 try {
   if (GA_MEASUREMENT_ID && !GA_MEASUREMENT_ID.includes('YOUR_ID')) {
@@ -32,7 +33,7 @@ try {
   console.warn('[GA] Initialization skipped or failed');
 }
 
-class ErrorBoundary extends React.Component<{children?: React.ReactNode}, {hasError: boolean}> {
+export class ErrorBoundary extends React.Component<{children?: React.ReactNode}, {hasError: boolean}> {
   constructor(props: {children?: React.ReactNode}) {
     super(props);
     this.state = { hasError: false };

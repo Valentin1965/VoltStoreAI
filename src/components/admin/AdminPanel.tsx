@@ -1509,7 +1509,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Heat Cap (kW)</label>
                                   <div className="flex flex-wrap gap-2">
                                     {compAvailableHeatCapKw.map(h => (
-                                      <Marker key={h} label={String(h)} active={compHeatCapKwFilter === String(h)} onClick={() => setHeatCapKwFilter(compHeatCapKwFilter === String(h) ? '' : String(h))} color="slate" />
+                                      <Marker key={h} label={String(h)} active={compHeatCapKwFilter === String(h)} onClick={() => setCompHeatCapKwFilter(compHeatCapKwFilter === String(h) ? '' : String(h))} color="slate" />
                                     ))}
                                   </div>
                                 </div>
