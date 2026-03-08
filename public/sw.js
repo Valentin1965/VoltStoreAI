@@ -61,3 +61,42 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// ── Push Notifications ──────────────────────────────────────────────────────
+
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  let payload;
+  try { payload = event.data.json(); }
+  catch { payload = { title: 'Green Light Scandinavia', body: event.data.text() }; }
+
+  const { title = 'Green Light Scandinavia', body = '', icon, tag, url } = payload;
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon:   icon  || '/logo192.png',
+      badge:  '/logo192.png',
+      tag:    tag   || 'gls-notification',
+      data:   { url: url || '/' },
+      vibrate: [200, 100, 200],
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.postMessage({ type: 'NAVIGATE', url: targetUrl });
+          return client.focus();
+        }
+      }
+      return clients.openWindow(targetUrl);
+    })
+  );
+});

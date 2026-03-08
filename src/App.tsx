@@ -22,6 +22,8 @@ import { CompareProvider } from './contexts/CompareContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { UserProvider } from './contexts/UserContext';
 import { AppView } from './types';
+import { useUser } from './contexts/UserContext';
+import { useCart } from './contexts/CartContext';
 
 
 const GA_MEASUREMENT_ID = "G-YDHWKZZ7HT";
@@ -54,6 +56,17 @@ export class ErrorBoundary extends React.Component<{children?: React.ReactNode},
 const AppContent: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.ABOUT);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
+  const { currentUser } = useUser();
+  const { applyDiscount, setCartUser } = useCart();
+
+  // ── Cart bridge: migrate cart + apply discount when login/logout ─────────
+  useEffect(() => {
+    setCartUser(currentUser?.id ?? null);
+  }, [currentUser?.id, setCartUser]);
+
+  useEffect(() => {
+    applyDiscount(currentUser?.discount ?? 0);
+  }, [currentUser?.discount, applyDiscount]);
 
   useEffect(() => {
     const stored = safeStorage.getItem('voltstore_admin_auth_v5');

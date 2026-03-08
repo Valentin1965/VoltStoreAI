@@ -49,14 +49,18 @@ RETURNS TRIGGER AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS clients_updated_at ON clients;
 CREATE TRIGGER clients_updated_at
   BEFORE UPDATE ON public.clients
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- RLS
 ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "clients_insert" ON public.clients;
 CREATE POLICY "clients_insert" ON public.clients FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "clients_select" ON public.clients;
 CREATE POLICY "clients_select" ON public.clients FOR SELECT USING (true);
+DROP POLICY IF EXISTS "clients_update" ON public.clients;
 CREATE POLICY "clients_update" ON public.clients FOR UPDATE USING (true);
 
 
@@ -119,6 +123,7 @@ DROP POLICY IF EXISTS "clients_select" ON clients;
 
 -- New policy: clients can only read their own row (by matching email in JWT claims)
 -- Anon users cannot list all clients
+DROP POLICY IF EXISTS "clients_select_own" ON clients;
 CREATE POLICY "clients_select_own" ON clients
   FOR SELECT
   USING (
@@ -149,6 +154,7 @@ CREATE POLICY "clients_update" ON clients
 -- The browser admin panel uses anon key — for admin SELECT to work, create a special
 -- admin_read policy that checks for a custom claim or use the service key in edge functions.
 -- TEMPORARY WORKAROUND: allow anon reads only for admin panel (remove when auth is added):
+DROP POLICY IF EXISTS "clients_select_admin_anon" ON clients;
 CREATE POLICY "clients_select_admin_anon" ON clients
   FOR SELECT
   USING (true);
@@ -174,3 +180,204 @@ UPDATE orders
 
 CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number);
 
+
+-- ════════════════════════════════════════════════
+-- MIGRATION 4: Add discount column to clients
+-- Run in Supabase → SQL Editor
+-- ════════════════════════════════════════════════
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS discount integer DEFAULT 0 CHECK (discount >= 0 AND discount <= 100);
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- MIGRATION 5: Secure admin access via RPC + fix open clients SELECT policy
+-- ════════════════════════════════════════════════════════════════════════════
+--
+-- ПРОБЛЕМА: policy "clients_select_admin_anon" дозволяла будь-якому користувачу
+-- з anon ключем читати всіх клієнтів (email, адреса, телефон, компанія).
+--
+-- РІШЕННЯ: RPC-функції з перевіркою admin_key + таблиця app_config.
+-- Адмін-панель тепер читає клієнтів через admin_get_clients(p_key) замість
+-- прямого SELECT.
+--
+-- КРОКИ ПІСЛЯ ЗАПУСКУ МІГРАЦІЇ:
+-- 1. Supabase → SQL Editor → виконай цей файл
+-- 2. Supabase → SQL Editor → встанови admin_key:
+--      INSERT INTO app_config (key, value) 
+--      VALUES ('admin_key', 'ВАШ_VITE_ADMIN_PASSWORD')
+--      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+-- 3. Vercel → Redeploy (без змін коду — достатньо)
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- ── 1. Таблиця для безпечних серверних налаштувань ───────────────────────────
+CREATE TABLE IF NOT EXISTS app_config (
+  key        text PRIMARY KEY,
+  value      text NOT NULL,
+  updated_at timestamptz DEFAULT now()
+);
+
+-- RLS: ніхто через anon/auth не може читати або писати напряму
+ALTER TABLE app_config ENABLE ROW LEVEL SECURITY;
+-- Нуль відкритих policies = повна заборона для anon/auth
+
+-- ── 2. Видалити відкриту SELECT policy (тимчасовий workaround) ───────────────
+DROP POLICY IF EXISTS "clients_select_admin_anon" ON clients;
+
+-- Залишаємо:
+--   "clients_insert"    → відкрита INSERT (гостьовий checkout)
+--   "clients_select_own"→ Supabase Auth users читають власний рядок
+--   "clients_update"    → власний рядок або service_role
+
+-- ── 3. RPC: читання всіх клієнтів (для адмін-панелі) ───────────────────────
+CREATE OR REPLACE FUNCTION admin_get_clients(p_key text)
+RETURNS SETOF clients
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM app_config WHERE key = 'admin_key' AND value = p_key
+  ) THEN
+    RAISE EXCEPTION 'admin_get_clients: Unauthorized — invalid admin key';
+  END IF;
+  RETURN QUERY SELECT * FROM clients ORDER BY created_at DESC;
+END;
+$$;
+
+-- ── 4. RPC: оновлення знижки клієнта (для адмін-панелі) ─────────────────────
+CREATE OR REPLACE FUNCTION admin_update_discount(p_key text, p_client_id uuid, p_discount integer)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM app_config WHERE key = 'admin_key' AND value = p_key
+  ) THEN
+    RAISE EXCEPTION 'admin_update_discount: Unauthorized — invalid admin key';
+  END IF;
+  UPDATE clients
+  SET discount = LEAST(100, GREATEST(0, p_discount))
+  WHERE id = p_client_id;
+END;
+$$;
+
+-- ── 5. RPC: оновлення статусу бронювання (для адмін-панелі) ─────────────────
+CREATE OR REPLACE FUNCTION admin_update_booking(p_key text, p_booking_id uuid, p_status text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM app_config WHERE key = 'admin_key' AND value = p_key
+  ) THEN
+    RAISE EXCEPTION 'admin_update_booking: Unauthorized — invalid admin key';
+  END IF;
+  IF p_status NOT IN ('pending','confirmed','expired','cancelled','converted') THEN
+    RAISE EXCEPTION 'admin_update_booking: Invalid status value: %', p_status;
+  END IF;
+  UPDATE bookings SET status = p_status WHERE id = p_booking_id;
+END;
+$$;
+
+-- ── 6. Права виконання: тільки anon + authenticated ─────────────────────────
+GRANT EXECUTE ON FUNCTION admin_get_clients(text)               TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION admin_update_discount(text, uuid, integer) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION admin_update_booking(text, uuid, text) TO anon, authenticated;
+
+-- ── 7. Після запуску обов'язково встанови ключ: ──────────────────────────────
+-- INSERT INTO app_config (key, value)
+-- VALUES ('admin_key', 'ТУТ_ВПИШИ_VITE_ADMIN_PASSWORD')
+-- ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- MIGRATION 6: Exchange rates sync via Supabase (замість localStorage-only)
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- ── Seed initial exchange rates in app_config ───────────────────────────────
+INSERT INTO app_config (key, value)
+VALUES ('exchange_rates', '{"EUR":1.0,"DKK":7.46,"NOK":11.38,"SEK":11.45,"USD":1.09}')
+ON CONFLICT (key) DO NOTHING;
+
+-- ── RPC: будь-хто може читати курси (публічні дані) ─────────────────────────
+CREATE OR REPLACE FUNCTION get_exchange_rates()
+RETURNS jsonb
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT value::jsonb FROM app_config WHERE key = 'exchange_rates';
+$$;
+
+GRANT EXECUTE ON FUNCTION get_exchange_rates() TO anon, authenticated;
+
+-- ── RPC: тільки адмін може оновлювати курси ──────────────────────────────────
+CREATE OR REPLACE FUNCTION admin_update_rates(p_key text, p_rates jsonb)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM app_config WHERE key = 'admin_key' AND value = p_key) THEN
+    RAISE EXCEPTION 'admin_update_rates: Unauthorized';
+  END IF;
+  INSERT INTO app_config (key, value)
+  VALUES ('exchange_rates', p_rates::text)
+  ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION admin_update_rates(text, jsonb) TO anon, authenticated;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- MIGRATION 7: PWA Push Notifications
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id   uuid REFERENCES clients(id) ON DELETE CASCADE,
+  endpoint    text NOT NULL UNIQUE,
+  p256dh      text NOT NULL,
+  auth        text NOT NULL,
+  user_agent  text,
+  created_at  timestamptz DEFAULT now(),
+  updated_at  timestamptz DEFAULT now()
+);
+
+ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+-- Будь-хто може вставити свою підписку (реєстрація push)
+CREATE POLICY "push_insert" ON push_subscriptions FOR INSERT WITH CHECK (true);
+-- Видалення — тільки власної (через endpoint)
+CREATE POLICY "push_delete" ON push_subscriptions FOR DELETE USING (true);
+
+-- RPC: зберегти push підписку
+CREATE OR REPLACE FUNCTION save_push_subscription(
+  p_client_id uuid,
+  p_endpoint  text,
+  p_p256dh    text,
+  p_auth      text,
+  p_ua        text DEFAULT NULL
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  INSERT INTO push_subscriptions (client_id, endpoint, p256dh, auth, user_agent)
+  VALUES (p_client_id, p_endpoint, p_p256dh, p_auth, p_ua)
+  ON CONFLICT (endpoint) DO UPDATE
+    SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, updated_at = now();
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION save_push_subscription(uuid, text, text, text, text) TO anon, authenticated;
+
+-- ── VAPID ключі — встанови після генерації: ──────────────────────────────
+-- supabase secrets set VAPID_PRIVATE_KEY=your_private_key
+-- supabase secrets set VAPID_PUBLIC_KEY=your_public_key
+-- 
+-- Генерація (Node.js): npx web-push generate-vapid-keys

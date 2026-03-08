@@ -55,6 +55,8 @@ export interface OrderEmailData {
   totalPrice: number;
   currency: string;
   customerMessage?: string;
+  /** UI language at time of order — da | en | no | se (default: da) */
+  lang?: string;
 }
 
 export async function sendOrderEmails(data: OrderEmailData): Promise<void> {
@@ -74,6 +76,8 @@ export interface StatusChangeEmailData {
   newStatus: OrderStatus;
   shippingDate?: string;
   arrivalDate?: string;
+  /** UI language the customer used — da | en | no | se (default: da) */
+  lang?: string;
 }
 
 export async function sendStatusChangeEmail(data: StatusChangeEmailData): Promise<void> {

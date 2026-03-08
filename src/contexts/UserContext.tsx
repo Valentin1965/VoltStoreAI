@@ -1,103 +1,170 @@
+/**
+ * UserContext — Supabase-backed client session
+ *
+ * Replaces the old localStorage-only user system.
+ * All client data lives in the `clients` table in Supabase.
+ *
+ * Session persistence: only {id, email} stored in localStorage
+ * → full profile re-fetched from Supabase on mount.
+ */
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { UserProfile } from '../types';
+import { supabase } from '../services/supabase';
 import { safeStorage } from '../utils/storage';
 
+const SESSION_KEY = 'gls_client_session_v1';
+
+interface RegisterData {
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone?: string;
+  client_type?: 'private' | 'business';
+  company_name?: string;
+  vat_number?: string;
+  country?: string;
+  city?: string;
+  street?: string;
+  house_number?: string;
+  postal_code?: string;
+}
+
 interface UserContextType {
-  users: UserProfile[];
   currentUser: UserProfile | null;
-  registerUser: (userData: Omit<UserProfile, 'id' | 'cards'>) => UserProfile;
-  findUser: (emailQuery: string) => UserProfile | undefined;
-  login: (user: UserProfile) => void;
+  isLoadingUser: boolean;
+  loginByEmail: (email: string) => Promise<'found' | 'not_found'>;
+  registerClient: (data: RegisterData) => Promise<UserProfile>;
   logout: () => void;
-  updateUserDiscount: (userId: string, discount: number) => void;
+  updateUserDiscount: (userId: string, discount: number) => Promise<void>;
   getDiscountedPrice: (basePrice: number) => number;
+  findClientByEmail: (email: string) => Promise<UserProfile | null>;
+  // Legacy compat — kept so components that call useUser() don't break
+  findUser: (email: string) => UserProfile | undefined;
+  users: UserProfile[];
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-const INITIAL_USERS: UserProfile[] = [
-  {
-    id: 'usr_1',
-    name: 'Anders Jensen',
-    email: 'anders@greenlight.dk',
-    phone: '+45 31 18 58 19',
-    address: 'Øster Teglgårdsvej 6, 8800 Viborg, Danmark',
-    city: 'Viborg',
-    cards: [
-      { id: 'c1', brand: 'visa', last4: '4242', exp_month: 12, exp_year: 2025 }, 
-      { id: 'c2', brand: 'mastercard', last4: '8899', exp_month: 6, exp_year: 2026 }
-    ],
-    discount: 0
-  }
-];
+/** Convert a raw `clients` DB row → UserProfile */
+function rowToProfile(row: any): UserProfile {
+  return {
+    ...row,
+    name: [row.first_name, row.last_name].filter(Boolean).join(' ') || row.email,
+    address: [row.street, row.house_number, row.city, row.country].filter(Boolean).join(', '),
+  };
+}
 
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const isInitialized = useRef(false);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const initialized = useRef(false);
 
+  // ── Restore session on mount ────────────────────────────────────────────
   useEffect(() => {
-    if (isInitialized.current) return;
-    const savedUsers = safeStorage.getItem('voltstoreai_users_v2');
-    const savedUser = safeStorage.getItem('voltstoreai_current_user_v2');
-    if (savedUsers) {
-      try {
-        setUsers(JSON.parse(savedUsers));
-      } catch (e) {}
+    if (initialized.current) return;
+    initialized.current = true;
+
+    // Clean up legacy localStorage keys from old in-memory user system
+    safeStorage.removeItem('voltstoreai_users_v2');
+    safeStorage.removeItem('voltstoreai_current_user_v2');
+
+    const stored = safeStorage.getItem(SESSION_KEY);
+    if (!stored) { setIsLoadingUser(false); return; }
+
+    try {
+      const { id } = JSON.parse(stored);
+      if (!id) { setIsLoadingUser(false); return; }
+      supabase.from('clients').select('*').eq('id', id).single()
+        .then(({ data, error }) => {
+          if (!error && data) setCurrentUser(rowToProfile(data));
+          else safeStorage.removeItem(SESSION_KEY);
+          setIsLoadingUser(false);
+        });
+    } catch {
+      safeStorage.removeItem(SESSION_KEY);
+      setIsLoadingUser(false);
     }
-    if (savedUser) {
-      try {
-        setCurrentUser(JSON.parse(savedUser));
-      } catch (e) {}
-    }
-    isInitialized.current = true;
   }, []);
 
-  useEffect(() => {
-    if (!isInitialized.current) return;
-    safeStorage.setItem('voltstoreai_users_v2', JSON.stringify(users));
-    safeStorage.setItem('voltstoreai_current_user_v2', JSON.stringify(currentUser));
-  }, [users, currentUser]);
+  // ── Login by email (no password — B2B portal) ──────────────────────────
+  const loginByEmail = useCallback(async (email: string): Promise<'found' | 'not_found'> => {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('email', email.toLowerCase().trim())
+      .single();
+    if (error || !data) return 'not_found';
+    const profile = rowToProfile(data);
+    setCurrentUser(profile);
+    safeStorage.setItem(SESSION_KEY, JSON.stringify({ id: data.id, email: data.email }));
+    return 'found';
+  }, []);
 
-  const registerUser = (userData: Omit<UserProfile, 'id' | 'cards'>) => {
-    const newUser: UserProfile = {
-      ...userData,
-      id: `usr_${Date.now()}`,
-      cards: [{ id: `c_${Date.now()}`, brand: 'visa', last4: '1234', exp_month: 1, exp_year: 2027 }],
-      discount: 0
-    };
-    setUsers(prev => [...prev, newUser]);
-    return newUser;
-  };
+  // ── Register new client ─────────────────────────────────────────────────
+  const registerClient = useCallback(async (data: RegisterData): Promise<UserProfile> => {
+    const { data: row, error } = await supabase
+      .from('clients')
+      .upsert([{ ...data, email: data.email.toLowerCase().trim() }], { onConflict: 'email' })
+      .select('*')
+      .single();
+    if (error) throw error;
+    const profile = rowToProfile(row);
+    setCurrentUser(profile);
+    safeStorage.setItem(SESSION_KEY, JSON.stringify({ id: row.id, email: row.email }));
+    return profile;
+  }, []);
 
-  const findUser = (emailQuery: string) => {
-    const q = emailQuery.toLowerCase().trim();
-    return users.find(u => u.email.toLowerCase() === q);
-  };
+  // ── Logout ──────────────────────────────────────────────────────────────
+  const logout = useCallback(() => {
+    setCurrentUser(null);
+    safeStorage.removeItem(SESSION_KEY);
+  }, []);
 
-  const login = (user: UserProfile) => setCurrentUser(user);
-  const logout = () => setCurrentUser(null);
+  // ── Update discount (admin action) ──────────────────────────────────────
+  const updateUserDiscount = useCallback(async (userId: string, discount: number) => {
+    const clamped = Math.min(100, Math.max(0, discount));
+    await supabase.from('clients').update({ discount: clamped }).eq('id', userId);
+    setCurrentUser(prev =>
+      prev?.id === userId ? { ...prev, discount: clamped } : prev
+    );
+  }, []);
 
-  const updateUserDiscount = (userId: string, discount: number) => {
-    const updatedUsers = users.map(u => u.id === userId ? { ...u, discount: Math.min(100, Math.max(0, discount)) } : u);
-    setUsers(updatedUsers);
-    if (currentUser?.id === userId) {
-      setCurrentUser(prev => prev ? { ...prev, discount: Math.min(100, Math.max(0, discount)) } : null);
-    }
-  };
-
+  // ── Price with discount ─────────────────────────────────────────────────
   const getDiscountedPrice = useCallback((basePrice: number) => {
-    if (!currentUser || !currentUser.discount || currentUser.discount <= 0) {
-      return basePrice;
-    }
-    const discountAmount = (basePrice * currentUser.discount) / 100;
-    return basePrice - discountAmount;
+    if (!currentUser?.discount || currentUser.discount <= 0) return basePrice;
+    return basePrice - (basePrice * currentUser.discount) / 100;
+  }, [currentUser]);
+
+  // ── Async find by email ─────────────────────────────────────────────────
+  const findClientByEmail = useCallback(async (email: string): Promise<UserProfile | null> => {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('email', email.toLowerCase().trim())
+      .single();
+    if (error || !data) return null;
+    return rowToProfile(data);
+  }, []);
+
+  // ── Legacy sync compat (returns currentUser if email matches) ───────────
+  const findUser = useCallback((email: string): UserProfile | undefined => {
+    const q = email.toLowerCase().trim();
+    if (currentUser?.email?.toLowerCase() === q) return currentUser;
+    return undefined;
   }, [currentUser]);
 
   return (
-    <UserContext.Provider value={{ 
-      users, currentUser, registerUser, findUser, login, logout, 
-      updateUserDiscount, getDiscountedPrice 
+    <UserContext.Provider value={{
+      currentUser,
+      isLoadingUser,
+      loginByEmail,
+      registerClient,
+      logout,
+      updateUserDiscount,
+      getDiscountedPrice,
+      findClientByEmail,
+      findUser,
+      users: [], // legacy compat — AdminPanel now uses dbClients directly
     }}>
       {children}
     </UserContext.Provider>
@@ -105,7 +172,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 };
 
 export const useUser = () => {
-  const context = useContext(UserContext);
-  if (!context) throw new Error('useUser must be used within UserProvider');
-  return context;
+  const ctx = useContext(UserContext);
+  if (!ctx) throw new Error('useUser must be used within UserProvider');
+  return ctx;
 };

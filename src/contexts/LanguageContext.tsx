@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo, useEf
 import { translations, TranslationKey } from '../utils/translations';
 import { LocalizedText } from '../types';
 import { safeStorage } from '../utils/storage';
+import { supabase } from '../services/supabase';
 
 export type Language = 'en' | 'da' | 'no' | 'se';
 export type CurrencyCode = 'EUR' | 'DKK' | 'NOK' | 'SEK' | 'USD';
@@ -47,6 +48,18 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [rates, setRates] = useState<ExchangeRates>(STABLE_RATES);
   const isInitialized = useRef(false);
 
+  // ── Fetch rates from Supabase (authoritative source) ─────────────────────
+  // Declared before the init useEffect that calls it
+  const fetchRatesFromDB = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.rpc('get_exchange_rates');
+      if (error || !data) return;
+      const dbRates: ExchangeRates = { ...STABLE_RATES, ...data, EUR: 1.0, timestamp: Date.now() };
+      setRates(dbRates);
+      safeStorage.setItem('voltstoreai_rates_v4', JSON.stringify(dbRates));
+    } catch { /* offline — keep current rates */ }
+  }, []);
+
   useEffect(() => {
     if (isInitialized.current) return;
     
@@ -57,8 +70,13 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (savedLang) setLanguageState(savedLang as Language);
     if (savedCurr) setCurrencyState(savedCurr as CurrencyCode);
     if (savedRates) setRates(JSON.parse(savedRates));
-    
+
     isInitialized.current = true;
+
+    // Fetch authoritative rates from Supabase (overrides localStorage if newer)
+    // Small delay so UI renders first with cached rates
+    setTimeout(() => fetchRatesFromDB(), 800);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -82,12 +100,22 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [setCurrency]);
 
-  const updateRates = useCallback((newRates: Partial<ExchangeRates>) => {
-    setRates(prev => {
-      const updated = { ...prev, ...newRates, EUR: 1.0, timestamp: Date.now() };
-      safeStorage.setItem('voltstoreai_rates_v4', JSON.stringify(updated));
-      return updated;
-    });
+  const updateRates = useCallback(async (newRates: Partial<ExchangeRates>) => {
+    const adminKey = import.meta.env.VITE_ADMIN_PASSWORD;
+    const updated: ExchangeRates = { ...STABLE_RATES, ...newRates, EUR: 1.0, timestamp: Date.now() };
+
+    // 1. Optimistic local update
+    setRates(updated);
+    safeStorage.setItem('voltstoreai_rates_v4', JSON.stringify(updated));
+
+    // 2. Persist to Supabase so all devices see the new rates
+    try {
+      const { error } = await supabase.rpc('admin_update_rates', {
+        p_key: adminKey,
+        p_rates: { EUR: updated.EUR, DKK: updated.DKK, NOK: updated.NOK, SEK: updated.SEK, USD: updated.USD },
+      });
+      if (error) console.error('[Rates] Supabase sync failed:', error.message);
+    } catch (e) { console.error('[Rates] Network error:', e); }
   }, []);
 
   const t = useCallback((key: TranslationKey | string): string => {

@@ -181,11 +181,34 @@ export interface UserCard {
 export interface UserProfile {
   id: string;
   email: string;
+  // display helpers (computed from first_name + last_name)
   name?: string;
+  // clients table fields
+  first_name?: string;
+  last_name?: string;
   phone?: string;
+  client_type?: 'private' | 'business';
+  company_name?: string;
+  vat_number?: string;
+  // billing address
   city?: string;
+  country?: string;
+  street?: string;
+  house_number?: string;
+  apartment?: string;
+  postal_code?: string;
+  // delivery address
+  delivery_same_as_billing?: boolean;
+  delivery_country?: string;
+  delivery_city?: string;
+  delivery_street?: string;
+  delivery_house_number?: string;
+  delivery_apartment?: string;
+  delivery_postal_code?: string;
+  delivery_phone?: string;
+  // legacy compat
   address?: string;
   cards?: UserCard[];
   created_at?: string;
-  discount?: number; // Discount in percentage (0-100)
+  discount?: number;
 }

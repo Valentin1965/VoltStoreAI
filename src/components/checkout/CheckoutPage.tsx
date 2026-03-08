@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useCart } from '../../contexts/CartContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -7,7 +7,8 @@ import { AppView } from '../../types';
 import {
   ChevronLeft, Truck, CreditCard, MapPin, Loader2,
   ArrowRight, ShieldCheck, UserCircle, Building2,
-  Mail, MessageSquare, Package, ChevronDown, ChevronUp, User
+  Mail, MessageSquare, Package, ChevronDown, ChevronUp, User,
+  AlertCircle
 } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { sendOrderEmails } from '../../services/emailService';
@@ -27,6 +28,8 @@ interface FormData {
   delivery_house_number: string; delivery_apartment: string; delivery_postal_code: string; delivery_phone: string;
 }
 
+type FormErrors = Partial<Record<keyof FormData, string>>;
+
 const emptyForm: FormData = {
   first_name: '', last_name: '', email: '', phone: '',
   company_name: '', vat_number: '',
@@ -36,11 +39,55 @@ const emptyForm: FormData = {
   delivery_house_number: '', delivery_apartment: '', delivery_postal_code: '', delivery_phone: '',
 };
 
+// ── Validation helpers ─────────────────────────────────────────────────────
+const RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const RE_PHONE = /^[+]?[\d\s\-().]{6,20}$/;
+const RE_POSTAL = /^[\dA-Z\-\s]{2,10}$/i;
+const RE_VAT   = /^[A-Z]{0,4}[\d\s\-]{4,20}$/i;
+
+function validate(data: FormData, payerType: 'private' | 'business'): FormErrors {
+  const err: FormErrors = {};
+
+  if (!data.first_name.trim()) err.first_name = 'Fornavn er påkrævet';
+  if (!data.email.trim())      err.email = 'Email er påkrævet';
+  else if (!RE_EMAIL.test(data.email.trim())) err.email = 'Ugyldig email-adresse';
+
+  if (data.phone.trim() && !RE_PHONE.test(data.phone.trim()))
+    err.phone = 'Ugyldigt telefonnummer (f.eks. +45 12 34 56 78)';
+
+  if (payerType === 'business') {
+    if (!data.company_name.trim()) err.company_name = 'Virksomhedsnavn er påkrævet';
+    if (data.vat_number.trim() && !RE_VAT.test(data.vat_number.trim()))
+      err.vat_number = 'Ugyldigt CVR/VAT nummer';
+  }
+
+  // Billing address
+  if (!data.city.trim())         err.city = 'By er påkrævet';
+  if (!data.street.trim())       err.street = 'Gade er påkrævet';
+  if (!data.house_number.trim()) err.house_number = 'Husnummer er påkrævet';
+  if (!data.postal_code.trim())  err.postal_code = 'Postnummer er påkrævet';
+  else if (!RE_POSTAL.test(data.postal_code.trim())) err.postal_code = 'Ugyldigt postnummer';
+
+  // Delivery address (only if different from billing)
+  if (!data.delivery_same) {
+    if (!data.delivery_city.trim())         err.delivery_city = 'By er påkrævet';
+    if (!data.delivery_street.trim())       err.delivery_street = 'Gade er påkrævet';
+    if (!data.delivery_house_number.trim()) err.delivery_house_number = 'Husnummer er påkrævet';
+    if (!data.delivery_postal_code.trim())  err.delivery_postal_code = 'Postnummer er påkrævet';
+    else if (!RE_POSTAL.test(data.delivery_postal_code.trim()))
+      err.delivery_postal_code = 'Ugyldigt postnummer';
+    if (data.delivery_phone.trim() && !RE_PHONE.test(data.delivery_phone.trim()))
+      err.delivery_phone = 'Ugyldigt telefonnummer';
+  }
+
+  return err;
+}
+
 export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrderSuccess }) => {
   const { items, totalPrice, clearCart, isVatEnabled } = useCart();
   const { addNotification } = useNotification();
   const { formatPrice, t, language, currencyCode } = useLanguage();
-  const { findUser, currentUser } = useUser();
+  const { findClientByEmail, currentUser } = useUser();
 
   const [step, setStep] = useState(currentUser ? 0 : 1);
   const [clientMessage, setClientMessage] = useState('');
@@ -50,29 +97,76 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
   const [profileEmail, setProfileEmail] = useState('');
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [formData, setFormData] = useState<FormData>(emptyForm);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [touched, setTouched] = useState<Partial<Record<keyof FormData, boolean>>>({});
 
-  const set = (field: keyof FormData, value: any) => setFormData(prev => ({ ...prev, [field]: value }));
-
-  const fillFromProfile = (profile: any) => {
-    const parts = (profile.name || '').split(' ');
-    setFormData({ ...emptyForm, first_name: parts[0] || '', last_name: parts.slice(1).join(' ') || '',
-      email: profile.email || '', phone: profile.phone || '', city: profile.city || '', street: profile.address || '' });
-    setProfileLoaded(true);
+  const set = (field: keyof FormData, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error on change
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: undefined }));
   };
 
-  const handleLoadProfile = () => {
+  // Validate single field on blur
+  const handleBlur = useCallback((field: keyof FormData) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    const fieldErrors = validate(formData, payerType);
+    if (fieldErrors[field]) {
+      setErrors(prev => ({ ...prev, [field]: fieldErrors[field] }));
+    }
+  }, [formData, payerType]);
+
+  const fillFromProfile = (profile: any) => {
+    setFormData({ ...emptyForm,
+      first_name: profile.first_name || profile.name?.split(' ')[0] || '',
+      last_name:  profile.last_name  || profile.name?.split(' ').slice(1).join(' ') || '',
+      email:   profile.email   || '',
+      phone:   profile.phone   || '',
+      city:    profile.city    || '',
+      country: profile.country || 'Danmark',
+      street:  profile.street  || profile.address || '',
+      house_number: profile.house_number || '',
+      postal_code:  profile.postal_code  || '',
+      company_name: profile.company_name || '',
+      vat_number:   profile.vat_number   || '',
+    });
+    if (profile.client_type) setPayerType(profile.client_type);
+    setProfileLoaded(true);
+    setErrors({});
+    setTouched({});
+  };
+
+  const handleLoadProfile = async () => {
     if (!profileEmail.includes('@')) return;
-    const profile = findUser(profileEmail);
-    if (profile) { fillFromProfile(profile); addNotification(`Velkommen tilbage, ${profile.name}`, 'success'); }
-    else { setFormData(prev => ({ ...prev, email: profileEmail })); addNotification('Ingen profil fundet', 'info'); }
+    const profile = await findClientByEmail(profileEmail);
+    if (profile) {
+      fillFromProfile(profile);
+      addNotification(`Velkommen tilbage, ${profile.name}`, 'success');
+    } else {
+      setFormData(prev => ({ ...prev, email: profileEmail }));
+      addNotification('Ingen profil fundet', 'info');
+    }
     setShowProfileLoad(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.first_name || !formData.email || !formData.city) {
-      addNotification('Udfyld venligst alle obligatoriske felter', 'error'); return;
+
+    // Full validation on submit
+    const fieldErrors = validate(formData, payerType);
+    if (Object.keys(fieldErrors).length > 0) {
+      setErrors(fieldErrors);
+      // Mark all error fields as touched so they show red
+      const allTouched = Object.keys(fieldErrors).reduce(
+        (acc, k) => ({ ...acc, [k]: true }), {}
+      );
+      setTouched(prev => ({ ...prev, ...allTouched }));
+      addNotification('Ret venligst fejlene i formularen', 'error');
+      // Scroll to first error
+      const firstErrField = document.querySelector('[data-error="true"]');
+      firstErrField?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
     }
+
     setIsProcessing(true);
     const finalPrice = isVatEnabled ? totalPrice * 1.25 : totalPrice;
     const fullName = `${formData.first_name} ${formData.last_name}`.trim();
@@ -122,11 +216,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
         delivery_phone: formData.delivery_same ? formData.phone || null : formData.delivery_phone || null,
         ...(clientMessage ? { customer_message: clientMessage } : {}),
         ...(payerType === 'business' && formData.vat_number ? { metadata: { vat: formData.vat_number, company: formData.company_name } } : {}),
+        lang: language || 'da',
       }]).select('id, order_number').single();
 
       if (dbError) { console.error('[Order]', dbError.code, dbError.message); addNotification(`DB: ${dbError.message}`, 'error'); return; }
 
-      // Use the stable order_number generated by DB (format: GLS-XXXXXXXX)
       const orderNo = orderRow?.order_number || ('GLS-' + String(orderRow?.id || '').slice(0, 8).toUpperCase());
       const addr = [formData.street, formData.house_number].filter(Boolean).join(' ');
       const city = [formData.postal_code, formData.city, formData.country].filter(Boolean).join(', ');
@@ -142,14 +236,33 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
         companyName: formData.company_name || undefined,
         vatNumber: formData.vat_number || undefined,
         billingAddress: [addr, city].filter(Boolean).join(', '),
-        deliveryAddress: formData.delivery_same ? 'Samme som fakturering' : [delAddr, delCity].filter(Boolean).join(', '),
+        deliveryAddress: formData.delivery_same ? t('delivery_same_as_billing') || 'Same as billing' : [delAddr, delCity].filter(Boolean).join(', '),
         items: serializedItems,
         totalPrice: finalPrice,
         currency: currencyCode || 'EUR',
         customerMessage: clientMessage || undefined,
+        lang: language || 'da',
       });
 
       addNotification(language === 'da' ? 'Ordre sendt!' : 'Order sent!', 'success');
+
+      // ── Notify admin via push ─────────────────────────────────────────────
+      try {
+        await fetch('https://xvduslroirsujnglcnos.supabase.co/functions/v1/send-push', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2ZHVzbHJvaXJzdWpuZ2xjbm9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg3ODQzMDQsImV4cCI6MjA4NDM2MDMwNH0.MpS-NS6Blgpu4o3QxoSUGhn-cs5HJhWcqMf2XxtnsMY`,
+          },
+          body: JSON.stringify({
+            type:         'new_order',
+            customerName: fullName,
+            total:        finalPrice.toFixed(2),
+            currency:     currencyCode || 'EUR',
+          }),
+        });
+      } catch { /* push not critical */ }
+
       clearCart(); onOrderSuccess();
     } catch (err: any) { addNotification(`Error: ${err.message}`, 'error'); }
     finally { setIsProcessing(false); }
@@ -158,6 +271,30 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
   const finalPrice = isVatEnabled ? totalPrice * 1.25 : totalPrice;
   const inp = 'input-premium';
   const lbl = 'text-[9px] font-black text-slate-400 uppercase tracking-widest px-1';
+
+  // ── Field wrapper helper: shows error text + red border ─────────────────
+  const Field = ({
+    label, field, children, required: req, className = ''
+  }: {
+    label: string; field: keyof FormData; children: React.ReactNode; required?: boolean; className?: string;
+  }) => {
+    const err = touched[field] && errors[field];
+    return (
+      <div className={`space-y-1 ${className}`} data-error={!!err}>
+        <label className={`${lbl} ${req ? 'after:content-["*"] after:text-rose-500 after:ml-0.5' : ''}`}>
+          {label}
+        </label>
+        <div className={`${err ? 'ring-2 ring-rose-400 rounded-2xl' : ''}`}>
+          {children}
+        </div>
+        {err && (
+          <p className="flex items-center gap-1 text-[9px] font-bold text-rose-500 px-1 pt-0.5">
+            <AlertCircle size={9} /> {err}
+          </p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="max-w-3xl mx-auto animate-fade-in pb-12 text-left">
@@ -285,8 +422,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
 
               {payerType === 'business' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div className="space-y-1"><label className={lbl}>Virksomhedsnavn</label><input value={formData.company_name} onChange={e => set('company_name', e.target.value)} className={inp} placeholder="Virksomhed A/S" /></div>
-                  <div className="space-y-1"><label className={lbl}>VAT / CVR nummer</label><input value={formData.vat_number} onChange={e => set('vat_number', e.target.value)} className={inp} placeholder="DK 00000000" /></div>
+                  <Field label="Virksomhedsnavn" field="company_name" required>
+                    <input value={formData.company_name} onChange={e => set('company_name', e.target.value)}
+                      onBlur={() => handleBlur('company_name')} className={inp} placeholder="Virksomhed A/S" />
+                  </Field>
+                  <Field label="VAT / CVR nummer" field="vat_number">
+                    <input value={formData.vat_number} onChange={e => set('vat_number', e.target.value)}
+                      onBlur={() => handleBlur('vat_number')} className={inp} placeholder="DK 00000000" />
+                  </Field>
                 </div>
               )}
 
@@ -294,10 +437,22 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
               <div>
                 <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Kontaktperson</div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1"><label className={lbl}>Fornavn *</label><input required value={formData.first_name} onChange={e => set('first_name', e.target.value)} className={inp} placeholder="Fornavn" /></div>
-                  <div className="space-y-1"><label className={lbl}>Efternavn</label><input value={formData.last_name} onChange={e => set('last_name', e.target.value)} className={inp} placeholder="Efternavn" /></div>
-                  <div className="space-y-1"><label className={lbl}>Email *</label><input required type="email" value={formData.email} onChange={e => set('email', e.target.value)} className={inp} placeholder="din@email.dk" /></div>
-                  <div className="space-y-1"><label className={lbl}>Telefon</label><input value={formData.phone} onChange={e => set('phone', e.target.value)} className={inp} placeholder="+45 00 00 00 00" /></div>
+                  <Field label="Fornavn" field="first_name" required>
+                    <input value={formData.first_name} onChange={e => set('first_name', e.target.value)}
+                      onBlur={() => handleBlur('first_name')} className={inp} placeholder="Fornavn" />
+                  </Field>
+                  <Field label="Efternavn" field="last_name">
+                    <input value={formData.last_name} onChange={e => set('last_name', e.target.value)}
+                      className={inp} placeholder="Efternavn" />
+                  </Field>
+                  <Field label="Email" field="email" required>
+                    <input type="email" value={formData.email} onChange={e => set('email', e.target.value)}
+                      onBlur={() => handleBlur('email')} className={inp} placeholder="din@email.dk" />
+                  </Field>
+                  <Field label="Telefon" field="phone">
+                    <input value={formData.phone} onChange={e => set('phone', e.target.value)}
+                      onBlur={() => handleBlur('phone')} className={inp} placeholder="+45 00 00 00 00" />
+                  </Field>
                 </div>
               </div>
 
@@ -305,12 +460,28 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
               <div>
                 <div className="flex items-center gap-2 mb-3"><MapPin size={14} className="text-emerald-500" /><span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Faktureringsadresse</span></div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="col-span-2 md:col-span-4 space-y-1"><label className={lbl}>Land</label><input value={formData.country} onChange={e => set('country', e.target.value)} className={inp} placeholder="Denmark" /></div>
-                  <div className="col-span-2 space-y-1"><label className={lbl}>By *</label><input required value={formData.city} onChange={e => set('city', e.target.value)} className={inp} placeholder="By" /></div>
-                  <div className="col-span-1 space-y-1"><label className={lbl}>Postnummer</label><input value={formData.postal_code} onChange={e => set('postal_code', e.target.value)} className={inp} placeholder="8800" /></div>
-                  <div className="col-span-1 space-y-1"><label className={lbl}>Lejlighed</label><input value={formData.apartment} onChange={e => set('apartment', e.target.value)} className={inp} placeholder="2. tv" /></div>
-                  <div className="col-span-2 space-y-1"><label className={lbl}>Gade</label><input value={formData.street} onChange={e => set('street', e.target.value)} className={inp} placeholder="Gadenavn" /></div>
-                  <div className="col-span-2 space-y-1"><label className={lbl}>Husnummer</label><input value={formData.house_number} onChange={e => set('house_number', e.target.value)} className={inp} placeholder="16" /></div>
+                  <div className="col-span-2 md:col-span-4 space-y-1"><label className={lbl}>Land</label>
+                    <input value={formData.country} onChange={e => set('country', e.target.value)} className={inp} placeholder="Denmark" />
+                  </div>
+                  <Field label="By" field="city" required className="col-span-2">
+                    <input value={formData.city} onChange={e => set('city', e.target.value)}
+                      onBlur={() => handleBlur('city')} className={inp} placeholder="By" />
+                  </Field>
+                  <Field label="Postnummer" field="postal_code" required className="col-span-1">
+                    <input value={formData.postal_code} onChange={e => set('postal_code', e.target.value)}
+                      onBlur={() => handleBlur('postal_code')} className={inp} placeholder="8800" />
+                  </Field>
+                  <div className="col-span-1 space-y-1"><label className={lbl}>Lejlighed</label>
+                    <input value={formData.apartment} onChange={e => set('apartment', e.target.value)} className={inp} placeholder="2. tv" />
+                  </div>
+                  <Field label="Gade" field="street" required className="col-span-2">
+                    <input value={formData.street} onChange={e => set('street', e.target.value)}
+                      onBlur={() => handleBlur('street')} className={inp} placeholder="Gadenavn" />
+                  </Field>
+                  <Field label="Husnummer" field="house_number" required className="col-span-2">
+                    <input value={formData.house_number} onChange={e => set('house_number', e.target.value)}
+                      onBlur={() => handleBlur('house_number')} className={inp} placeholder="16" />
+                  </Field>
                 </div>
               </div>
 
@@ -325,13 +496,32 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
                 </label>
                 {!formData.delivery_same && (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="col-span-2 md:col-span-4 space-y-1"><label className={lbl}>Land</label><input value={formData.delivery_country} onChange={e => set('delivery_country', e.target.value)} className={inp} placeholder="Denmark" /></div>
-                    <div className="col-span-2 space-y-1"><label className={lbl}>By</label><input value={formData.delivery_city} onChange={e => set('delivery_city', e.target.value)} className={inp} placeholder="By" /></div>
-                    <div className="col-span-1 space-y-1"><label className={lbl}>Postnummer</label><input value={formData.delivery_postal_code} onChange={e => set('delivery_postal_code', e.target.value)} className={inp} placeholder="8800" /></div>
-                    <div className="col-span-1 space-y-1"><label className={lbl}>Lejlighed</label><input value={formData.delivery_apartment} onChange={e => set('delivery_apartment', e.target.value)} className={inp} placeholder="2. tv" /></div>
-                    <div className="col-span-2 space-y-1"><label className={lbl}>Gade</label><input value={formData.delivery_street} onChange={e => set('delivery_street', e.target.value)} className={inp} placeholder="Gadenavn" /></div>
-                    <div className="col-span-1 space-y-1"><label className={lbl}>Husnummer</label><input value={formData.delivery_house_number} onChange={e => set('delivery_house_number', e.target.value)} className={inp} placeholder="16" /></div>
-                    <div className="col-span-1 space-y-1"><label className={lbl}>Telefon</label><input value={formData.delivery_phone} onChange={e => set('delivery_phone', e.target.value)} className={inp} placeholder="+45 00 00 00" /></div>
+                    <div className="col-span-2 md:col-span-4 space-y-1"><label className={lbl}>Land</label>
+                      <input value={formData.delivery_country} onChange={e => set('delivery_country', e.target.value)} className={inp} placeholder="Denmark" />
+                    </div>
+                    <Field label="By" field="delivery_city" required className="col-span-2">
+                      <input value={formData.delivery_city} onChange={e => set('delivery_city', e.target.value)}
+                        onBlur={() => handleBlur('delivery_city')} className={inp} placeholder="By" />
+                    </Field>
+                    <Field label="Postnummer" field="delivery_postal_code" required className="col-span-1">
+                      <input value={formData.delivery_postal_code} onChange={e => set('delivery_postal_code', e.target.value)}
+                        onBlur={() => handleBlur('delivery_postal_code')} className={inp} placeholder="8800" />
+                    </Field>
+                    <div className="col-span-1 space-y-1"><label className={lbl}>Lejlighed</label>
+                      <input value={formData.delivery_apartment} onChange={e => set('delivery_apartment', e.target.value)} className={inp} placeholder="2. tv" />
+                    </div>
+                    <Field label="Gade" field="delivery_street" required className="col-span-2">
+                      <input value={formData.delivery_street} onChange={e => set('delivery_street', e.target.value)}
+                        onBlur={() => handleBlur('delivery_street')} className={inp} placeholder="Gadenavn" />
+                    </Field>
+                    <Field label="Husnummer" field="delivery_house_number" required className="col-span-1">
+                      <input value={formData.delivery_house_number} onChange={e => set('delivery_house_number', e.target.value)}
+                        onBlur={() => handleBlur('delivery_house_number')} className={inp} placeholder="16" />
+                    </Field>
+                    <Field label="Telefon" field="delivery_phone" className="col-span-1">
+                      <input value={formData.delivery_phone} onChange={e => set('delivery_phone', e.target.value)}
+                        onBlur={() => handleBlur('delivery_phone')} className={inp} placeholder="+45 00 00 00" />
+                    </Field>
                   </div>
                 )}
               </div>
