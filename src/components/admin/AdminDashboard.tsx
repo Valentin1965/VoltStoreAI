@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   TrendingUp, ShoppingCart, Users, Package,
   ArrowUpRight, ArrowDownRight, Bell, BellOff,
-  Loader2, BarChart3, CheckCircle2
+  Loader2, BarChart3, CheckCircle2, Send
 } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
@@ -27,6 +27,30 @@ function fmt(n: number, decimals = 0) {
 export const AdminDashboard: React.FC<Props> = ({ orders, dbClients, isLoadingOrders }) => {
   const { formatPrice, t, language } = useLanguage();
   const push = usePushNotifications('admin');
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<'ok' | 'error' | null>(null);
+
+  const sendTestPush = async () => {
+    setIsTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch('https://xvduslroirsujnglcnos.supabase.co/functions/v1/send-push', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2ZHVzbHJvaXJzdWpuZ2xjbm9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg3ODQzMDQsImV4cCI6MjA4NDM2MDMwNH0.MpS-NS6Blgpu4o3QxoSUGhn-cs5HJhWcqMf2XxtnsMY`,
+        },
+        body: JSON.stringify({ type: 'test' }),
+      });
+      const data = await res.json();
+      setTestResult(data.ok && data.sent > 0 ? 'ok' : 'error');
+    } catch {
+      setTestResult('error');
+    } finally {
+      setIsTesting(false);
+      setTimeout(() => setTestResult(null), 4000);
+    }
+  };
 
   const localeStr = language === 'da' ? 'da-DK' : language === 'no' ? 'nb-NO' : language === 'se' ? 'sv-SE' : 'en-GB';
 
@@ -316,10 +340,21 @@ export const AdminDashboard: React.FC<Props> = ({ orders, dbClients, isLoadingOr
               </div>
 
               {push.isSubscribed ? (
-                <button onClick={push.unsubscribe}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-rose-700 text-rose-400 hover:bg-rose-900/30 transition-all text-[9px] font-black uppercase tracking-widest">
-                  <BellOff size={14} /> {t('admin_push_disable')}
-                </button>
+                <div className="space-y-2">
+                  <button onClick={push.unsubscribe}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-rose-700 text-rose-400 hover:bg-rose-900/30 transition-all text-[9px] font-black uppercase tracking-widest">
+                    <BellOff size={14} /> {t('admin_push_disable')}
+                  </button>
+                  <button onClick={sendTestPush} disabled={isTesting}
+                    className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl border transition-all text-[9px] font-black uppercase tracking-widest disabled:opacity-50 ${
+                      testResult === 'ok'    ? 'border-emerald-500 text-emerald-400 bg-emerald-900/20' :
+                      testResult === 'error' ? 'border-rose-500 text-rose-400 bg-rose-900/20' :
+                      'border-slate-600 text-slate-400 hover:bg-slate-800'
+                    }`}>
+                    {isTesting ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                    {isTesting ? 'Sender...' : testResult === 'ok' ? '✓ Sendt!' : testResult === 'error' ? '✗ Fejl' : 'Test push'}
+                  </button>
+                </div>
               ) : (
                 <button onClick={push.subscribe}
                   disabled={!import.meta.env.VITE_VAPID_PUBLIC_KEY}

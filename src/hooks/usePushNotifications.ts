@@ -1,20 +1,3 @@
-/**
- * usePushNotifications
- *
- * Manages PWA push subscription lifecycle:
- *  1. Requests notification permission
- *  2. Subscribes browser via Push API (needs VAPID_PUBLIC_KEY in env)
- *  3. Saves subscription to Supabase (push_subscriptions table via RPC)
- *  4. Returns helpers for requesting permission + current state
- *
- * SETUP (one-time):
- *   npx web-push generate-vapid-keys
- *   → add VITE_VAPID_PUBLIC_KEY=<publicKey> to Vercel env vars
- *   → supabase secrets set VAPID_PRIVATE_KEY=<privateKey>
- *   → run Migration 7 in Supabase SQL Editor
- *   → deploy push Edge Function: supabase functions deploy send-push
- */
-
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 
@@ -30,75 +13,100 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
 }
 
 export function usePushNotifications(clientId?: string | null) {
-  const [status, setStatus] = useState<PushStatus>('loading');
+  const [status, setStatus]           = useState<PushStatus>('loading');
   const [isSubscribed, setIsSubscribed] = useState(false);
 
-  // ── Check support + existing permission on mount ─────────────────────────
+  // ── Check support + existing subscription on mount ───────────────────────
   useEffect(() => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       setStatus('unsupported');
       return;
     }
-    const perm = Notification.permission as PushStatus;
-    setStatus(perm === 'default' ? 'default' : perm);
+
+    const perm = Notification.permission;
+    if (perm === 'denied') { setStatus('denied'); return; }
+
+    // Check if browser already has an active push subscription
+    navigator.serviceWorker.ready
+      .then(reg => reg.pushManager.getSubscription())
+      .then(sub => {
+        if (sub) {
+          setIsSubscribed(true);
+          setStatus('granted');
+        } else {
+          setStatus(perm === 'default' ? 'default' : 'granted');
+        }
+      })
+      .catch(() => {
+        setStatus(perm === 'default' ? 'default' : (perm as PushStatus));
+      });
   }, []);
 
   // ── Subscribe ─────────────────────────────────────────────────────────────
   const subscribe = useCallback(async (): Promise<boolean> => {
     if (!VAPID_PUBLIC_KEY) {
-      console.warn('[Push] VITE_VAPID_PUBLIC_KEY not set — push disabled');
+      console.warn('[Push] VITE_VAPID_PUBLIC_KEY not set');
       return false;
     }
     if (!('serviceWorker' in navigator)) return false;
 
     setStatus('loading');
     try {
-      const reg = await navigator.serviceWorker.ready;
+      const reg  = await navigator.serviceWorker.ready;
       const perm = await Notification.requestPermission();
       if (perm !== 'granted') { setStatus('denied'); return false; }
 
-      // Unsubscribe old if exists, then re-subscribe
+      // Unsubscribe old if exists, then re-subscribe fresh
       const existing = await reg.pushManager.getSubscription();
       if (existing) await existing.unsubscribe();
 
       const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        userVisibleOnly:      true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
       });
 
-      const json = sub.toJSON();
+      const json   = sub.toJSON();
       const p256dh = json.keys?.p256dh ?? '';
       const auth   = json.keys?.auth   ?? '';
 
-      // Persist to Supabase
+      if (!p256dh || !auth) {
+        console.error('[Push] Missing keys in subscription');
+        setStatus('denied');
+        return false;
+      }
+
+      // Persist to Supabase via RPC
       if (clientId === 'admin') {
         const adminKey = import.meta.env.VITE_ADMIN_PASSWORD ?? '';
-        await supabase.rpc('save_admin_push_subscription', {
+        const { error } = await supabase.rpc('save_admin_push_subscription', {
           p_key:      adminKey,
           p_endpoint: sub.endpoint,
           p_p256dh:   p256dh,
           p_auth:     auth,
           p_ua:       navigator.userAgent.slice(0, 200),
         });
+        if (error) {
+          console.error('[Push] save_admin_push_subscription error:', error);
+          // Don't fail — subscription still works locally
+        }
       } else if (clientId) {
-        await supabase.rpc('save_push_subscription', {
+        const { error } = await supabase.rpc('save_push_subscription', {
           p_client_id: clientId,
           p_endpoint:  sub.endpoint,
           p_p256dh:    p256dh,
           p_auth:      auth,
           p_ua:        navigator.userAgent.slice(0, 200),
         });
+        if (error) console.error('[Push] save_push_subscription error:', error);
       }
 
-      // Store locally for anonymous users too (endpoint only)
       localStorage.setItem('gls_push_endpoint', sub.endpoint);
-
       setStatus('granted');
       setIsSubscribed(true);
       return true;
     } catch (err) {
       console.error('[Push] Subscribe failed:', err);
-      setStatus('denied');
+      setStatus(Notification.permission === 'denied' ? 'denied' : 'default');
       return false;
     }
   }, [clientId]);
