@@ -14,7 +14,7 @@ export function LiveAssistant() {
   const whatsappUrl = `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${encodeURIComponent(t('whatsapp_welcome') || "Hej! Jeg har brug for hjælp med solceller.")}`;
 
   return (
-    <div className="fixed bottom-[4.5rem] left-4 z-[999999] notranslate" translate="no">
+    <div className="hidden lg:block fixed bottom-[4.5rem] left-4 z-[999999] notranslate" translate="no">
       <a 
         href={whatsappUrl}
         target="_blank"

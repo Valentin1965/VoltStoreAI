@@ -367,7 +367,7 @@ export const CatalogSection: React.FC = () => {
             <button 
               key={cat} 
               onClick={() => setSelectedCategory?.(selectedCategory === cat ? 'All' : cat)} 
-              className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${selectedCategory === cat ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-white text-slate-400 border border-slate-100 hover:bg-slate-50'}`}
+              className={`px-3 py-2 lg:px-8 lg:py-4 rounded-2xl text-[9px] lg:text-[10px] font-black uppercase tracking-tight lg:tracking-widest transition-all shrink-0 whitespace-nowrap ${selectedCategory === cat ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-white text-slate-400 border border-slate-100 hover:bg-slate-50'}`}
             >
               {t(`cat_${cat}`)}
             </button>
