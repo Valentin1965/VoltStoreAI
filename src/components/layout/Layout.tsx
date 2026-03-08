@@ -132,10 +132,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
                 {[...navItems, { id: AppView.ADMIN, label: t('nav_admin'), icon: ShieldAlert }].map((item) => (
                   <button key={item.id} onClick={() => { setView(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${currentView === item.id ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600 hover:bg-slate-50'}`}>
                     <item.icon size={20} className="shrink-0" />
-                    {item.label.includes('&') ? (
+                    {item.label.includes('&') && language === 'en' ? (
                       <span className="text-sm font-black uppercase tracking-tight leading-tight text-left">
                         {item.label.split('&')[0].trim()}<br />
-                        <span className="text-slate-400">&</span> {item.label.split('&')[1].trim()}
+                        <span className="opacity-60">&</span> {item.label.split('&')[1].trim()}
                       </span>
                     ) : (
                       <span className="text-sm font-black uppercase tracking-tight leading-tight text-left">{item.label}</span>
