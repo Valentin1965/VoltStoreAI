@@ -6,6 +6,7 @@ import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
 import { saveAs } from 'file-saver';
 import { supabase } from '../../services/supabase';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { sendStatusChangeEmail, OrderStatus } from '../../services/emailService';
 import { ORDER_STATUSES, OrderStatusEdit } from './adminTypes';
 
@@ -17,6 +18,8 @@ interface AdminOrderModalProps {
 
 export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onClose, onUpdated }) => {
   const { addNotification } = useNotification();
+  const { t, language } = useLanguage();
+  const localeStr = language === 'da' ? 'da-DK' : language === 'no' ? 'nb-NO' : language === 'se' ? 'sv-SE' : 'en-GB';
   const [isSaving, setIsSaving] = useState(false);
   const [statusEdit, setStatusEdit] = useState<OrderStatusEdit>({
     status: o.order_status || 'accepted',
@@ -29,7 +32,7 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
   const city     = [o.postal_code, o.city, o.country].filter(Boolean).join(', ');
   const delAddr  = o.delivery_same_as_billing ? addr : [o.delivery_street, o.delivery_house_number].filter(Boolean).join(' ');
   const delCity  = o.delivery_same_as_billing ? city : [o.delivery_postal_code, o.delivery_city, o.delivery_country].filter(Boolean).join(', ');
-  const orderDate = o.created_at ? new Date(o.created_at).toLocaleDateString('da-DK') : '-';
+  const orderDate = o.created_at ? new Date(o.created_at).toLocaleDateString(localeStr) : '-';
   const orderNo   = o.order_number || ('GLS-' + String(o.id || '').slice(0, 8).toUpperCase());
 
   const saveStatus = async () => {
@@ -78,7 +81,7 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
         } catch { /* push not critical */ }
       }
 
-      addNotification('Status opdateret — kunde notificeret', 'success');
+      addNotification('Status updated ✓', 'success');
     } finally { setIsSaving(false); }
   };
 
@@ -198,13 +201,13 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
                 <MapPin size={11} /> Adresser
               </div>
               <div>
-                <div className="text-[8px] font-black text-emerald-600 uppercase tracking-widest mb-1">Fakturering</div>
+                <div className="text-[8px] font-black text-emerald-600 uppercase tracking-widest mb-1">{t('admin_order_billing')}</div>
                 <div className="text-[10px] text-slate-700 leading-relaxed">{addr || o.department || '—'}<br />{city}</div>
               </div>
               <div className="pt-2 border-t border-slate-200">
                 <div className="flex items-center gap-1 text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1"><Truck size={10} /> Levering</div>
                 {o.delivery_same_as_billing
-                  ? <div className="text-[9px] text-slate-400 italic">Samme som faktureringsadresse</div>
+                  ? <div className="text-[9px] text-slate-400 italic">{t('admin_order_delivery_same')}</div>
                   : <div className="text-[10px] text-slate-700 leading-relaxed">{delAddr}<br />{delCity}</div>}
               </div>
             </div>
@@ -217,10 +220,10 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
               <table className="w-full text-left">
                 <thead className="bg-slate-900 text-white">
                   <tr>
-                    <th className="px-4 py-3 text-[8px] font-black uppercase tracking-widest">Produkt</th>
-                    <th className="px-4 py-3 text-[8px] font-black uppercase tracking-widest text-center">Kategori</th>
-                    <th className="px-4 py-3 text-[8px] font-black uppercase tracking-widest text-center">Antal</th>
-                    <th className="px-4 py-3 text-[8px] font-black uppercase tracking-widest text-right">Pris</th>
+                    <th className="px-4 py-3 text-[8px] font-black uppercase tracking-widest">{t('admin_order_col_product')}</th>
+                    <th className="px-4 py-3 text-[8px] font-black uppercase tracking-widest text-center">{t('admin_order_col_category')}</th>
+                    <th className="px-4 py-3 text-[8px] font-black uppercase tracking-widest text-center">{t('admin_order_col_qty')}</th>
+                    <th className="px-4 py-3 text-[8px] font-black uppercase tracking-widest text-right">{t('admin_order_col_price')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -233,7 +236,7 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
                     </tr>
                   ))}
                   <tr className="bg-emerald-50 border-t-2 border-emerald-100">
-                    <td colSpan={3} className="px-4 py-3 text-[10px] font-black uppercase text-right text-slate-700">Total inkl. 25% moms</td>
+                    <td colSpan={3} className="px-4 py-3 text-[10px] font-black uppercase text-right text-slate-700">{t('admin_order_total_vat')}</td>
                     <td className="px-4 py-3 text-sm font-black text-emerald-600 text-right">{(o.total_price || 0).toFixed(2)} {o.currency || 'EUR'}</td>
                   </tr>
                 </tbody>
@@ -260,7 +263,7 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
                   onClick={() => setStatusEdit(prev => ({ ...prev, status: s.key }))}
                   className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 text-left transition-all ${statusEdit.status === s.key ? s.color + ' border-current font-black' : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'}`}>
                   <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusEdit.status === s.key ? s.dot : 'bg-slate-200'}`} />
-                  <span className="text-[10px] font-bold uppercase tracking-wider leading-tight">{s.label}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider leading-tight">{({accepted: t('admin_status_accepted'), in_progress: t('admin_status_in_progress'), awaiting_transport: t('admin_status_awaiting'), in_transit: t('admin_status_in_transit')} as Record<string,string>)[s.key] || s.label}</span>
                 </button>
               ))}
             </div>

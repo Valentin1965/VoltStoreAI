@@ -189,7 +189,7 @@ const CategorySpecs: React.FC<{ product: Product }> = ({ product }) => {
                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{s.label}</span>
                <span className="text-[10px] font-bold text-slate-900">{s.value}</span>
              </div>
-           )) : <p className="text-[10px] text-slate-400 italic">Specifications unassigned</p>}
+           )) : <p className="text-[10px] text-slate-400 italic">{t('specs_unassigned')}</p>}
         </div>
       );
   }
@@ -257,7 +257,7 @@ export const CatalogSection: React.FC = () => {
 
   const handleBookingSubmit = async () => {
     if (!bookingEmailModal || !bookingEmail.includes('@')) {
-      addNotification('Please enter a valid email', 'error');
+      addNotification(t('err_email_invalid'), 'error');
       return;
     }
     setPendingEmail(bookingEmail);
@@ -339,7 +339,7 @@ export const CatalogSection: React.FC = () => {
             onClick={() => setter(value === opt ? '' : opt)} 
             color={color} 
           />
-        )) : <span className="text-[9px] text-slate-300 font-bold uppercase p-2 italic">No options available</span>}
+        )) : <span className="text-[9px] text-slate-300 font-bold uppercase p-2 italic">{t('filter_no_options')}</span>}
       </div>
     </div>
   );
@@ -392,7 +392,7 @@ export const CatalogSection: React.FC = () => {
               className={`flex-1 lg:flex-none flex items-center justify-center gap-3 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeFiltersCount > 0 ? 'bg-emerald-500 text-white shadow-xl' : 'bg-white text-slate-600 border border-slate-100'}`}
              >
                <SlidersHorizontal size={14} />
-               Filter {activeFiltersCount > 0 && <span className="bg-white text-emerald-600 w-5 h-5 rounded-full flex items-center justify-center text-[8px] ml-1">{activeFiltersCount}</span>}
+               {t('filter_btn')} {activeFiltersCount > 0 && <span className="bg-white text-emerald-600 w-5 h-5 rounded-full flex items-center justify-center text-[8px] ml-1">{activeFiltersCount}</span>}
              </button>
 
              <select 
@@ -400,10 +400,10 @@ export const CatalogSection: React.FC = () => {
                onChange={(e) => setSortBy?.(e.target.value as SortOption)}
                className="bg-white border-2 border-slate-100 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none focus:border-emerald-500 shadow-sm cursor-pointer transition-all"
              >
-               <option value="newest">Newest</option>
-               <option value="price-asc">Price: Low-High</option>
-               <option value="price-desc">Price: High-Low</option>
-               <option value="rating">Rating: Top</option>
+               <option value="newest">{t('sort_newest')}</option>
+               <option value="price-asc">{t('sort_price_asc')}</option>
+               <option value="price-desc">{t('sort_price_desc')}</option>
+               <option value="rating">{t('sort_rating')}</option>
              </select>
           </div>
         </div>
@@ -416,8 +416,8 @@ export const CatalogSection: React.FC = () => {
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-emerald-50 text-emerald-500 rounded-xl flex items-center justify-center"><Filter size={20}/></div>
                 <div>
-                  <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">Filter</h3>
-                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Global Asset Filtering System</p>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">{t('filter_btn')}</h3>
+                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{t('filter_sidebar_title')}</p>
                 </div>
               </div>
               <button onClick={() => setShowFilters(false)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-all"><X size={24} /></button>
@@ -426,15 +426,15 @@ export const CatalogSection: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
               {/* Global Status */}
               <div className="space-y-6">
-                <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-[0.2em] border-l-4 border-emerald-500 pl-4">Asset Status</h4>
+                <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-[0.2em] border-l-4 border-emerald-500 pl-4">{t('filter_status_section')}</h4>
                 <div className="grid grid-cols-1 gap-6">
-                  {renderCheckbox("Bestsellers", showOnlyLeaders, () => setShowOnlyLeaders?.(!showOnlyLeaders))}
+                  {renderCheckbox(t('filter_bestsellers'), showOnlyLeaders, () => setShowOnlyLeaders?.(!showOnlyLeaders))}
                 </div>
               </div>
 
               {/* Category Selection */}
               <div className="space-y-6">
-                <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-[0.2em] border-l-4 border-amber-500 pl-4">Category Selection</h4>
+                <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-[0.2em] border-l-4 border-amber-500 pl-4">{t('filter_panel_categories')}</h4>
                 <div className="flex flex-wrap gap-3 max-h-60 overflow-y-auto custom-scrollbar pr-2 p-1">
                   {(categories || []).map(cat => (
                     <Marker 
@@ -450,7 +450,7 @@ export const CatalogSection: React.FC = () => {
 
               {/* Brand Search (Global) */}
               <div className="space-y-6">
-                <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-[0.2em] border-l-4 border-blue-500 pl-4">Brand (Producer)</h4>
+                <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-[0.2em] border-l-4 border-blue-500 pl-4">{t('filter_panel_brand')}</h4>
                 <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto custom-scrollbar pr-2 p-1">
                   {(availableManufacturers || []).length > 0 ? (availableManufacturers || []).map(m => (
                     <Marker 
@@ -460,7 +460,7 @@ export const CatalogSection: React.FC = () => {
                       onClick={() => setFilterBrand!(filterBrand === m ? '' : m)} 
                       color="blue" 
                     />
-                  )) : <span className="text-[9px] text-slate-300 font-bold uppercase">No brands identified</span>}
+                  )) : <span className="text-[9px] text-slate-300 font-bold uppercase">{t('filter_no_brands')}</span>}
                 </div>
               </div>
 
@@ -472,10 +472,10 @@ export const CatalogSection: React.FC = () => {
                 
                 <div className="space-y-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Model Name</label>
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{t('filter_panel_model')}</label>
                     <div className="flex flex-wrap gap-3 max-h-60 overflow-y-auto custom-scrollbar pr-2 p-1 border border-slate-100 rounded-xl bg-slate-50/50">
                       {!filterBrand ? (
-                        <span className="text-[9px] text-slate-400 font-bold uppercase p-2 italic">Select a brand to see models</span>
+                        <span className="text-[9px] text-slate-400 font-bold uppercase p-2 italic">{t('filter_select_brand_first')}</span>
                       ) : (availableModels || []).length > 0 ? (availableModels || []).map(m => (
                         <Marker 
                           key={m} 
@@ -484,7 +484,7 @@ export const CatalogSection: React.FC = () => {
                           onClick={() => setFilterModel!(filterModel === m ? '' : m)} 
                           color="indigo" 
                         />
-                      )) : <span className="text-[9px] text-slate-300 font-bold uppercase p-2">No models identified for this brand</span>}
+                      )) : <span className="text-[9px] text-slate-300 font-bold uppercase p-2">{t('filter_no_models')}</span>}
                     </div>
                   </div>
 
@@ -530,13 +530,13 @@ export const CatalogSection: React.FC = () => {
 
             <div className="p-8 border-t bg-slate-50 flex gap-4 shrink-0">
               <button onClick={() => { resetFilters?.(); }} className="flex-1 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
-                <RotateCcw size={14}/> Reset
+                <RotateCcw size={14}/> {t('filter_reset')}
               </button>
               <button 
                 onClick={() => { applyFilters?.(); setShowFilters(false); }} 
                 className="flex-[2] py-4 bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2"
               >
-                <Search size={14}/> Search Assets
+                <Search size={14}/> {t('filter_apply')}
               </button>
             </div>
           </div>
@@ -544,7 +544,7 @@ export const CatalogSection: React.FC = () => {
 
         <div className="flex items-center justify-between px-2 text-slate-900 border-b border-slate-100 pb-4">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-            Scanning results: <span className="text-emerald-500">{filteredProducts.length}</span> assets identified in <span className="text-slate-900">{t(`cat_${selectedCategory}`)}</span>
+            {t('catalog_results_prefix')} <span className="text-emerald-500">{filteredProducts.length}</span> {t('catalog_results_suffix')} <span className="text-slate-900">{t(`cat_${selectedCategory}`)}</span>
           </div>
         </div>
 
@@ -568,10 +568,10 @@ export const CatalogSection: React.FC = () => {
           <div className="py-32 text-center space-y-6 bg-white rounded-[4rem] border-2 border-dashed border-slate-100">
              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto"><Package size={40} className="text-slate-200" /></div>
              <div className="space-y-2 px-6">
-               <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">No products found matching your criteria</h3>
-               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Try changing your search parameters or resetting filters.</p>
+               <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">{t('catalog_no_results_title')}</h3>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('catalog_no_results_hint')}</p>
              </div>
-             <button onClick={() => resetFilters?.()} className="btn-action mx-auto">Reset All Filters</button>
+             <button onClick={() => resetFilters?.()} className="btn-action mx-auto">{t('filter_reset_all')}</button>
           </div>
         )}
       </div>
@@ -609,14 +609,14 @@ export const CatalogSection: React.FC = () => {
                    {/* Share / Copy link button */}
                    <button
                      onClick={() => handleCopyProductLink(selectedProduct)}
-                     title="Copy product link"
+                     title={t('product_copy_link')}
                      className={`p-4 rounded-2xl transition-all border flex items-center gap-2 text-[9px] font-black uppercase tracking-widest
                        ${copiedLink
                          ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
                          : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-emerald-200 hover:text-emerald-500'
                        }`}
                    >
-                     {copiedLink ? <><CheckCheck size={18} /> Copied!</> : <><Link2 size={18} /> Share</>}
+                     {copiedLink ? <><CheckCheck size={18} /> {t('product_copied')}</> : <><Link2 size={18} /> {t('product_share')}  </>}
                    </button>
                    <button onClick={() => setSelectedProduct(null)} className="p-3 hover:bg-slate-100 rounded-2xl text-slate-400 transition-all"><X size={32} /></button>
                 </div>
@@ -657,7 +657,7 @@ export const CatalogSection: React.FC = () => {
                       <div className="bg-slate-900 rounded-[2rem] p-6 flex items-center justify-between text-white group cursor-pointer hover:bg-emerald-600 transition-all">
                         <div className="flex items-center gap-4">
                           <PlayCircle className="text-emerald-400 group-hover:text-white" size={28} />
-                          <div className="text-[10px] font-black uppercase tracking-widest">Watch Review</div>
+                          <div className="text-[10px] font-black uppercase tracking-widest">{t('product_watch_review')}</div>
                         </div>
                         <ExternalLink size={18} className="opacity-40" />
                       </div>
@@ -686,7 +686,7 @@ export const CatalogSection: React.FC = () => {
                                  <span className="text-[9px] font-black uppercase">{d.title || 'Tech Sheet'}</span>
                                  <Download size={14} className="text-slate-300 group-hover:text-emerald-500" />
                                </a>
-                             )) : <p className="text-[10px] text-slate-400 italic">Registry docs unavailable</p>}
+                             )) : <p className="text-[10px] text-slate-400 italic">{t('product_no_docs')}</p>}
                           </div>
                        </div>
                     </div>
@@ -747,8 +747,8 @@ export const CatalogSection: React.FC = () => {
               <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-500 mb-2">
                 <Heart size={24} fill="currentColor" />
               </div>
-              <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Book This Product</h3>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Reserved for 48 hours · Free · No payment required</p>
+              <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">{t('booking_modal_title')}</h3>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{t('booking_modal_subtitle')}</p>
             </div>
 
             <div className="bg-slate-50 rounded-2xl p-4 flex items-center gap-3">
@@ -764,14 +764,14 @@ export const CatalogSection: React.FC = () => {
             <div className="space-y-3">
               <input
                 type="text"
-                placeholder="Your name (optional)"
+                placeholder={t('booking_name_placeholder')}
                 value={bookingName}
                 onChange={e => setBookingName(e.target.value)}
                 className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-xs font-bold focus:outline-none focus:border-emerald-400 transition-all"
               />
               <input
                 type="email"
-                placeholder="your@email.com *"
+                placeholder={t('booking_email_placeholder')}
                 value={bookingEmail}
                 onChange={e => setBookingEmail(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleBookingSubmit()}
@@ -783,11 +783,11 @@ export const CatalogSection: React.FC = () => {
             <div className="flex gap-3">
               <button onClick={() => setBookingEmailModal(null)}
                 className="flex-1 py-4 rounded-2xl border-2 border-slate-100 text-slate-400 font-black text-[10px] uppercase tracking-widest hover:border-slate-300 transition-all">
-                Cancel
+                {t('booking_cancel')}
               </button>
               <button onClick={handleBookingSubmit}
                 className="flex-1 py-4 rounded-2xl bg-rose-500 hover:bg-rose-400 text-white font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg">
-                <Heart size={14} fill="white" /> Confirm Booking
+                <Heart size={14} fill="white" /> {t('booking_confirm')}
               </button>
             </div>
           </div>

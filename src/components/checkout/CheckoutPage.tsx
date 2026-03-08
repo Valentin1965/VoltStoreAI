@@ -45,39 +45,39 @@ const RE_PHONE = /^[+]?[\d\s\-().]{6,20}$/;
 const RE_POSTAL = /^[\dA-Z\-\s]{2,10}$/i;
 const RE_VAT   = /^[A-Z]{0,4}[\d\s\-]{4,20}$/i;
 
-function validate(data: FormData, payerType: 'private' | 'business'): FormErrors {
+function validate(data: FormData, payerType: 'private' | 'business', t: (k: string) => string): FormErrors {
   const err: FormErrors = {};
 
-  if (!data.first_name.trim()) err.first_name = 'Fornavn er påkrævet';
-  if (!data.email.trim())      err.email = 'Email er påkrævet';
-  else if (!RE_EMAIL.test(data.email.trim())) err.email = 'Ugyldig email-adresse';
+  if (!data.first_name.trim()) err.first_name = t('err_first_name_required');
+  if (!data.email.trim())      err.email = t('err_email_required');
+  else if (!RE_EMAIL.test(data.email.trim())) err.email = t('err_email_invalid');
 
   if (data.phone.trim() && !RE_PHONE.test(data.phone.trim()))
-    err.phone = 'Ugyldigt telefonnummer (f.eks. +45 12 34 56 78)';
+    err.phone = t('err_phone_invalid');
 
   if (payerType === 'business') {
-    if (!data.company_name.trim()) err.company_name = 'Virksomhedsnavn er påkrævet';
+    if (!data.company_name.trim()) err.company_name = t('err_company_required');
     if (data.vat_number.trim() && !RE_VAT.test(data.vat_number.trim()))
-      err.vat_number = 'Ugyldigt CVR/VAT nummer';
+      err.vat_number = t('err_vat_invalid');
   }
 
   // Billing address
-  if (!data.city.trim())         err.city = 'By er påkrævet';
-  if (!data.street.trim())       err.street = 'Gade er påkrævet';
-  if (!data.house_number.trim()) err.house_number = 'Husnummer er påkrævet';
-  if (!data.postal_code.trim())  err.postal_code = 'Postnummer er påkrævet';
-  else if (!RE_POSTAL.test(data.postal_code.trim())) err.postal_code = 'Ugyldigt postnummer';
+  if (!data.city.trim())         err.city = t('err_city_required');
+  if (!data.street.trim())       err.street = t('err_street_required');
+  if (!data.house_number.trim()) err.house_number = t('err_house_required');
+  if (!data.postal_code.trim())  err.postal_code = t('err_postal_required');
+  else if (!RE_POSTAL.test(data.postal_code.trim())) err.postal_code = t('err_postal_invalid');
 
   // Delivery address (only if different from billing)
   if (!data.delivery_same) {
-    if (!data.delivery_city.trim())         err.delivery_city = 'By er påkrævet';
-    if (!data.delivery_street.trim())       err.delivery_street = 'Gade er påkrævet';
-    if (!data.delivery_house_number.trim()) err.delivery_house_number = 'Husnummer er påkrævet';
-    if (!data.delivery_postal_code.trim())  err.delivery_postal_code = 'Postnummer er påkrævet';
+    if (!data.delivery_city.trim())         err.delivery_city = t('err_city_required');
+    if (!data.delivery_street.trim())       err.delivery_street = t('err_street_required');
+    if (!data.delivery_house_number.trim()) err.delivery_house_number = t('err_house_required');
+    if (!data.delivery_postal_code.trim())  err.delivery_postal_code = t('err_postal_required');
     else if (!RE_POSTAL.test(data.delivery_postal_code.trim()))
-      err.delivery_postal_code = 'Ugyldigt postnummer';
+      err.delivery_postal_code = t('err_postal_invalid');
     if (data.delivery_phone.trim() && !RE_PHONE.test(data.delivery_phone.trim()))
-      err.delivery_phone = 'Ugyldigt telefonnummer';
+      err.delivery_phone = t('err_phone_invalid_short');
   }
 
   return err;
@@ -109,7 +109,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
   // Validate single field on blur
   const handleBlur = useCallback((field: keyof FormData) => {
     setTouched(prev => ({ ...prev, [field]: true }));
-    const fieldErrors = validate(formData, payerType);
+    const fieldErrors = validate(formData, payerType, t);
     if (fieldErrors[field]) {
       setErrors(prev => ({ ...prev, [field]: fieldErrors[field] }));
     }
@@ -143,7 +143,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
       addNotification(`Velkommen tilbage, ${profile.name}`, 'success');
     } else {
       setFormData(prev => ({ ...prev, email: profileEmail }));
-      addNotification('Ingen profil fundet', 'info');
+      addNotification(t('cabinet_not_found'), 'info');
     }
     setShowProfileLoad(false);
   };
@@ -152,7 +152,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
     e.preventDefault();
 
     // Full validation on submit
-    const fieldErrors = validate(formData, payerType);
+    const fieldErrors = validate(formData, payerType, t);
     if (Object.keys(fieldErrors).length > 0) {
       setErrors(fieldErrors);
       // Mark all error fields as touched so they show red
@@ -160,7 +160,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
         (acc, k) => ({ ...acc, [k]: true }), {}
       );
       setTouched(prev => ({ ...prev, ...allTouched }));
-      addNotification('Ret venligst fejlene i formularen', 'error');
+      addNotification(t('err_form_invalid'), 'error');
       // Scroll to first error
       const firstErrField = document.querySelector('[data-error="true"]');
       firstErrField?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -341,7 +341,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <button onClick={() => setStep(2)} className="group p-8 rounded-[2rem] border-2 border-slate-50 hover:border-emerald-500 hover:bg-emerald-50/30 transition-all flex flex-col items-center gap-4 text-center">
                 <div className="w-16 h-16 bg-slate-900 text-white rounded-2xl flex items-center justify-center group-hover:bg-emerald-500 transition-colors shadow-xl"><Mail size={28} /></div>
-                <div><div className="text-sm font-black text-slate-900 uppercase">E-mail Bestilling</div><div className="text-[9px] text-slate-400 mt-1">Hurtigt og nemt</div></div>
+                <div><div className="text-sm font-black text-slate-900 uppercase">{t('checkout_email_order_title')}</div><div className="text-[9px] text-slate-400 mt-1">Hurtigt og nemt</div></div>
               </button>
               <div className="relative p-8 rounded-[2rem] border-2 border-dashed border-slate-100 bg-slate-50/50 flex flex-col items-center gap-4 text-center opacity-60 cursor-not-allowed select-none">
                 <div className="absolute top-3 right-3 bg-amber-100 text-amber-600 text-[7px] font-black uppercase tracking-widest px-2 py-1 rounded-full">Kommer snart</div>
@@ -354,7 +354,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
                 <div className="h-[1px] flex-1 bg-slate-100" />
                 <button onClick={() => window.dispatchEvent(new CustomEvent('changeView', { detail: AppView.CABINET }))}
                   className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-500 flex items-center gap-2">
-                  <User size={12} /> Log ind for at bruge gemte adresser
+                  <User size={12} /> {t('checkout_login_for_address')}
                 </button>
                 <div className="h-[1px] flex-1 bg-slate-100" />
               </div>
@@ -365,10 +365,10 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
         {step === 2 && (
           <div className="animate-fade-in">
             <div className="p-8 border-b border-slate-50 flex justify-between items-center">
-              <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">E-mail Bestilling</h3>
+              <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">{t('checkout_email_order_title')}</h3>
               {profileLoaded
-                ? <div className="flex items-center gap-2 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full text-[9px] font-black uppercase"><ShieldCheck size={12} /> Profil indlæst</div>
-                : <div className="flex items-center gap-2 bg-slate-50 text-slate-400 px-3 py-1.5 rounded-full text-[9px] font-black uppercase"><User size={12} /> Gæst</div>
+                ? <div className="flex items-center gap-2 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full text-[9px] font-black uppercase"><ShieldCheck size={12} />{t('checkout_profile_loaded')}</div>
+                : <div className="flex items-center gap-2 bg-slate-50 text-slate-400 px-3 py-1.5 rounded-full text-[9px] font-black uppercase"><User size={12} />{t('checkout_guest')}</div>
               }
             </div>
 
@@ -378,7 +378,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
                 <div className="rounded-2xl border border-slate-100 overflow-hidden">
                   <button type="button" onClick={() => setShowProfileLoad(v => !v)}
                     className="w-full flex items-center justify-between px-6 py-4 bg-slate-50 hover:bg-slate-100 transition-all text-[9px] font-black uppercase tracking-widest text-slate-500">
-                    <span>Eksisterende kunde? Indlæs profil</span>
+                    <span>{t('checkout_existing_customer')}</span>
                     {showProfileLoad ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </button>
                   {showProfileLoad && (
@@ -393,7 +393,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
 
               {/* Order summary */}
               <div className="bg-slate-50 rounded-3xl p-6 space-y-3 border border-slate-100">
-                <div className="flex items-center gap-2 mb-1"><Package size={14} className="text-emerald-500" /><span className="text-[9px] font-black uppercase tracking-widest">Din Bestilling</span></div>
+                <div className="flex items-center gap-2 mb-1"><Package size={14} className="text-emerald-500" /><span className="text-[9px] font-black uppercase tracking-widest">{t('checkout_your_order')}</span></div>
                 {items.map(item => (
                   <div key={item.id} className="flex justify-between text-[10px] font-bold uppercase tracking-tight">
                     <span className="text-slate-600 truncate max-w-[200px]">{item.quantity}× {typeof item.name === 'string' ? item.name : (item.name as any)[language] || (item.name as any)['en']}</span>
@@ -401,14 +401,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
                   </div>
                 ))}
                 <div className="pt-3 border-t border-slate-200 space-y-1">
-                  <div className="flex justify-between text-[10px] font-black text-slate-400"><span>Ekskl. moms</span><span>{formatPrice(totalPrice)}</span></div>
-                  <div className="flex justify-between text-[10px] font-black text-emerald-600"><span>Inkl. moms (25%)</span><span>{formatPrice(totalPrice * 1.25)}</span></div>
+                  <div className="flex justify-between text-[10px] font-black text-slate-400"><span>{t('checkout_excl_vat')}</span><span>{formatPrice(totalPrice)}</span></div>
+                  <div className="flex justify-between text-[10px] font-black text-emerald-600"><span>{t('checkout_incl_vat')}</span><span>{formatPrice(totalPrice * 1.25)}</span></div>
                 </div>
               </div>
 
               {/* Client type */}
               <div>
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Kundetype</div>
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">{t('checkout_customer_type')}</div>
                 <div className="grid grid-cols-2 gap-3">
                   {(['private', 'business'] as const).map(type => (
                     <button key={type} type="button" onClick={() => setPayerType(type)}
@@ -422,11 +422,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
 
               {payerType === 'business' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                  <Field label="Virksomhedsnavn" field="company_name" required>
+                  <Field label={t('field_company_name')} field="company_name" required>
                     <input value={formData.company_name} onChange={e => set('company_name', e.target.value)}
                       onBlur={() => handleBlur('company_name')} className={inp} placeholder="Virksomhed A/S" />
                   </Field>
-                  <Field label="VAT / CVR nummer" field="vat_number">
+                  <Field label={t('field_vat')} field="vat_number">
                     <input value={formData.vat_number} onChange={e => set('vat_number', e.target.value)}
                       onBlur={() => handleBlur('vat_number')} className={inp} placeholder="DK 00000000" />
                   </Field>
@@ -437,19 +437,19 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
               <div>
                 <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Kontaktperson</div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field label="Fornavn" field="first_name" required>
+                  <Field label={t('field_first_name')} field="first_name" required>
                     <input value={formData.first_name} onChange={e => set('first_name', e.target.value)}
                       onBlur={() => handleBlur('first_name')} className={inp} placeholder="Fornavn" />
                   </Field>
-                  <Field label="Efternavn" field="last_name">
+                  <Field label={t('field_last_name')} field="last_name">
                     <input value={formData.last_name} onChange={e => set('last_name', e.target.value)}
                       className={inp} placeholder="Efternavn" />
                   </Field>
-                  <Field label="Email" field="email" required>
+                  <Field label={t('field_email')} field="email" required>
                     <input type="email" value={formData.email} onChange={e => set('email', e.target.value)}
                       onBlur={() => handleBlur('email')} className={inp} placeholder="din@email.dk" />
                   </Field>
-                  <Field label="Telefon" field="phone">
+                  <Field label={t('field_phone')} field="phone">
                     <input value={formData.phone} onChange={e => set('phone', e.target.value)}
                       onBlur={() => handleBlur('phone')} className={inp} placeholder="+45 00 00 00 00" />
                   </Field>
@@ -458,27 +458,27 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
 
               {/* Billing address */}
               <div>
-                <div className="flex items-center gap-2 mb-3"><MapPin size={14} className="text-emerald-500" /><span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Faktureringsadresse</span></div>
+                <div className="flex items-center gap-2 mb-3"><MapPin size={14} className="text-emerald-500" /><span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('checkout_billing_address')}</span></div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="col-span-2 md:col-span-4 space-y-1"><label className={lbl}>Land</label>
+                  <div className="col-span-2 md:col-span-4 space-y-1"><label className={lbl}>{t('field_country')}</label>
                     <input value={formData.country} onChange={e => set('country', e.target.value)} className={inp} placeholder="Denmark" />
                   </div>
-                  <Field label="By" field="city" required className="col-span-2">
+                  <Field label={t('field_city')} field="city" required className="col-span-2">
                     <input value={formData.city} onChange={e => set('city', e.target.value)}
                       onBlur={() => handleBlur('city')} className={inp} placeholder="By" />
                   </Field>
-                  <Field label="Postnummer" field="postal_code" required className="col-span-1">
+                  <Field label={t('field_postal_code')} field="postal_code" required className="col-span-1">
                     <input value={formData.postal_code} onChange={e => set('postal_code', e.target.value)}
                       onBlur={() => handleBlur('postal_code')} className={inp} placeholder="8800" />
                   </Field>
-                  <div className="col-span-1 space-y-1"><label className={lbl}>Lejlighed</label>
+                  <div className="col-span-1 space-y-1"><label className={lbl}>{t('field_apartment')}</label>
                     <input value={formData.apartment} onChange={e => set('apartment', e.target.value)} className={inp} placeholder="2. tv" />
                   </div>
-                  <Field label="Gade" field="street" required className="col-span-2">
+                  <Field label={t('field_street')} field="street" required className="col-span-2">
                     <input value={formData.street} onChange={e => set('street', e.target.value)}
                       onBlur={() => handleBlur('street')} className={inp} placeholder="Gadenavn" />
                   </Field>
-                  <Field label="Husnummer" field="house_number" required className="col-span-2">
+                  <Field label={t('field_house_number')} field="house_number" required className="col-span-2">
                     <input value={formData.house_number} onChange={e => set('house_number', e.target.value)}
                       onBlur={() => handleBlur('house_number')} className={inp} placeholder="16" />
                   </Field>
@@ -487,38 +487,38 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
 
               {/* Delivery address */}
               <div>
-                <div className="flex items-center gap-2 mb-3"><Truck size={14} className="text-emerald-500" /><span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Leveringsadresse</span></div>
+                <div className="flex items-center gap-2 mb-3"><Truck size={14} className="text-emerald-500" /><span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('checkout_delivery_address')}</span></div>
                 <label className="flex items-center gap-3 cursor-pointer mb-4 select-none" onClick={() => set('delivery_same', !formData.delivery_same)}>
                   <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${formData.delivery_same ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>
                     {formData.delivery_same && <div className="w-2 h-2 bg-white rounded-sm" />}
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Samme som faktureringsadresse</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t('checkout_delivery_same')}</span>
                 </label>
                 {!formData.delivery_same && (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="col-span-2 md:col-span-4 space-y-1"><label className={lbl}>Land</label>
+                    <div className="col-span-2 md:col-span-4 space-y-1"><label className={lbl}>{t('field_country')}</label>
                       <input value={formData.delivery_country} onChange={e => set('delivery_country', e.target.value)} className={inp} placeholder="Denmark" />
                     </div>
-                    <Field label="By" field="delivery_city" required className="col-span-2">
+                    <Field label={t('field_city')} field="delivery_city" required className="col-span-2">
                       <input value={formData.delivery_city} onChange={e => set('delivery_city', e.target.value)}
                         onBlur={() => handleBlur('delivery_city')} className={inp} placeholder="By" />
                     </Field>
-                    <Field label="Postnummer" field="delivery_postal_code" required className="col-span-1">
+                    <Field label={t('field_postal_code')} field="delivery_postal_code" required className="col-span-1">
                       <input value={formData.delivery_postal_code} onChange={e => set('delivery_postal_code', e.target.value)}
                         onBlur={() => handleBlur('delivery_postal_code')} className={inp} placeholder="8800" />
                     </Field>
-                    <div className="col-span-1 space-y-1"><label className={lbl}>Lejlighed</label>
+                    <div className="col-span-1 space-y-1"><label className={lbl}>{t('field_apartment')}</label>
                       <input value={formData.delivery_apartment} onChange={e => set('delivery_apartment', e.target.value)} className={inp} placeholder="2. tv" />
                     </div>
-                    <Field label="Gade" field="delivery_street" required className="col-span-2">
+                    <Field label={t('field_street')} field="delivery_street" required className="col-span-2">
                       <input value={formData.delivery_street} onChange={e => set('delivery_street', e.target.value)}
                         onBlur={() => handleBlur('delivery_street')} className={inp} placeholder="Gadenavn" />
                     </Field>
-                    <Field label="Husnummer" field="delivery_house_number" required className="col-span-1">
+                    <Field label={t('field_house_number')} field="delivery_house_number" required className="col-span-1">
                       <input value={formData.delivery_house_number} onChange={e => set('delivery_house_number', e.target.value)}
                         onBlur={() => handleBlur('delivery_house_number')} className={inp} placeholder="16" />
                     </Field>
-                    <Field label="Telefon" field="delivery_phone" className="col-span-1">
+                    <Field label={t('field_phone')} field="delivery_phone" className="col-span-1">
                       <input value={formData.delivery_phone} onChange={e => set('delivery_phone', e.target.value)}
                         onBlur={() => handleBlur('delivery_phone')} className={inp} placeholder="+45 00 00 00" />
                     </Field>
@@ -528,20 +528,20 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBackToCart, onOrde
 
               {/* Message */}
               <div className="space-y-3">
-                <div className="flex items-center gap-2"><MessageSquare size={15} className="text-emerald-500" /><span className="text-[10px] font-black uppercase tracking-widest">Besked til os</span></div>
-                <textarea value={clientMessage} onChange={e => setClientMessage(e.target.value)} placeholder="Eventuelle bemærkninger..."
+                <div className="flex items-center gap-2"><MessageSquare size={15} className="text-emerald-500" /><span className="text-[10px] font-black uppercase tracking-widest">{t('checkout_message_section')}</span></div>
+                <textarea value={clientMessage} onChange={e => setClientMessage(e.target.value)} placeholder={t('checkout_message_placeholder')}
                   className="w-full bg-slate-50 rounded-2xl p-5 text-[10px] font-bold outline-none border-2 border-transparent focus:border-emerald-500 transition-all min-h-[90px] resize-none" />
               </div>
 
               {/* Submit */}
               <div className="bg-slate-900 rounded-[2rem] p-7 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
                 <div>
-                  <div className="text-[8px] font-black text-slate-500 uppercase tracking-[0.3em] mb-1">Total inkl. moms</div>
+                  <div className="text-[8px] font-black text-slate-500 uppercase tracking-[0.3em] mb-1">{t('checkout_total_incl_vat')}</div>
                   <div className="text-3xl font-black text-emerald-400 tracking-tighter">{formatPrice(finalPrice)}</div>
                 </div>
                 <button type="submit" disabled={isProcessing}
                   className="w-full md:w-auto px-12 py-5 bg-emerald-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-emerald-400 transition-all shadow-xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3">
-                  {isProcessing ? <Loader2 className="animate-spin" size={20} /> : <><Mail size={18} /> Send Bestilling</>}
+                  {isProcessing ? <Loader2 className="animate-spin" size={20} /> : <><Mail size={18} />{t('checkout_send_order')}</>}
                 </button>
               </div>
             </form>

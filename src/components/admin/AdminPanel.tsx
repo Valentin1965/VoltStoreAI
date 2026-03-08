@@ -65,7 +65,8 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
 
   const { categories, products, fetchProducts } = useProducts();
   const { addNotification }      = useNotification();
-  const { formatPrice, getLoc, t } = useLanguage();
+  const { formatPrice, getLoc, t, language } = useLanguage();
+  const localeStr = language === 'da' ? 'da-DK' : language === 'no' ? 'nb-NO' : language === 'se' ? 'sv-SE' : 'en-GB';
 
   // Data
   const [orders, setOrders]                   = useState<Order[]>([]);
@@ -230,7 +231,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
     ];
     const rows = filteredOrders.map(o => [
       (o as any).order_number || o.id,
-      o.created_at ? new Date(o.created_at).toLocaleDateString('da-DK') : '',
+      o.created_at ? new Date(o.created_at).toLocaleDateString(localeStr) : '',
       o.customer_name || '',
       o.customer_email || '',
       o.customer_phone || '',
@@ -327,7 +328,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
     try {
       const { error } = await supabase.from(table).delete().eq('id', realId);
       if (error) throw error;
-      addNotification('Asset Removed', 'success');
+      addNotification(t('removed'), 'success');
       fetchProducts();
     } catch (err: any) { addNotification(err.message, 'error'); }
   };
@@ -395,14 +396,14 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
             <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
               <div className="relative flex-1 md:w-48">
                 <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="text" placeholder="Filter by brand..." value={adminManufacturerFilter}
+                <input type="text" placeholder={t('admin_filter_brand')} value={adminManufacturerFilter}
                   onChange={e => setAdminManufacturerFilter(e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-[10px] font-black uppercase outline-none focus:border-emerald-500 transition-all" />
               </div>
               {activeTab === 'products' && (
                 <select value={adminCategoryFilter} onChange={e => setAdminCategoryFilter(e.target.value as any)}
                   className="bg-white border border-slate-200 rounded-xl py-2 px-4 text-[10px] font-black uppercase outline-none focus:border-emerald-500 transition-all cursor-pointer">
-                  <option value="All">All Categories</option>
+                  <option value="All">{t('admin_all_categories')}</option>
                   {categories.filter(c => c !== 'All' && c !== 'Sæt').map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               )}
@@ -412,18 +413,18 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
             <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
               <div className="relative flex-1 md:w-52">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="text" placeholder="Navn, email, ordre#…" value={ordersSearch}
+                <input type="text" placeholder={t('admin_search_orders')} value={ordersSearch}
                   onChange={e => { setOrdersSearch(e.target.value); setOrdersPage(0); }}
                   className="w-full bg-white border border-slate-200 rounded-xl py-2 pl-9 pr-3 text-[10px] font-black uppercase outline-none focus:border-emerald-500 transition-all" />
               </div>
               <select value={ordersStatusFilter}
                 onChange={e => { setOrdersStatusFilter(e.target.value); setOrdersPage(0); }}
                 className="bg-white border border-slate-200 rounded-xl py-2 px-3 text-[10px] font-black uppercase outline-none focus:border-emerald-500 transition-all cursor-pointer">
-                <option value="all">All statuses</option>
-                <option value="accepted">Accepted</option>
-                <option value="in_progress">In progress</option>
-                <option value="awaiting_transport">Awaiting transport</option>
-                <option value="in_transit">In transit</option>
+                <option value="all">{t('admin_status_all')}</option>
+                <option value="accepted">{t('admin_status_accepted')}</option>
+                <option value="in_progress">{t('admin_status_in_progress')}</option>
+                <option value="awaiting_transport">{t('admin_status_awaiting')}</option>
+                <option value="in_transit">{t('admin_status_in_transit')}</option>
               </select>
               <button onClick={fetchOrders} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
                 <RefreshCcw size={12} /> Refresh
@@ -447,7 +448,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
               <button onClick={fetchBookings} className="text-[10px] font-black text-emerald-600 uppercase flex items-center gap-2"><RefreshCcw size={13} /> Refresh</button>
             </div>
             {adminBookings.length === 0 ? (
-              <p className="text-center py-12 text-slate-300 text-[10px] font-black uppercase">No bookings yet</p>
+              <p className="text-center py-12 text-slate-300 text-[10px] font-black uppercase">{t('admin_no_bookings')}</p>
             ) : (
               <div className="space-y-3">
                 {adminBookings.map((b: any) => {
@@ -464,26 +465,26 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                             <a href={`mailto:${b.customer_email}`} className="text-[9px] font-black text-emerald-600 hover:text-emerald-800 underline underline-offset-2 transition-colors">{b.customer_email}</a>
                             {b.customer_name && <span className="text-[9px] text-slate-400 font-bold">· {b.customer_name}</span>}
                           </div>
-                          <button onClick={() => { const u = dbClients.find((c: any) => c.email?.toLowerCase() === b.customer_email?.toLowerCase()); if (u) setInspectUser(u); else addNotification('No profile found for this email', 'info'); }}
+                          <button onClick={() => { const u = dbClients.find((c: any) => c.email?.toLowerCase() === b.customer_email?.toLowerCase()); if (u) setInspectUser(u); else addNotification(t('admin_no_profile'), 'info'); }}
                             className="mt-1 text-[8px] font-black text-slate-300 hover:text-emerald-600 uppercase tracking-widest transition-colors flex items-center gap-1">
                             <UserCheck size={10} /> View Client Profile
                           </button>
                           <p className="text-[9px] text-slate-300 font-bold mt-1">
-                            Booked: {new Date(b.created_at).toLocaleDateString('en-GB')} · Expires: {new Date(b.expires_at).toLocaleDateString('en-GB')}
+                            Booked: {new Date(b.created_at).toLocaleDateString(localeStr)} · Expires: {new Date(b.expires_at).toLocaleDateString(localeStr)}
                             {expired && isActive && <span className="text-rose-400 ml-1">· EXPIRED</span>}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-[11px] font-black text-slate-700">€{b.product_price?.toLocaleString('da-DK')}</span>
+                        <span className="text-[11px] font-black text-slate-700">€{b.product_price?.toLocaleString(localeStr)}</span>
                         <span className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${statusColors[b.status] || statusColors.pending}`}>{b.status}</span>
                         {isActive && (
                           <select value={b.status} onChange={e => updateBookingStatus(b.id, e.target.value)}
                             className="text-[9px] font-black bg-white border border-slate-200 rounded-xl px-2 py-1.5 focus:outline-none focus:border-emerald-400">
-                            <option value="pending">Pending</option>
-                            <option value="confirmed">Confirmed</option>
-                            <option value="cancelled">Cancel</option>
-                            <option value="expired">Expire</option>
+                            <option value="pending">{t('admin_booking_pending')}</option>
+                            <option value="confirmed">{t('admin_booking_confirmed')}</option>
+                            <option value="cancelled">{t('admin_booking_cancel')}</option>
+                            <option value="expired">{t('admin_booking_expire')}</option>
                           </select>
                         )}
                       </div>
@@ -502,16 +503,16 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
               <table className="w-full text-left">
                 <thead>
                   <tr className="bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                    <th className="p-6">Klient</th>
-                    <th className="p-6 text-center">Type</th>
-                    <th className="p-6 text-center">By / Land</th>
-                    <th className="p-6 text-center">Telefon</th>
-                    <th className="p-6 text-center">Oprettet</th>
-                    <th className="p-6 text-right">Historik</th>
+                    <th className="p-6">{t('admin_col_client')}</th>
+                    <th className="p-6 text-center">{t('admin_col_type')}</th>
+                    <th className="p-6 text-center">{t('admin_col_city')}</th>
+                    <th className="p-6 text-center">{t('admin_col_phone')}</th>
+                    <th className="p-6 text-center">{t('admin_col_created')}</th>
+                    <th className="p-6 text-right">{t('admin_col_history')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {dbClients.length === 0 && <tr><td colSpan={6} className="p-10 text-center text-[10px] text-slate-300 font-bold uppercase tracking-widest">Ingen klienter endnu</td></tr>}
+                  {dbClients.length === 0 && <tr><td colSpan={6} className="p-10 text-center text-[10px] text-slate-300 font-bold uppercase tracking-widest">{t('admin_no_clients')}</td></tr>}
                   {dbClients.map((c: any) => (
                     <tr key={c.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => openClientHistory(c)}>
                       <td className="p-6">
@@ -531,7 +532,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                       </td>
                       <td className="p-6 text-center"><div className="text-[10px] font-bold text-slate-700">{c.city || '—'}</div><div className="text-[8px] text-slate-400">{c.country || ''}</div></td>
                       <td className="p-6 text-center text-[10px] font-bold text-slate-500">{c.phone || '—'}</td>
-                      <td className="p-6 text-center text-[9px] text-slate-400 font-bold">{c.created_at ? new Date(c.created_at).toLocaleDateString('da-DK') : '—'}</td>
+                      <td className="p-6 text-center text-[9px] text-slate-400 font-bold">{c.created_at ? new Date(c.created_at).toLocaleDateString(localeStr) : '—'}</td>
                       <td className="p-6 text-right">
                         <button onClick={e => { e.stopPropagation(); openClientHistory(c); }}
                           className="flex items-center gap-1.5 ml-auto px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
@@ -546,11 +547,11 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
               <table className="w-full text-left">
                 <thead>
                   <tr className="bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                    <th className="p-6">Asset Details</th>
-                    <th className="p-6 text-center">Stock</th>
-                    <th className="p-6 text-center">Base Price</th>
-                    <th className="p-6 text-center">Status</th>
-                    <th className="p-6 text-right">Commands</th>
+                    <th className="p-6">{t('admin_col_asset')}</th>
+                    <th className="p-6 text-center">{t('admin_col_stock')}</th>
+                    <th className="p-6 text-center">{t('admin_col_base_price')}</th>
+                    <th className="p-6 text-center">{t('admin_col_status')}</th>
+                    <th className="p-6 text-right">{t('admin_col_commands')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">

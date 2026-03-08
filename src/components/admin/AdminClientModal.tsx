@@ -6,6 +6,7 @@ import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
 import { saveAs } from 'file-saver';
 import { supabase } from '../../services/supabase';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { useUser } from '../../contexts/UserContext';
 
 /* ═══════════════════════════════════════════════
@@ -21,6 +22,8 @@ interface ClientHistoryModalProps {
 export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
   client: c, history: clientHistory, isLoading: isLoadingClientHistory, onClose,
 }) => {
+  const { t, language } = useLanguage();
+  const localeStr = language === 'da' ? 'da-DK' : language === 'no' ? 'nb-NO' : language === 'se' ? 'sv-SE' : 'en-GB';
   const fullName    = `${c.first_name || ''} ${c.last_name || ''}`.trim();
   const billingAddr = [c.street, c.house_number, c.apartment].filter(Boolean).join(' ');
   const billingCity = [c.postal_code, c.city, c.country].filter(Boolean).join(', ');
@@ -29,10 +32,10 @@ export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
 
   const statusLabel = (o: any) => {
     const map: Record<string, { label: string; cls: string }> = {
-      in_transit:         { label: 'I transit',          cls: 'text-emerald-600 bg-emerald-50' },
-      awaiting_transport: { label: 'Afventer transport', cls: 'text-purple-600 bg-purple-50' },
-      in_progress:        { label: 'I arbejde',          cls: 'text-amber-600 bg-amber-50' },
-      accepted:           { label: 'Modtaget',           cls: 'text-blue-600 bg-blue-50' },
+      in_transit:         { label: t('status_in_transit'),          cls: 'text-emerald-600 bg-emerald-50' },
+      awaiting_transport: { label: t('status_awaiting_transport'), cls: 'text-purple-600 bg-purple-50' },
+      in_progress:        { label: t('status_in_progress'),          cls: 'text-amber-600 bg-amber-50' },
+      accepted:           { label: t('status_accepted'),           cls: 'text-blue-600 bg-blue-50' },
     };
     return map[o.order_status] || { label: o.order_status || '—', cls: 'text-slate-400 bg-slate-50' };
   };
@@ -58,7 +61,7 @@ export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
           new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: 'Katmosevej 16, Viborg 8800, Denmark  ·  sales@glsolargroup.dk  ·  +45 61 48 52 19', size: 15, color: '6B7280', font: 'Arial' })] }),
           new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '10b981', space: 1 } }, spacing: { after: 320 }, children: [] }),
           new Paragraph({ spacing: { before: 160, after: 80 }, children: [new TextRun({ text: 'KØBSHISTORIK', bold: true, size: 34, font: 'Arial' })] }),
-          new Paragraph({ spacing: { after: 320 }, children: [new TextRun({ text: `Udskrevet: ${new Date().toLocaleDateString('da-DK', { day: '2-digit', month: 'long', year: 'numeric' })}  |  Ordrer: ${clientHistory.length}  |  Samlet: ${totalSpent.toFixed(2)} ${currency}`, size: 17, color: '6B7280', font: 'Arial' })] }),
+          new Paragraph({ spacing: { after: 320 }, children: [new TextRun({ text: `Udskrevet: ${new Date().toLocaleDateString(localeStr, { day: '2-digit', month: 'long', year: 'numeric' })}  |  Ordrer: ${clientHistory.length}  |  Samlet: ${totalSpent.toFixed(2)} ${currency}`, size: 17, color: '6B7280', font: 'Arial' })] }),
           new Paragraph({ spacing: { before: 160, after: 120 }, children: [new TextRun({ text: 'KLIENTOPLYSNINGER', bold: true, size: 22, color: '111827', font: 'Arial' })] }),
           new Table({
             width: { size: 9360, type: WidthType.DXA }, columnWidths: [2800, 6560],
@@ -74,7 +77,7 @@ export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
           }),
           new Paragraph({ spacing: { before: 400, after: 120 }, children: [new TextRun({ text: 'ORDREHISTORIK', bold: true, size: 22, color: '111827', font: 'Arial' })] }),
           ...clientHistory.map((o: any, oi: number) => {
-            const oDate   = o.created_at ? new Date(o.created_at).toLocaleDateString('da-DK') : '—';
+            const oDate   = o.created_at ? new Date(o.created_at).toLocaleDateString(localeStr) : '—';
             const oNo     = o.order_number || ('GLS-' + String(o.id || '').slice(0, 8).toUpperCase());
             const oItems: any[] = Array.isArray(o.items) ? o.items : [];
             const sLabel  = statusLabel(o).label;
@@ -82,8 +85,8 @@ export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
               new Paragraph({ spacing: { before: oi === 0 ? 0 : 280, after: 100 }, children: [
                 new TextRun({ text: `#${oNo}`, bold: true, size: 22, font: 'Arial', color: '10b981' }),
                 new TextRun({ text: `   ${oDate}   ·   ${sLabel}`, size: 18, font: 'Arial', color: '6B7280' }),
-                ...(o.shipping_date ? [new TextRun({ text: `   · Afsendt: ${new Date(o.shipping_date).toLocaleDateString('da-DK')}`, size: 16, font: 'Arial', color: '9CA3AF' })] : []),
-                ...(o.arrival_date  ? [new TextRun({ text: `   · Ankomst: ${new Date(o.arrival_date).toLocaleDateString('da-DK')}`,  size: 16, font: 'Arial', color: '9CA3AF' })] : []),
+                ...(o.shipping_date ? [new TextRun({ text: `   · Afsendt: ${new Date(o.shipping_date).toLocaleDateString(localeStr)}`, size: 16, font: 'Arial', color: '9CA3AF' })] : []),
+                ...(o.arrival_date  ? [new TextRun({ text: `   · Ankomst: ${new Date(o.arrival_date).toLocaleDateString(localeStr)}`,  size: 16, font: 'Arial', color: '9CA3AF' })] : []),
               ]}),
               new Table({
                 width: { size: 9360, type: WidthType.DXA }, columnWidths: [5000, 1500, 1430, 1430],
@@ -154,10 +157,10 @@ export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
             <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex items-start gap-3">
               <Building2 size={14} className="text-blue-500 mt-0.5 shrink-0" />
               <div className="flex-1">
-                <div className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1">Virksomhedsoplysninger</div>
+                <div className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1">{t('admin_client_company_info')}</div>
                 <div className="flex flex-wrap gap-4">
-                  {c.company_name && <div><span className="text-[8px] text-blue-400 font-bold uppercase">Navn: </span><span className="text-[11px] font-black text-slate-900">{c.company_name}</span></div>}
-                  {c.vat_number   && <div><span className="text-[8px] text-blue-400 font-bold uppercase">VAT/CVR: </span><span className="text-[11px] font-black text-slate-900">{c.vat_number}</span></div>}
+                  {c.company_name && <div><span className="text-[8px] text-blue-400 font-bold uppercase">{t('admin_client_name')} </span><span className="text-[11px] font-black text-slate-900">{c.company_name}</span></div>}
+                  {c.vat_number   && <div><span className="text-[8px] text-blue-400 font-bold uppercase">{t('admin_client_vat')} </span><span className="text-[11px] font-black text-slate-900">{c.vat_number}</span></div>}
                 </div>
               </div>
             </div>
@@ -167,7 +170,7 @@ export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-start gap-3">
               <MapPin size={14} className="text-emerald-500 mt-0.5 shrink-0" />
               <div className="flex-1">
-                <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Faktureringsadresse</div>
+                <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('admin_client_billing')}</div>
                 <div className="text-[11px] font-bold text-slate-700">{billingAddr}</div>
                 <div className="text-[10px] text-slate-400">{billingCity}</div>
               </div>
@@ -181,7 +184,7 @@ export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
               ) : c.delivery_same_as_billing ? (
                 <div className="flex-1 pl-4 border-l border-slate-200">
                   <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1"><Truck size={9} /> Levering</div>
-                  <div className="text-[9px] text-slate-400 italic">Samme som fakturering</div>
+                  <div className="text-[9px] text-slate-400 italic">{t('admin_client_delivery_same')}</div>
                 </div>
               ) : null}
             </div>
@@ -190,15 +193,15 @@ export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
           {/* Stats */}
           <div className="grid grid-cols-3 gap-3">
             <div className="p-5 bg-slate-900 rounded-2xl text-center">
-              <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Ordrer</div>
+              <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('admin_client_orders')}</div>
               <div className="text-3xl font-black text-white">{clientHistory.length}</div>
             </div>
             <div className="p-5 bg-emerald-500 rounded-2xl text-center">
-              <div className="text-[8px] font-black text-emerald-100 uppercase tracking-widest mb-2">Samlet købt</div>
+              <div className="text-[8px] font-black text-emerald-100 uppercase tracking-widest mb-2">{t('admin_client_total_bought')}</div>
               <div className="text-2xl font-black text-white">{totalSpent.toFixed(0)}<span className="text-sm ml-1">{currency}</span></div>
             </div>
             <div className="p-5 bg-slate-50 rounded-2xl text-center border border-slate-100">
-              <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Gnsn. ordre</div>
+              <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('admin_client_avg_order')}</div>
               <div className="text-2xl font-black text-slate-900">{clientHistory.length ? (totalSpent / clientHistory.length).toFixed(0) : '—'}<span className="text-sm ml-1 text-slate-400">{currency}</span></div>
             </div>
           </div>
@@ -206,11 +209,11 @@ export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
           {/* Orders list */}
           <div>
             <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Package size={11} /> Ordrehistorik</div>
-            {isLoadingClientHistory && <div className="flex items-center justify-center py-12 gap-3 text-slate-400"><Loader2 size={20} className="animate-spin" /><span className="text-[10px] font-black uppercase tracking-widest">Indlæser...</span></div>}
-            {!isLoadingClientHistory && clientHistory.length === 0 && <div className="text-center py-10 text-[10px] text-slate-300 font-black uppercase tracking-widest">Ingen ordrer fundet</div>}
+            {isLoadingClientHistory && <div className="flex items-center justify-center py-12 gap-3 text-slate-400"><Loader2 size={20} className="animate-spin" /><span className="text-[10px] font-black uppercase tracking-widest">{t('admin_client_loading')}</span></div>}
+            {!isLoadingClientHistory && clientHistory.length === 0 && <div className="text-center py-10 text-[10px] text-slate-300 font-black uppercase tracking-widest">{t('admin_client_no_orders')}</div>}
             <div className="space-y-3">
               {clientHistory.map((o: any) => {
-                const oDate  = o.created_at ? new Date(o.created_at).toLocaleDateString('da-DK') : '—';
+                const oDate  = o.created_at ? new Date(o.created_at).toLocaleDateString(localeStr) : '—';
                 const oNo    = o.order_number || ('GLS-' + String(o.id || '').slice(0, 8).toUpperCase());
                 const oItems: any[] = Array.isArray(o.items) ? o.items : [];
                 const st     = statusLabel(o);
@@ -221,8 +224,8 @@ export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
                         <span className="text-[10px] font-black text-emerald-600">#{oNo}</span>
                         <span className="text-[9px] text-slate-400 font-bold">{oDate}</span>
                         <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
-                        {o.shipping_date && <span className="text-[8px] text-slate-400 font-bold">📤 {new Date(o.shipping_date).toLocaleDateString('da-DK')}</span>}
-                        {o.arrival_date  && <span className="text-[8px] text-slate-400 font-bold">📥 {new Date(o.arrival_date).toLocaleDateString('da-DK')}</span>}
+                        {o.shipping_date && <span className="text-[8px] text-slate-400 font-bold">📤 {new Date(o.shipping_date).toLocaleDateString(localeStr)}</span>}
+                        {o.arrival_date  && <span className="text-[8px] text-slate-400 font-bold">📥 {new Date(o.arrival_date).toLocaleDateString(localeStr)}</span>}
                       </div>
                       <span className="text-[12px] font-black text-emerald-600">{(o.total_price || 0).toFixed(2)} {o.currency || 'EUR'}</span>
                     </div>
@@ -256,6 +259,8 @@ interface InspectUserModalProps {
 }
 
 export const AdminInspectUserModal: React.FC<InspectUserModalProps> = ({ client, onClose, onDiscountSaved }) => {
+  const { language, t } = useLanguage();
+  const localeStr = language === 'da' ? 'da-DK' : language === 'no' ? 'nb-NO' : language === 'se' ? 'sv-SE' : 'en-GB';
   const { addNotification } = useNotification();
   const { updateUserDiscount } = useUser(); // kept for currentUser sync
   const adminKey = import.meta.env.VITE_ADMIN_PASSWORD;
@@ -292,12 +297,12 @@ export const AdminInspectUserModal: React.FC<InspectUserModalProps> = ({ client,
           <div className="space-y-6 bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
             <div className="relative z-10 space-y-6">
               <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                <div className="flex items-center gap-3"><Shield size={16} className="text-emerald-500" /><span className="text-[10px] font-black uppercase tracking-widest">Verification Status</span></div>
-                <span className="px-3 py-1 bg-emerald-500 text-[8px] font-black uppercase rounded-full">Active</span>
+                <div className="flex items-center gap-3"><Shield size={16} className="text-emerald-500" /><span className="text-[10px] font-black uppercase tracking-widest">{t('admin_verify_status')}</span></div>
+                <span className="px-3 py-1 bg-emerald-500 text-[8px] font-black uppercase rounded-full">{t('admin_active')}</span>
               </div>
 
               <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                <div className="flex items-center gap-3"><Percent size={16} className="text-amber-500" /><span className="text-[10px] font-black uppercase tracking-widest">Applied Yield Discount</span></div>
+                <div className="flex items-center gap-3"><Percent size={16} className="text-amber-500" /><span className="text-[10px] font-black uppercase tracking-widest">{t('admin_yield_discount')}</span></div>
                 <div className="flex items-center gap-2">
                   <input type="number" min="0" max="100" defaultValue={client.discount || 0} id="inspect-discount-input"
                     className="w-16 bg-white/10 border border-white/20 rounded-xl px-2 py-1 text-center text-sm font-black text-amber-400 outline-none focus:border-amber-500" />
@@ -323,9 +328,9 @@ export const AdminInspectUserModal: React.FC<InspectUserModalProps> = ({ client,
               </div>
 
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3"><Calendar size={16} className="text-blue-500" /><span className="text-[10px] font-black uppercase tracking-widest">Member Since</span></div>
+                <div className="flex items-center gap-3"><Calendar size={16} className="text-blue-500" /><span className="text-[10px] font-black uppercase tracking-widest">{t('admin_member_since')}</span></div>
                 <span className="text-[10px] font-black text-slate-400 italic">
-                  {client.created_at ? new Date(client.created_at).toLocaleDateString('da-DK') : 'Recently Synchronized'}
+                  {client.created_at ? new Date(client.created_at).toLocaleDateString(localeStr) : 'Recently Synchronized'}
                 </span>
               </div>
             </div>
@@ -334,7 +339,7 @@ export const AdminInspectUserModal: React.FC<InspectUserModalProps> = ({ client,
         </div>
 
         <div className="px-10 py-8 border-t border-slate-100 bg-slate-50/50 flex justify-end">
-          <button onClick={onClose} className="bg-slate-900 px-12 py-4 rounded-2xl text-[10px] font-black uppercase text-white shadow-xl hover:bg-slate-800 transition-all">Close Audit</button>
+          <button onClick={onClose} className="bg-slate-900 px-12 py-4 rounded-2xl text-[10px] font-black uppercase text-white shadow-xl hover:bg-slate-800 transition-all">{t('admin_close_audit')}</button>
         </div>
       </div>
     </div>

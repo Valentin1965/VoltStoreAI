@@ -173,7 +173,7 @@ export const WishlistPage: React.FC = () => {
 
   const handleBookingSubmit = async () => {
     if (!bookingModal || !bookingEmail.includes('@')) {
-      addNotification('Enter a valid email', 'error');
+      addNotification(t('err_email_invalid'), 'error');
       return;
     }
     setPendingEmail(bookingEmail);
@@ -187,11 +187,11 @@ export const WishlistPage: React.FC = () => {
   const totalPrice       = useMemo(() => activeBookings.reduce((s, b) => s + b.product_price, 0), [activeBookings]);
 
   const handleRefresh = async () => {
-    if (!emailFilter.includes('@')) { addNotification('Enter a valid email', 'error'); return; }
+    if (!emailFilter.includes('@')) { addNotification(t('err_email_invalid'), 'error'); return; }
     setRefreshing(true);
     await refreshBookings(emailFilter);
     setRefreshing(false);
-    addNotification('Bookings refreshed', 'success');
+    addNotification(t('bookings_refreshed'), 'success');
   };
 
   const handleAddToCart = (booking: Booking) => {
@@ -206,7 +206,7 @@ export const WishlistPage: React.FC = () => {
       is_active: true,
     });
     convertToCart(booking.id);
-    addNotification('Added to cart', 'success');
+    addNotification(t('item_added'), 'success');
   };
 
   const handleAddAllToCart = () => {
@@ -289,7 +289,7 @@ export const WishlistPage: React.FC = () => {
           <div className="flex items-center gap-2">
             <Zap size={14} className="text-emerald-500 shrink-0" />
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              {bookings.length === 0 ? t('recommended_booking') : 'Add More Products'}
+              {bookings.length === 0 ? t('recommended_booking') : t('see_all_products')}
               <span className="ml-2 text-slate-300">— {recommendations.length} items</span>
             </span>
           </div>
