@@ -63,7 +63,7 @@ export const ClientCabinet: React.FC = () => {
       setReg(r => ({ ...r, email: loginEmail }));
     }
     setIsProcessing(false);
-  }, [loginEmail, loginByEmail, addNotification]);
+  }, [loginEmail, loginByEmail, addNotification, t]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,14 +100,12 @@ export const ClientCabinet: React.FC = () => {
     return map[s] || { label: s || '—', cls: 'bg-slate-50 text-slate-400' };
   };
 
-  // ── Loading ──────────────────────────────────────────────────────────────
   if (isLoadingUser) return (
     <div className="flex items-center justify-center py-40">
       <Loader2 size={32} className="animate-spin text-emerald-500" />
     </div>
   );
 
-  // ── Auth screen — shown whenever user is NOT logged in ───────────────────
   if (!currentUser) return (
     <div className="max-w-[480px] mx-auto py-16 px-6 animate-in fade-in zoom-in-95 duration-500">
       <div className="bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-2xl space-y-8">
@@ -165,7 +163,6 @@ export const ClientCabinet: React.FC = () => {
           </div>
         ) : (
           <form onSubmit={handleRegister} className="space-y-3">
-            {/* Client type */}
             <div className="grid grid-cols-2 gap-2">
               {(['private', 'business'] as const).map(ct => (
                 <button key={ct} type="button" onClick={() => setReg(r => ({ ...r, client_type: ct }))}
@@ -176,47 +173,51 @@ export const ClientCabinet: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              {[
-                { key: 'first_name', placeholder: t('cabinet_placeholder_first_name'), required: true },
-                { key: 'last_name',  placeholder: t('cabinet_placeholder_last_name') },
-              ].map(f => (
-                <input key={f.key} required={f.required} value={(reg as any)[f.key]}
-                  onChange={e => setReg({ ...reg, [f.key]: e.target.value })}
-                  placeholder={f.placeholder}
-                  className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
-              ))}
+                <input 
+                  required 
+                  value={reg.first_name}
+                  onChange={e => setReg(prev => ({ ...prev, first_name: e.target.value }))}
+                  placeholder={t('cabinet_placeholder_first_name')}
+                  className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" 
+                />
+                <input 
+                  value={reg.last_name}
+                  onChange={e => setReg(prev => ({ ...prev, last_name: e.target.value }))}
+                  placeholder={t('cabinet_placeholder_last_name')}
+                  className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" 
+                />
             </div>
 
             <input required type="email" value={reg.email}
-              onChange={e => setReg({ ...reg, email: e.target.value })}
+              onChange={e => setReg(prev => ({ ...prev, email: e.target.value }))}
               placeholder={t('cabinet_placeholder_email')}
               className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
 
-            <input value={reg.phone} onChange={e => setReg({ ...reg, phone: e.target.value })}
+            <input value={reg.phone} onChange={e => setReg(prev => ({ ...prev, phone: e.target.value }))}
               placeholder={t('cabinet_placeholder_phone')}
               className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
 
             {reg.client_type === 'business' && (
               <div className="space-y-3">
-                <input value={reg.company_name} onChange={e => setReg({ ...reg, company_name: e.target.value })}
+                <input value={reg.company_name} onChange={e => setReg(prev => ({ ...prev, company_name: e.target.value }))}
                   placeholder={t('cabinet_placeholder_company')}
                   className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
-                <input value={reg.vat_number} onChange={e => setReg({ ...reg, vat_number: e.target.value })}
+                <input value={reg.vat_number} onChange={e => setReg(prev => ({ ...prev, vat_number: e.target.value }))}
                   placeholder={t('cabinet_placeholder_vat')}
                   className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
               </div>
             )}
 
             <div className="grid grid-cols-3 gap-2">
-              <input value={reg.street} onChange={e => setReg({ ...reg, street: e.target.value })}
+              <input value={reg.street} onChange={e => setReg(prev => ({ ...prev, street: e.target.value }))}
                 placeholder={t('field_street_short')} className="col-span-2 bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
-              <input value={reg.house_number} onChange={e => setReg({ ...reg, house_number: e.target.value })}
+              <input value={reg.house_number} onChange={e => setReg(prev => ({ ...prev, house_number: e.target.value }))}
                 placeholder={t('field_house_short')} className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <input value={reg.postal_code} onChange={e => setReg({ ...reg, postal_code: e.target.value })}
+              <input value={reg.postal_code} onChange={e => setReg(prev => ({ ...prev, postal_code: e.target.value }))}
                 placeholder={t('field_postal_short')} className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
-              <input value={reg.city} onChange={e => setReg({ ...reg, city: e.target.value })}
+              <input value={reg.city} onChange={e => setReg(prev => ({ ...prev, city: e.target.value }))}
                 placeholder={t('field_city_short')} className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
             </div>
 
@@ -234,7 +235,6 @@ export const ClientCabinet: React.FC = () => {
     </div>
   );
 
-  // ── Main cabinet ─────────────────────────────────────────────────────────
   const fullAddr = currentUser
     ? [currentUser.street, currentUser.house_number].filter(Boolean).join(' ')
     : '';
@@ -245,8 +245,6 @@ export const ClientCabinet: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700 pb-32 pt-10 px-6 text-left">
       <div className="flex flex-col lg:flex-row gap-10 items-start">
-
-        {/* ── Sidebar ── */}
         <aside className="w-full lg:w-72 shrink-0 space-y-4">
           <div className="bg-slate-900 rounded-[3rem] p-8 text-white shadow-2xl">
             <div className="flex flex-col items-center text-center space-y-4">
@@ -283,25 +281,21 @@ export const ClientCabinet: React.FC = () => {
                 </button>
               )}
 
-              {/* ── Push Notifications ──────────────────────────────── */}
               {currentUser && push.status !== 'unsupported' && (
                 <div className="w-full rounded-3xl bg-white/5 border border-white/10 p-4 space-y-3">
                   <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
                     {t('push_title')}
                   </div>
-
                   {push.status === 'denied' && (
                     <p className="text-[9px] font-bold text-rose-400 leading-relaxed">
                       {t('push_blocked')}
                     </p>
                   )}
-
                   {!import.meta.env.VITE_VAPID_PUBLIC_KEY && (
                     <p className="text-[9px] font-bold text-amber-400">
                       {t('push_not_configured')}
                     </p>
                   )}
-
                   {(push.status === 'default' || push.status === 'granted') && import.meta.env.VITE_VAPID_PUBLIC_KEY && (
                     <>
                       <div className={`flex items-center gap-3 p-3 rounded-2xl border ${push.isSubscribed ? 'bg-emerald-900/30 border-emerald-700/50' : 'bg-white/5 border-white/10'}`}>
@@ -316,7 +310,6 @@ export const ClientCabinet: React.FC = () => {
                           }
                         </p>
                       </div>
-
                       {push.isSubscribed ? (
                         <button onClick={push.unsubscribe}
                           className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-rose-700/50 text-rose-400 hover:bg-rose-900/20 transition-all text-[9px] font-black uppercase tracking-widest">
@@ -370,15 +363,11 @@ export const ClientCabinet: React.FC = () => {
           </nav>
         </aside>
 
-        {/* ── Main content ── */}
         <main className="flex-1 w-full min-w-0">
-
-          {/* PROFILE TAB */}
           {activeTab === 'profile' && (
             <div className="bg-white rounded-[3.5rem] p-12 border border-slate-100 shadow-2xl space-y-8">
               {currentUser ? (
                 <>
-                  {/* Header */}
                   <div className="flex items-center gap-4 pb-6 border-b border-slate-50 flex-wrap">
                     <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-[1.5rem] flex items-center justify-center">
                       <ShieldCheck size={32} />
@@ -391,25 +380,27 @@ export const ClientCabinet: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Info grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[
-                      { icon: Mail,    label: t('profile_email_label'),   val: currentUser.email },
-                      { icon: Phone,   label: t('profile_phone_label'), val: currentUser.phone || '—' },
-                    ].map(row => (
-                      <div key={row.label} className="bg-slate-50 rounded-2xl p-5 flex items-center gap-4">
-                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
-                          <row.icon size={16} className="text-emerald-500" />
-                        </div>
-                        <div>
-                          <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{row.label}</div>
-                          <div className="text-xs font-black text-slate-900 mt-0.5">{row.val}</div>
-                        </div>
+                    <div className="bg-slate-50 rounded-2xl p-5 flex items-center gap-4">
+                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                        <Mail size={16} className="text-emerald-500" />
                       </div>
-                    ))}
+                      <div>
+                        <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{t('profile_email_label')}</div>
+                        <div className="text-xs font-black text-slate-900 mt-0.5">{currentUser.email}</div>
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 rounded-2xl p-5 flex items-center gap-4">
+                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                        <Phone size={16} className="text-emerald-500" />
+                      </div>
+                      <div>
+                        <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{t('profile_phone_label')}</div>
+                        <div className="text-xs font-black text-slate-900 mt-0.5">{currentUser.phone || '—'}</div>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Business info */}
                   {currentUser.client_type === 'business' && currentUser.company_name && (
                     <div className="p-5 bg-blue-50 rounded-2xl border border-blue-100 flex items-start gap-4">
                       <Building2 size={18} className="text-blue-500 mt-0.5 shrink-0" />
@@ -423,7 +414,6 @@ export const ClientCabinet: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Addresses */}
                   {(fullAddr || cityLine) && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 flex items-start gap-3">
@@ -457,7 +447,6 @@ export const ClientCabinet: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Discount badge */}
                   {currentUser.discount && currentUser.discount > 0 ? (
                     <div className="flex items-center gap-3 p-5 bg-amber-50 rounded-2xl border border-amber-100">
                       <Percent size={20} className="text-amber-500" />
@@ -503,7 +492,6 @@ export const ClientCabinet: React.FC = () => {
             </div>
           )}
 
-          {/* CART TAB */}
           {activeTab === 'cart' && (
             <div className="bg-white rounded-[3.5rem] p-10 border border-slate-100 shadow-2xl space-y-6">
               <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter flex items-center gap-3">
@@ -555,7 +543,6 @@ export const ClientCabinet: React.FC = () => {
             </div>
           )}
 
-          {/* HISTORY TAB */}
           {activeTab === 'history' && (
             <div className="bg-white rounded-[3.5rem] p-10 border border-slate-100 shadow-2xl space-y-6">
               <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter flex items-center gap-3">
@@ -609,7 +596,6 @@ export const ClientCabinet: React.FC = () => {
                           <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${st.cls}`}>{st.label}</span>
                         </div>
 
-                        {/* Shipping dates */}
                         {(order.shipping_date || order.arrival_date) && (
                           <div className="flex gap-4 flex-wrap pt-1">
                             {order.shipping_date && (

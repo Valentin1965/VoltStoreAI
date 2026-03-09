@@ -138,7 +138,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           .from('bookings')
           .insert([newBooking])
           .select()
-          .single();
+          .maybeSingle();
         if (error) throw error;
         setBookings(prev => [data as Booking, ...prev]);
         addNotification(`"${productName}" booked for 48h`, 'success');

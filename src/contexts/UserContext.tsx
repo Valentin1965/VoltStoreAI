@@ -64,7 +64,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (initialized.current) return;
     initialized.current = true;
 
-    // Clean up legacy localStorage keys from old in-memory user system
     safeStorage.removeItem('voltstoreai_users_v2');
     safeStorage.removeItem('voltstoreai_current_user_v2');
 
@@ -74,9 +73,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { id } = JSON.parse(stored);
       if (!id) { setIsLoadingUser(false); return; }
-      supabase.from('clients').select('*').eq('id', id).single()
+      // Use RPC to bypass RLS
+      supabase.rpc('get_client_by_id', { p_id: id })
         .then(({ data, error }) => {
-          if (!error && data) setCurrentUser(rowToProfile(data));
+          const row = Array.isArray(data) ? data[0] : data;
+          if (!error && row) setCurrentUser(rowToProfile(row));
           else safeStorage.removeItem(SESSION_KEY);
           setIsLoadingUser(false);
         });
@@ -88,26 +89,36 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // ── Login by email (no password — B2B portal) ──────────────────────────
   const loginByEmail = useCallback(async (email: string): Promise<'found' | 'not_found'> => {
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('email', email.toLowerCase().trim())
-      .single();
-    if (error || !data) return 'not_found';
-    const profile = rowToProfile(data);
+    const { data, error } = await supabase.rpc('login_client_by_email', {
+      p_email: email.toLowerCase().trim(),
+    });
+    const row = Array.isArray(data) ? data[0] : data;
+    if (error || !row) return 'not_found';
+    const profile = rowToProfile(row);
     setCurrentUser(profile);
-    safeStorage.setItem(SESSION_KEY, JSON.stringify({ id: data.id, email: data.email }));
+    safeStorage.setItem(SESSION_KEY, JSON.stringify({ id: row.id, email: row.email }));
     return 'found';
   }, []);
 
   // ── Register new client ─────────────────────────────────────────────────
   const registerClient = useCallback(async (data: RegisterData): Promise<UserProfile> => {
-    const { data: row, error } = await supabase
-      .from('clients')
-      .upsert([{ ...data, email: data.email.toLowerCase().trim() }], { onConflict: 'email' })
-      .select('*')
-      .single();
+    const { data: rows, error } = await supabase.rpc('register_client', {
+      p_first_name:  data.first_name,
+      p_last_name:   data.last_name,
+      p_email:       data.email.toLowerCase().trim(),
+      p_phone:       data.phone       || '',
+      p_client_type: data.client_type || 'private',
+      p_company:     data.company_name || '',
+      p_vat:         data.vat_number  || '',
+      p_country:     data.country     || 'Danmark',
+      p_city:        data.city        || '',
+      p_street:      data.street      || '',
+      p_house:       data.house_number || '',
+      p_postal:      data.postal_code  || '',
+    });
     if (error) throw error;
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    if (!row) throw new Error('Registration failed — no data returned');
     const profile = rowToProfile(row);
     setCurrentUser(profile);
     safeStorage.setItem(SESSION_KEY, JSON.stringify({ id: row.id, email: row.email }));
@@ -137,13 +148,12 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // ── Async find by email ─────────────────────────────────────────────────
   const findClientByEmail = useCallback(async (email: string): Promise<UserProfile | null> => {
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('email', email.toLowerCase().trim())
-      .single();
-    if (error || !data) return null;
-    return rowToProfile(data);
+    const { data, error } = await supabase.rpc('login_client_by_email', {
+      p_email: email.toLowerCase().trim(),
+    });
+    const row = Array.isArray(data) ? data[0] : data;
+    if (error || !row) return null;
+    return rowToProfile(row);
   }, []);
 
   // ── Legacy sync compat (returns currentUser if email matches) ───────────
