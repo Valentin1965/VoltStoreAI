@@ -1,6 +1,18 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useProducts, SortOption } from '../../contexts/ProductsContext';
+
+const MOBILE_BREAKPOINT = 768;
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+  return isMobile;
+}
 import { useCart } from '../../contexts/CartContext';
 import { useWishlist } from '../../contexts/WishlistContext';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -11,7 +23,7 @@ import {
   ShoppingCart, X, Loader2, Zap, Download, FileText, Info, 
   ShoppingBag, CheckCircle2, PlayCircle, Heart, Percent,
   Layers, Package, ArrowRight, ShieldCheck, Star, Factory, Activity, Crown,
-  Filter, RotateCcw, ChevronDown, Search, SlidersHorizontal, Check, Eye, ExternalLink,
+  Filter, RotateCcw, ChevronDown, ChevronLeft, Search, SlidersHorizontal, Check, Eye, ExternalLink,
   Link2, Copy, CheckCheck
 } from 'lucide-react';
 import { Product, Category, KitComponent } from '../../types';
@@ -235,6 +247,7 @@ export const CatalogSection: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const isMobile = useIsMobile();
   const [bookingEmailModal, setBookingEmailModal] = useState<Product | null>(null);
   const [bookingEmail, setBookingEmail] = useState('');
   const [bookingName, setBookingName] = useState('');
@@ -576,8 +589,98 @@ export const CatalogSection: React.FC = () => {
         )}
       </div>
 
-      {/* Modern Product Detail Modal — mobile: full-screen sheet with readable text; desktop: grid modal */}
-      {selectedProduct && (
+      {/* Option C: On mobile — full-screen product page (no modal). Reliable scroll and readable text. */}
+      {selectedProduct && isMobile && (
+        <div className="fixed inset-0 z-[1000000] flex flex-col bg-white text-slate-900 animate-fade-in">
+          <header className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-slate-100 bg-white sticky top-0 z-20">
+            <button
+              type="button"
+              onClick={() => setSelectedProduct(null)}
+              className="p-2 -ml-1 rounded-xl text-slate-600 hover:bg-slate-100 flex items-center gap-1"
+              aria-label={t('back') || 'Back'}
+            >
+              <ChevronLeft size={24} />
+              <span className="text-sm font-bold">{t('back') || 'Back'}</span>
+            </button>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-base font-black text-slate-900 truncate">{getLoc(selectedProduct.name)}</h1>
+              <p className="text-xs text-slate-500 truncate">{selectedProduct.manufacturer || t(`cat_${selectedProduct.category}`)}</p>
+            </div>
+            <button type="button" onClick={() => setSelectedProduct(null)} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100" aria-label="Close"><X size={22} /></button>
+          </header>
+          <main className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+            <div className="p-4 pb-28 space-y-6">
+              <div className="bg-slate-50 rounded-2xl p-6 flex items-center justify-center border border-slate-100 min-h-[220px]">
+                <img src={selectedProduct.image || IMAGE_FALLBACK} className="max-w-full max-h-[200px] object-contain" alt="" />
+              </div>
+              {selectedProduct.images && selectedProduct.images.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
+                  {[selectedProduct.image, ...selectedProduct.images].filter(Boolean).map((img, idx) => (
+                    <div key={idx} className="w-16 h-16 shrink-0 bg-slate-50 rounded-xl border border-slate-100 p-1.5 flex items-center justify-center snap-start">
+                      <img src={img} className="max-w-full max-h-full object-contain" alt="" />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <section className="bg-white border border-slate-100 rounded-2xl p-5">
+                <h3 className="text-sm font-black uppercase text-emerald-600 tracking-widest mb-3 flex items-center gap-2"><Info size={16} /> {t('about_product') || 'Asset Details'}</h3>
+                <p className="text-slate-700 text-base leading-relaxed font-medium">{getLoc(selectedProduct.description) || '—'}</p>
+              </section>
+              <section className="bg-slate-50 border border-slate-100 rounded-2xl p-5">
+                <h3 className="text-sm font-black uppercase text-slate-700 tracking-widest mb-3 flex items-center gap-2"><Layers size={16} className="text-emerald-500" /> {t('specs_title') || 'Technical specs'}</h3>
+                <CategorySpecs product={selectedProduct} />
+              </section>
+              <section className="bg-white border border-slate-100 rounded-2xl p-5">
+                <h3 className="text-sm font-black uppercase text-slate-700 tracking-widest mb-3 flex items-center gap-2"><FileText size={16} className="text-emerald-500" /> {t('documentation_title') || 'Documentation'}</h3>
+                {Array.isArray(selectedProduct.docs) && selectedProduct.docs.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedProduct.docs.map((d: any, i: number) => (
+                      <a key={i} href={d.url} target="_blank" rel="noopener noreferrer" className="flex justify-between items-center p-3 bg-slate-50 rounded-xl text-slate-800 text-sm font-bold">
+                        {d.title || 'Tech Sheet'} <Download size={16} className="text-emerald-500 shrink-0" />
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-500 text-sm italic">{t('product_no_docs')}</p>
+                )}
+              </section>
+              {selectedProduct.video_url && (
+                <a href={selectedProduct.video_url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-slate-900 text-white rounded-2xl">
+                  <span className="text-sm font-black uppercase flex items-center gap-2"><PlayCircle size={20} className="text-emerald-400" /> {t('product_watch_review')}</span>
+                  <ExternalLink size={18} />
+                </a>
+              )}
+            </div>
+          </main>
+          <footer className="shrink-0 px-4 py-4 bg-slate-900 border-t border-white/10 sticky bottom-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div>
+              <span className="text-[10px] font-black text-slate-500 uppercase block tracking-widest">{t('total')}</span>
+              <DualPrice priceExVat={currentTotal} className="text-emerald-400 text-xl" secondaryClassName="text-emerald-400/60" />
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => handleBookingClick(selectedProduct)}
+                className={`p-3 rounded-xl border ${isInWishlist(selectedProduct.id) ? 'bg-rose-50 border-rose-200 text-rose-500' : 'bg-white/10 border-white/20 text-white'}`}
+                aria-label={t('nav_wishlist')}
+              >
+                <Heart size={20} fill={isInWishlist(selectedProduct.id) ? 'currentColor' : 'none'} />
+              </button>
+              <button
+                type="button"
+                onClick={() => { addItem({ ...selectedProduct, price: currentTotal }); addNotification(t('item_added'), 'success'); setSelectedProduct(null); }}
+                className="flex-1 sm:flex-none btn-action py-3 px-6 flex items-center justify-center gap-2"
+              >
+                <ShoppingCart size={18} />
+                <span className="font-black uppercase text-sm">{t('add_to_cart')}</span>
+              </button>
+            </div>
+          </footer>
+        </div>
+      )}
+
+      {/* Desktop: modal (option B kept for md+) */}
+      {selectedProduct && !isMobile && (
         <div className="fixed inset-0 z-[1000000] flex flex-col md:flex-row md:items-center justify-end md:justify-center md:p-10 bg-slate-900/95 backdrop-blur-xl animate-fade-in text-left md:overflow-y-auto">
           <div className="absolute inset-0 z-0" onClick={() => setSelectedProduct(null)} aria-hidden />
           <div 
