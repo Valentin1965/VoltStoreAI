@@ -573,7 +573,7 @@ export async function exportCartDocx(items: CartExportItem[], customerName?: str
         body('• This quotation is valid for 30 days from the date of issue.'),
         body('• Prices are in EUR and subject to change without notice.'),
         body('• Delivery times may vary depending on product availability.'),
-        body('• For questions contact: info@glsolargroup.dk'),
+        body('• For questions contact: sales@glsolargroup.dk'),
         spacer(),
         divider(),
         body(`Green Light Scandinavia  |  ${date}  |  www.glsolargroup.dk`, { size: 18 }),

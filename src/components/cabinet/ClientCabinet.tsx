@@ -43,9 +43,16 @@ export const ClientCabinet: React.FC = () => {
   useEffect(() => {
     if (activeTab !== 'history' || !currentUser?.email) return;
     setLoadingOrders(true);
-    supabase.rpc('get_client_orders', { p_client_id: currentUser.id })
+    supabase
+      .rpc('get_client_orders', { p_client_id: currentUser.id })
       .then(({ data, error }) => {
-        if (!error && data) setOrders(data);
+        if (!error && data) {
+          const realOrders = (data as any[]).filter(o =>
+            Array.isArray((o as any).items) &&
+            (o as any).items.length > 0
+          );
+          setOrders(realOrders);
+        }
         setLoadingOrders(false);
       });
   }, [activeTab, currentUser]);

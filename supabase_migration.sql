@@ -376,6 +376,47 @@ $$;
 
 GRANT EXECUTE ON FUNCTION save_push_subscription(uuid, text, text, text, text) TO anon, authenticated;
 
+-- RPC: зберегти push підписку для адміна (client_id = NULL)
+CREATE OR REPLACE FUNCTION save_admin_push_subscription(
+  p_key      text,
+  p_endpoint text,
+  p_p256dh   text,
+  p_auth     text,
+  p_ua       text DEFAULT NULL
+) RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM app_config WHERE key = 'admin_key' AND value = p_key
+  ) THEN
+    RAISE EXCEPTION 'save_admin_push_subscription: Unauthorized';
+  END IF;
+
+  INSERT INTO push_subscriptions (client_id, endpoint, p256dh, auth, user_agent)
+  VALUES (NULL, p_endpoint, p_p256dh, p_auth, p_ua)
+  ON CONFLICT (endpoint) DO UPDATE
+    SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, updated_at = now();
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION save_admin_push_subscription(text, text, text, text, text) TO anon, authenticated;
+
+-- RPC: видалити push підписку по endpoint (використовується при unsubscribe)
+CREATE OR REPLACE FUNCTION delete_push_subscription(
+  p_endpoint text
+) RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  DELETE FROM push_subscriptions WHERE endpoint = p_endpoint;
+$$;
+
+GRANT EXECUTE ON FUNCTION delete_push_subscription(text) TO anon, authenticated;
+
 -- ── VAPID ключі — встанови після генерації: ──────────────────────────────
 -- supabase secrets set VAPID_PRIVATE_KEY=your_private_key
 -- supabase secrets set VAPID_PUBLIC_KEY=your_public_key

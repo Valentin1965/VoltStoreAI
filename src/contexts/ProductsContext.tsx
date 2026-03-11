@@ -220,6 +220,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         panels,
         chargers,
         pumps,
+        kits,
         prods,
       ] = await Promise.all([
         fetchTable('batteries'),
@@ -227,26 +228,31 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         fetchTable('solar_panels'),
         fetchTable('ev_chargers'),
         fetchTable('heat_pumps'),
-        fetchTable('products'),   // ← re-enabled: main product table
+        fetchTable('kits'),
+        fetchTable('products'),   // ← main product table (including legacy kits, if any)
       ]);
 
 
 
       const mapProduct = (p: any, category: Category): Product => {
+        const effectiveCategory = (p.category as Category) || category;
+        const isKit = effectiveCategory === 'Sæt' || effectiveCategory === 'Kits';
         const name = p.name || (p.BrandProd && p.ModelName ? `${p.BrandProd} ${p.ModelName}` : p.ModelName || p.BrandProd || 'Unnamed Asset');
         return {
           ...p,
-          id: `${category}-${p.id}`,
+          id: `${effectiveCategory}-${p.id}`,
           name: typeof name === 'string' ? { da: name, en: name } : name,
           description: p.description || { da: '', en: '' },
-          price: p.PriceEurExVat || p.price || 0,
-          category: p.category || category,
+          price: isKit ? (p.total_price || p.price || 0) : (p.PriceEurExVat || p.price || 0),
+          category: effectiveCategory,
           image: p.image || (p.images?.[0] || ''),
           images: p.images || (p.image ? [p.image] : []),
           stock: p.StockLvl ?? p.stock ?? 0,
           specs: safeJsonParse(p.specs, 'specs'),
           docs: safeJsonParse(p.docs, 'docs'),
-          kitComponents: safeJsonParse(p.kit_components, 'kit'),
+          kitComponents: isKit
+            ? (Array.isArray(p.components) ? p.components : safeJsonParse(p.components, 'kit'))
+            : safeJsonParse(p.kit_components, 'kit'),
           is_active: p.is_active ?? true,   // default true if column missing
           is_leader: p.is_leader ?? false,
         };
@@ -258,6 +264,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ...(panels || []).map(p => mapProduct(p, 'Solpaneler')),
         ...(chargers || []).map(p => mapProduct(p, 'Power Station')),
         ...(pumps  || []).map(p => mapProduct(p, 'Varmepumper')),
+        ...(kits   || []).map(p => mapProduct(p, 'Sæt')),
         ...(prods  || []).map(p => mapProduct(p, (p.category as Category) || 'Power Station')),
       ];
 

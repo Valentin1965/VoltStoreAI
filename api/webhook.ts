@@ -19,8 +19,8 @@ export default async function handler(req: any, res: any) {
     // 2. Відправка імейла через Resend (Email Order)
     // Використовуємо дані з тіла запиту (req.body)
     const { data, error } = await resend.emails.send({
-      from: 'VoltStore <orders@glsolargroup.dk>', // Замініть на ваш підтверджений домен
-      to: [req.body.customer_email || 'admin@glsolargroup.dk'],
+      from: 'Green Light Scandinavia <sales@glsolargroup.dk>',
+      to: [req.body.customer_email || 'sales@glsolargroup.dk'],
       subject: `Order Confirmation #${req.body.orderNumber || 'New'}`,
       html: `
         <h1>Thank you for your order!</h1>

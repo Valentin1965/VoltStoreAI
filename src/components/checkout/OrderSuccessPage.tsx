@@ -1,11 +1,29 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CheckCircle2, ShoppingBag, ArrowRight } from 'lucide-react';
+import { supabase } from '../../services/supabase';
 
 export const OrderSuccessPage: React.FC<{ onBackToCatalog: () => void }> = ({ onBackToCatalog }) => {
+  const [orderSummary, setOrderSummary] = useState<any | null>(null);
+
   useEffect(() => {
-    // Cart already cleared in CheckoutPage after successful INSERT
-    // Just clean up URL so page refresh doesn't stay on success
-    window.history.replaceState({}, '', window.location.pathname);
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id');
+
+    if (!id) {
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+
+    supabase
+      .from('orders')
+      .select('order_number,total_price,status,customer_email')
+      .eq('id', id)
+      .single()
+      .then(({ data }) => {
+        if (data) setOrderSummary(data);
+        // після завантаження очищаємо query, щоб при оновленні не робити повторний success-flow
+        window.history.replaceState({}, '', window.location.pathname);
+      });
   }, []);
 
   return (
@@ -15,11 +33,22 @@ export const OrderSuccessPage: React.FC<{ onBackToCatalog: () => void }> = ({ on
       </div>
       
       <h1 className="text-4xl font-black text-slate-900 uppercase tracking-tighter mb-4">
-        Payment Received!
+        Order received
       </h1>
-      <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em] max-w-xs leading-relaxed mb-10">
-        Your order is being processed. We have sent a confirmation email with all the details.
+      <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em] max-w-xs leading-relaxed mb-6">
+        Your order is being processed. A confirmation has been sent from sales@glsolargroup.dk.
       </p>
+
+      {orderSummary && (
+        <div className="mb-10 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] space-y-1">
+          <div>Order #{orderSummary.order_number || ''}</div>
+          <div>Status: {orderSummary.status}</div>
+          <div>Total: {orderSummary.total_price}</div>
+          <div className="normal-case text-[9px] text-slate-400">
+            Contact: <a href="mailto:sales@glsolargroup.dk" className="text-emerald-500 font-black">sales@glsolargroup.dk</a>
+          </div>
+        </div>
+      )}
 
       <button 
         onClick={onBackToCatalog}

@@ -73,11 +73,13 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [dbClients, setDbClients]             = useState<any[]>([]);
 
-  // Orders: pagination + search + status filter
+  // Orders: pagination + search + status + date filters
   const ORDERS_PER_PAGE = 25;
   const [ordersPage, setOrdersPage]               = useState(0);
   const [ordersSearch, setOrdersSearch]           = useState('');
   const [ordersStatusFilter, setOrdersStatusFilter] = useState('all');
+  const [ordersLifecycleFilter, setOrdersLifecycleFilter] = useState<'all' | 'current' | 'history'>('current');
+  const [ordersDateFilter, setOrdersDateFilter]   = useState<string>('');
 
   // UI modals
   const [isModalOpen, setIsModalOpen]           = useState(false);
@@ -129,22 +131,77 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
     return true;
   }), [allProducts, adminCategoryFilter, adminManufacturerFilter]);
 
-  // ── Orders: filter + paginate ──────────────────────────────────────────────
-  const filteredOrders = useMemo(() => {
-    const q = ordersSearch.toLowerCase().trim();
-    return orders.filter(o => {
-      if (ordersStatusFilter !== 'all' && (o as any).order_status !== ordersStatusFilter) return false;
-      if (!q) return true;
-      return (
-        o.customer_name?.toLowerCase().includes(q) ||
-        o.customer_email?.toLowerCase().includes(q) ||
-        (o as any).order_number?.toLowerCase().includes(q)
-      );
-    });
-  }, [orders, ordersSearch, ordersStatusFilter]);
+  // ── Shared terminal statuses for lifecycle filtering ─────────────────────
+  const terminalStatuses = ['delivered', 'cancelled', 'expired', 'failed', 'refunded'];
 
-  const totalOrderPages  = Math.ceil(filteredOrders.length / ORDERS_PER_PAGE);
-  const paginatedOrders  = filteredOrders.slice(ordersPage * ORDERS_PER_PAGE, (ordersPage + 1) * ORDERS_PER_PAGE);
+  // ── Orders subset used for client presence (не залежить від пошуку) ──────
+  const ordersForClients = useMemo(() => {
+    return orders.filter(o => {
+      // Тільки замовлення з товарами
+      if (!o.items || !Array.isArray(o.items) || o.items.length === 0) {
+        return false;
+      }
+
+      const paymentStatus = (o as any).status as string | undefined;
+
+      // Життєвий цикл
+      if (ordersLifecycleFilter === 'current' && paymentStatus && terminalStatuses.includes(paymentStatus)) {
+        return false;
+      }
+      if (ordersLifecycleFilter === 'history' && (!paymentStatus || !terminalStatuses.includes(paymentStatus))) {
+        return false;
+      }
+
+      // Фільтр по логістичному статусу
+      if (ordersStatusFilter !== 'all' && (o as any).order_status !== ordersStatusFilter) {
+        return false;
+      }
+
+      // Фільтр по дню створення (created_at)
+      if (ordersDateFilter) {
+        const created = (o.created_at || '').slice(0, 10);
+        if (created !== ordersDateFilter) return false;
+      }
+
+      return true;
+    });
+  }, [orders, ordersLifecycleFilter, ordersStatusFilter, ordersDateFilter, terminalStatuses]);
+
+  // ── Clients that actually have at least one relevant order ───────────────
+  const clientsWithOrders = useMemo(
+    () =>
+      dbClients.filter((c: any) =>
+        ordersForClients.some(o =>
+          o.customer_email?.toLowerCase() === c.email?.toLowerCase()
+        )
+      ),
+    [dbClients, ordersForClients]
+  );
+
+  // ── Orders: filter + paginate ──────────────────────────────────────────────
+ // ── Orders: filter + paginate + ONLY WITH ITEMS ─────────────────────────────
+// ── Orders: filter + paginate (для таблиці) ────────────────────────────────
+const filteredOrders = useMemo(() => {
+  const q = ordersSearch.toLowerCase().trim();
+
+  return ordersForClients.filter(o => {
+    // Пошук по клієнту / email / номеру
+    if (!q) return true;
+    return (
+      o.customer_name?.toLowerCase().includes(q) ||
+      o.customer_email?.toLowerCase().includes(q) ||
+      (o as any).order_number?.toLowerCase().includes(q)
+    );
+  });
+}, [ordersForClients, ordersSearch]);
+
+// ✅ ТІЛЬКИ ОДНА оголошення!
+const totalOrderPages = Math.ceil(filteredOrders.length / ORDERS_PER_PAGE);
+const paginatedOrders = filteredOrders.slice(
+  ordersPage * ORDERS_PER_PAGE,
+  (ordersPage + 1) * ORDERS_PER_PAGE
+);
+
 
   // ── Data fetchers ─────────────────────────────────────────────────────
   const fetchOrders = useCallback(async () => {
@@ -182,7 +239,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
   useEffect(() => { setIsMounted(true); }, []);
   useEffect(() => {
     if (!isMounted) return;
-    if (activeTab === 'dashboard' || activeTab === 'orders') fetchOrders();
+    if (activeTab === 'dashboard' || activeTab === 'orders' || activeTab === 'clients') fetchOrders();
     if (activeTab === 'bookings') fetchBookings();
     if (activeTab === 'clients' || activeTab === 'dashboard')  fetchDbClients();
   }, [activeTab, isMounted, fetchOrders, fetchDbClients, fetchBookings]);
@@ -269,15 +326,27 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
   };
 
   const openClientHistory = useCallback(async (client: any) => {
-    setSelectedClient(client);
     setIsLoadingClientHistory(true);
-    // Filter from already-loaded orders — no direct table query needed after RLS
+
+    // Беремо тільки реальні замовлення з товарами
     const clientOrders = orders
-      .filter(o => o.customer_email === client.email)
+      .filter(o =>
+        o.customer_email === client.email &&
+        Array.isArray((o as any).items) &&
+        (o as any).items.length > 0
+      )
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    if (clientOrders.length === 0) {
+      setIsLoadingClientHistory(false);
+      addNotification('Цей клієнт ще не має замовлень', 'info');
+      return;
+    }
+
+    setSelectedClient(client);
     setClientHistory(clientOrders);
     setIsLoadingClientHistory(false);
-  }, [orders]);
+  }, [orders, addNotification]);
 
   // ── Modal open helpers ────────────────────────────────────────────────
   const resetKitFilters = () => {
@@ -369,7 +438,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
             <Layers size={14} className="inline mr-2" /> New Kit
           </button>
           <button onClick={() => handleOpenModal()} className="btn-action !bg-emerald-500 !py-3 !px-6 !text-[9px] !rounded-2xl ml-2">
-            <Plus size={14} /> New Asset
+            <Plus size={14} /> New Product
           </button>
           <button onClick={onLogout} className="p-3 text-rose-400 hover:bg-rose-50 rounded-2xl transition-all"><LogOut size={18} /></button>
         </div>
@@ -417,9 +486,26 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                   onChange={e => { setOrdersSearch(e.target.value); setOrdersPage(0); }}
                   className="w-full bg-white border border-slate-200 rounded-xl py-2 pl-9 pr-3 text-[10px] font-black uppercase outline-none focus:border-emerald-500 transition-all" />
               </div>
-              <select value={ordersStatusFilter}
+              <input
+                type="date"
+                value={ordersDateFilter}
+                onChange={e => { setOrdersDateFilter(e.target.value); setOrdersPage(0); }}
+                className="bg-white border border-slate-200 rounded-xl py-2 px-3 text-[10px] font-black uppercase outline-none focus:border-emerald-500 transition-all cursor-pointer"
+              />
+              <select
+                value={ordersLifecycleFilter}
+                onChange={e => { setOrdersLifecycleFilter(e.target.value as any); setOrdersPage(0); }}
+                className="bg-white border border-slate-200 rounded-xl py-2 px-3 text-[10px] font-black uppercase outline-none focus:border-emerald-500 transition-all cursor-pointer"
+              >
+                <option value="current">Current</option>
+                <option value="history">History</option>
+                <option value="all">All</option>
+              </select>
+              <select
+                value={ordersStatusFilter}
                 onChange={e => { setOrdersStatusFilter(e.target.value); setOrdersPage(0); }}
-                className="bg-white border border-slate-200 rounded-xl py-2 px-3 text-[10px] font-black uppercase outline-none focus:border-emerald-500 transition-all cursor-pointer">
+                className="bg-white border border-slate-200 rounded-xl py-2 px-3 text-[10px] font-black uppercase outline-none focus:border-emerald-500 transition-all cursor-pointer"
+              >
                 <option value="all">{t('admin_status_all')}</option>
                 <option value="accepted">{t('admin_status_accepted')}</option>
                 <option value="in_progress">{t('admin_status_in_progress')}</option>
@@ -512,8 +598,8 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {dbClients.length === 0 && <tr><td colSpan={6} className="p-10 text-center text-[10px] text-slate-300 font-bold uppercase tracking-widest">{t('admin_no_clients')}</td></tr>}
-                  {dbClients.map((c: any) => (
+                  {clientsWithOrders.length === 0 && <tr><td colSpan={6} className="p-10 text-center text-[10px] text-slate-300 font-bold uppercase tracking-widest">{t('admin_no_clients')}</td></tr>}
+                  {clientsWithOrders.map((c: any) => (
                     <tr key={c.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => openClientHistory(c)}>
                       <td className="p-6">
                         <div className="flex items-center gap-4">

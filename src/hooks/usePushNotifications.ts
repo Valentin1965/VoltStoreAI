@@ -78,6 +78,9 @@ export function usePushNotifications(clientId?: string | null) {
       // Persist to Supabase via RPC
       if (clientId === 'admin') {
         const adminKey = import.meta.env.VITE_ADMIN_PASSWORD ?? '';
+        if (!adminKey) {
+          console.warn('[Push] VITE_ADMIN_PASSWORD not set — cannot persist admin push subscription');
+        } else {
         const { error } = await supabase.rpc('save_admin_push_subscription', {
           p_key:      adminKey,
           p_endpoint: sub.endpoint,
@@ -86,8 +89,14 @@ export function usePushNotifications(clientId?: string | null) {
           p_ua:       navigator.userAgent.slice(0, 200),
         });
         if (error) {
-          console.error('[Push] save_admin_push_subscription error:', error);
+          console.error(
+            '[Push] save_admin_push_subscription error:',
+            error.message || error,
+            (error as any).details ? `details: ${(error as any).details}` : '',
+            (error as any).hint ? `hint: ${(error as any).hint}` : ''
+          );
           // Don't fail — subscription still works locally
+        }
         }
       } else if (clientId) {
         const { error } = await supabase.rpc('save_push_subscription', {
@@ -97,7 +106,14 @@ export function usePushNotifications(clientId?: string | null) {
           p_auth:      auth,
           p_ua:        navigator.userAgent.slice(0, 200),
         });
-        if (error) console.error('[Push] save_push_subscription error:', error);
+        if (error) {
+          console.error(
+            '[Push] save_push_subscription error:',
+            error.message || error,
+            (error as any).details ? `details: ${(error as any).details}` : '',
+            (error as any).hint ? `hint: ${(error as any).hint}` : ''
+          );
+        }
       }
 
       localStorage.setItem('gls_push_endpoint', sub.endpoint);

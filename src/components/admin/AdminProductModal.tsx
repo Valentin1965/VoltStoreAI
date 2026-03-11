@@ -207,8 +207,17 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
     payload.specs       = localSpecs.filter(s => s.label?.trim());
 
     if (targetTable === 'kits') {
-      payload.components  = localKitComponents.map(c => ({ component_id: c.id, name: c.name, price: c.price, quantity: c.quantity }));
-      payload.total_price = localKitComponents.reduce((s, c) => s + c.price * c.quantity, 0);
+      const autoTotal = localKitComponents.reduce((s, c) => s + c.price * c.quantity, 0);
+      payload.components   = localKitComponents.map(c => ({
+        component_id: c.id,
+        name:         c.name,
+        price:        c.price,
+        quantity:     c.quantity,
+      }));
+      // Дозволяємо адміну вручну задати фінальну ціну комплекта
+      payload.total_price = typeof formData.total_price === 'number' && !Number.isNaN(formData.total_price)
+        ? formData.total_price
+        : autoTotal;
     }
 
     try {
@@ -638,8 +647,8 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4 relative z-10">
-                        {localKitComponents.map(c => (
-                          <div key={c.id} className="flex items-center justify-between gap-6 py-4 border-b border-white/5 animate-fade-in">
+                        {localKitComponents.map((c, idx) => (
+                          <div key={`${c.id}-${idx}`} className="flex items-center justify-between gap-6 py-4 border-b border-white/5 animate-fade-in">
                             <div className="flex-1 min-w-0">
                               <div className="text-[11px] font-black uppercase truncate">{c.name}</div>
                               <DualPrice priceExVat={c.price} className="mt-1" secondaryClassName="text-slate-500" showLabels={false} />
@@ -657,9 +666,39 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                       </div>
                     )}
                   </div>
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-[2.5rem] p-8 flex justify-between items-center shadow-lg">
-                    <span className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">Total Assembly Yield:</span>
-                    <DualPrice priceExVat={localKitComponents.reduce((s, c) => s + c.price * c.quantity, 0)} className="text-emerald-600" secondaryClassName="text-emerald-600/60" align="right" />
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-[2.5rem] p-8 flex flex-col md:flex-row md:items-center md:justify-between gap-6 shadow-lg">
+                    <div className="space-y-1">
+                      <span className="block text-[10px] font-black uppercase text-emerald-600 tracking-widest">
+                        Total of components
+                      </span>
+                      <DualPrice
+                        priceExVat={localKitComponents.reduce((s, c) => s + c.price * c.quantity, 0)}
+                        className="text-emerald-600"
+                        secondaryClassName="text-emerald-600/60"
+                        align="left"
+                      />
+                    </div>
+                    <div className="space-y-2 w-full md:w-auto">
+                      <label className="text-[9px] font-black text-emerald-700 uppercase ml-1">
+                        Final kit price (editable, EUR excl. VAT)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={
+                          typeof formData.total_price === 'number' && !Number.isNaN(formData.total_price)
+                            ? formData.total_price
+                            : localKitComponents.reduce((s, c) => s + c.price * c.quantity, 0)
+                        }
+                        onChange={e =>
+                          setFormData({
+                            ...formData,
+                            total_price: Number(e.target.value),
+                          })
+                        }
+                        className="input-premium bg-white !py-3 !text-xs"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

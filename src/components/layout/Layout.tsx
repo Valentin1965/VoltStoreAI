@@ -227,6 +227,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
                 <a href="tel:+4561485219" className="text-xs font-black text-slate-900 hover:text-emerald-500 tracking-tight transition-colors flex items-center gap-1.5">
                   <Phone size={12} className="text-emerald-500" /> +45 61 48 52 19
                 </a>
+                <a href="mailto:info@glsolargroup.dk" className="text-[9px] font-black text-slate-500 hover:text-emerald-500 tracking-tight transition-colors flex items-center gap-1.5">
+                  <Mail size={10} className="text-emerald-500" /> info@glsolargroup.dk
+                </a>
                 <a href="mailto:sales@glsolargroup.dk" className="text-[9px] font-black text-slate-500 hover:text-emerald-500 tracking-tight transition-colors flex items-center gap-1.5">
                   <Mail size={10} className="text-emerald-500" /> sales@glsolargroup.dk
                 </a>

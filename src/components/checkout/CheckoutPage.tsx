@@ -142,24 +142,45 @@ export const CheckoutPage: React.FC<{ onBackToCart: () => void; onOrderSuccess: 
       const { data, error } = await supabase.from('orders').insert([orderData]).select().single();
       if (error) throw error;
 
-      await sendOrderEmails({
-        orderNo: data.order_number || data.id.slice(0, 8),
-        orderDate: new Date().toLocaleDateString(),
-        customerName: orderData.customer_name,
-        customerEmail: orderData.customer_email,
-        customerPhone: orderData.customer_phone,
-        clientType: orderData.client_type as any,
-        billingAddress: `${formData.street} ${formData.house_number}, ${formData.postal_code} ${formData.city}`,
-        deliveryAddress: formData.delivery_same ? 'Same as billing' : `${formData.delivery_street}, ${formData.delivery_city}`,
-        items: orderData.items as any,
-        totalPrice: totalPrice,
-        currency: orderData.currency,
-        lang: language
-      });
+      if (paymentMethod === 'Email Order') {
+        await sendOrderEmails({
+          orderNo: data.order_number || data.id.slice(0, 8),
+          orderDate: new Date().toLocaleDateString(),
+          customerName: orderData.customer_name,
+          customerEmail: orderData.customer_email,
+          customerPhone: orderData.customer_phone,
+          clientType: orderData.client_type as any,
+          billingAddress: `${formData.street} ${formData.house_number}, ${formData.postal_code} ${formData.city}`,
+          deliveryAddress: formData.delivery_same ? 'Same as billing' : `${formData.delivery_street}, ${formData.delivery_city}`,
+          items: orderData.items as any,
+          totalPrice: totalPrice,
+          currency: orderData.currency,
+          lang: language
+        });
 
-      addNotification(t('order_success_msg'), 'success');
-      clearCart();
-      onOrderSuccess();
+        addNotification(t('order_success_msg'), 'success');
+        clearCart();
+        onOrderSuccess();
+      } else {
+        // Credit Card (Mollie) flow
+        const resp = await fetch('/api/create-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: orderData.total_price,
+            orderId: data.id,
+            customerEmail: orderData.customer_email,
+          }),
+        });
+
+        const payload = await resp.json();
+        if (!resp.ok || !payload.checkoutUrl) {
+          throw new Error(payload.error || 'Unable to start card payment');
+        }
+
+        // Перенаправляємо клієнта на сторінку оплати Mollie
+        window.location.href = payload.checkoutUrl;
+      }
     } catch (err: any) {
       addNotification(err.message, 'error');
     } finally {
@@ -191,13 +212,44 @@ export const CheckoutPage: React.FC<{ onBackToCart: () => void; onOrderSuccess: 
               <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900">{t('checkout_payment_title')}</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <button type="button" onClick={() => setPaymentMethod('Email Order')}
-                className={`p-6 rounded-3xl border-2 transition-all text-left flex flex-col gap-3 ${paymentMethod === 'Email Order' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100 hover:border-slate-200'}`}>
-                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${paymentMethod === 'Email Order' ? 'border-emerald-500 bg-emerald-500' : 'border-slate-200'}`}>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('Email Order')}
+                className={`p-6 rounded-3xl border-2 transition-all text-left flex flex-col gap-3 ${
+                  paymentMethod === 'Email Order' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100 hover:border-slate-200'
+                }`}
+              >
+                <div
+                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                    paymentMethod === 'Email Order' ? 'border-emerald-500 bg-emerald-500' : 'border-slate-200'
+                  }`}
+                >
                   {paymentMethod === 'Email Order' && <div className="w-2 h-2 bg-white rounded-full" />}
                 </div>
                 <div className="text-sm font-black uppercase text-slate-900">{t('checkout_email_order_title')}</div>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{t('checkout_email_order_desc')}</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                  {t('checkout_email_order_desc')}
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('Credit Card')}
+                className={`p-6 rounded-3xl border-2 transition-all text-left flex flex-col gap-3 ${
+                  paymentMethod === 'Credit Card' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100 hover:border-slate-200'
+                }`}
+              >
+                <div
+                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                    paymentMethod === 'Credit Card' ? 'border-emerald-500 bg-emerald-500' : 'border-slate-200'
+                  }`}
+                >
+                  {paymentMethod === 'Credit Card' && <div className="w-2 h-2 bg-white rounded-full" />}
+                </div>
+                <div className="text-sm font-black uppercase text-slate-900">Card payment (Mollie)</div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                  Secure online card payment
+                </p>
               </button>
             </div>
           </section>
