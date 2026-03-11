@@ -76,6 +76,24 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /* Мобільні форми при повороті екрану (ландшафт 90°): зона прокрутки не зжимається */
+  .modal-scroll-mobile {
+    min-height: 35vh;
+  }
+  @media (orientation: landscape) and (max-height: 500px) {
+    .modal-scroll-mobile {
+      min-height: 48vh;
+    }
+    .modal-header-mobile {
+      padding-top: 0.5rem;
+      padding-bottom: 0.5rem;
+    }
+    .modal-footer-mobile {
+      padding-top: 0.5rem;
+      padding-bottom: 0.5rem;
+    }
+  }
 }
 @keyframes zoomIn {
   from { transform: scale(1.03); }

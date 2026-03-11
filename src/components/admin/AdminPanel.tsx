@@ -21,6 +21,13 @@ import { AdminProductModal }          from './AdminProductModal';
 import { AdminRatesModal }            from './AdminRatesModal';
 import { AdminDashboard }            from './AdminDashboard';
 
+// Перевірка, що об'єкт — запис із таблиці замовлень (не продукт/комплект)
+const isOrderRecord = (o: any): boolean =>
+  o != null &&
+  typeof o === 'object' &&
+  (typeof (o as any).customer_email === 'string' || typeof (o as any).order_number === 'string') &&
+  Array.isArray((o as any).items);
+
 // ── ProductRow ──────────────────────────────────────────────────────────
 const ProductRow = React.memo(({ product, onEdit, onDelete, formatPrice, getLoc }: any) => (
   <tr className="hover:bg-slate-50/50 transition-colors group">
@@ -243,6 +250,11 @@ const paginatedOrders = filteredOrders.slice(
     if (activeTab === 'bookings') fetchBookings();
     if (activeTab === 'clients' || activeTab === 'dashboard')  fetchDbClients();
   }, [activeTab, isMounted, fetchOrders, fetchDbClients, fetchBookings]);
+
+  // Закривати модалку замовлення при виході з вкладки Orders (важливо для мобільної версії)
+  useEffect(() => {
+    if (activeTab !== 'orders') setSelectedOrder(null);
+  }, [activeTab]);
 
   // ── Supabase Realtime — new orders ────────────────────────────────────
   const [newOrdersCount, setNewOrdersCount] = useState(0);
@@ -729,8 +741,9 @@ const paginatedOrders = filteredOrders.slice(
       </div>
 
       {/* ── Modals ───────────────────────────────────────────────────── */}
-      {selectedOrder && (
+      {activeTab === 'orders' && selectedOrder && isOrderRecord(selectedOrder) && (
         <AdminOrderModal
+          key={selectedOrder.id}
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
           onUpdated={updated => setSelectedOrder(updated)}
