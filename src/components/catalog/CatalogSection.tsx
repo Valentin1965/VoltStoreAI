@@ -708,8 +708,8 @@ export const CatalogSection: React.FC = () => {
                </div>
              </div>
 
-             {/* Footer — sticky on both */}
-             <div className="px-4 md:px-12 py-4 md:py-10 bg-slate-900 flex flex-col sm:flex-row items-center justify-between gap-4 md:gap-8 border-t border-white/5 shrink-0 sticky bottom-0 z-20">
+             {/* Footer — sticky; height reduced ~40% on mobile (py-2) and desktop (py-6), text/button unchanged */}
+             <div className="px-4 md:px-12 py-2 md:py-6 bg-slate-900 flex flex-col sm:flex-row items-center justify-between gap-2 md:gap-6 border-t border-white/5 shrink-0 sticky bottom-0 z-20">
                 <div className="text-left">
                   <span className="text-[9px] font-black text-slate-500 uppercase block mb-0.5 tracking-widest">{t('total')}</span>
                   <DualPrice priceExVat={currentTotal} className="text-emerald-400 text-xl md:text-3xl" secondaryClassName="text-emerald-400/60" />

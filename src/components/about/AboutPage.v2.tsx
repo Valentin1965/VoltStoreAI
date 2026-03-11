@@ -352,8 +352,8 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
               )}
             </div>
 
-            {/* Modal Footer */}
-            <div className="px-10 py-10 bg-slate-900 flex items-center justify-between shadow-3xl border-t border-white/5 shrink-0 rounded-b-[3rem]">
+            {/* Modal Footer — height reduced ~40% on mobile */}
+            <div className="px-4 md:px-10 py-2.5 md:py-6 bg-slate-900 flex flex-col sm:flex-row items-center justify-between gap-3 md:gap-6 shadow-3xl border-t border-white/5 shrink-0 rounded-b-[2rem] md:rounded-b-[3rem]">
               <div className="flex flex-col text-white text-left">
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-1.5">Samlet værdi</span>
                 <span className="text-4xl font-black text-emerald-400 tracking-tighter">{formatPrice(currentTotal)}</span>
