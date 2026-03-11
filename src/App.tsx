@@ -92,6 +92,27 @@ const AppContent: React.FC = () => {
 
   const handleSetView = useCallback((view: AppView) => {
     setCurrentView(view);
+    // оновлюємо URL, щоб кнопка "Назад" на мобільних повертала між екранами, а не викидала з сайту
+    const params = new URLSearchParams(window.location.search);
+    const slugMap: Record<AppView, string> = {
+      [AppView.CATALOG]: 'catalog',
+      [AppView.CART]: 'cart',
+      [AppView.CALCULATOR]: 'calculator',
+      [AppView.ABOUT]: 'about',
+      [AppView.SERVICE]: 'service',
+      [AppView.WISHLIST]: 'wishlist',
+      [AppView.ADMIN]: 'admin',
+      [AppView.CABINET]: 'cabinet',
+      [AppView.CHECKOUT]: 'checkout',
+      [AppView.SUCCESS]: 'success',
+    };
+    const slug = slugMap[view];
+    if (slug) {
+      params.set('view', slug);
+      const qs = params.toString();
+      const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+      window.history.pushState({ view: slug }, '', url);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
@@ -116,8 +137,29 @@ const AppContent: React.FC = () => {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
     // Open required view from URL (?view=catalog&product=ID)
-    const viewParam = params.get('view');
-    if (viewParam) {
+      const viewParam = params.get('view');
+      if (viewParam) {
+        const viewMap: Record<string, AppView> = {
+          catalog: AppView.CATALOG,
+          cart: AppView.CART,
+          calculator: AppView.CALCULATOR,
+          about: AppView.ABOUT,
+          service: AppView.SERVICE,
+          wishlist: AppView.WISHLIST,
+          admin: AppView.ADMIN,
+          cabinet: AppView.CABINET,
+          checkout: AppView.CHECKOUT,
+          success: AppView.SUCCESS,
+        };
+        if (viewMap[viewParam]) {
+          setCurrentView(viewMap[viewParam]);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }
+    const handleViewChange = (e: any) => { if (e.detail) handleSetView(e.detail as AppView); };
+    const handlePopState = () => {
+      const p = new URLSearchParams(window.location.search);
+      const viewParam = p.get('view') || 'about';
       const viewMap: Record<string, AppView> = {
         catalog: AppView.CATALOG,
         cart: AppView.CART,
@@ -125,12 +167,20 @@ const AppContent: React.FC = () => {
         about: AppView.ABOUT,
         service: AppView.SERVICE,
         wishlist: AppView.WISHLIST,
+        admin: AppView.ADMIN,
+        cabinet: AppView.CABINET,
+        checkout: AppView.CHECKOUT,
+        success: AppView.SUCCESS,
       };
-      if (viewMap[viewParam]) handleSetView(viewMap[viewParam]);
-    }
-    const handleViewChange = (e: any) => { if (e.detail) handleSetView(e.detail as AppView); };
+      const v = viewMap[viewParam] ?? AppView.ABOUT;
+      setCurrentView(v);
+    };
     window.addEventListener('changeView', handleViewChange);
-    return () => window.removeEventListener('changeView', handleViewChange);
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('changeView', handleViewChange);
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, [handleSetView]);
 
   const renderedView = useMemo(() => {

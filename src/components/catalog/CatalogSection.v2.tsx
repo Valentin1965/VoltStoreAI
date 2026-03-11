@@ -138,11 +138,10 @@ export const CatalogSection: React.FC = () => {
       </div>
 
       {selectedProduct && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-xl animate-in fade-in duration-500">
+        <div className="fixed inset-0 z-[1000] flex flex-col items-center pt-[5vh] px-4 bg-slate-900/90 backdrop-blur-xl animate-in fade-in duration-500 overflow-y-auto">
           <div className="absolute inset-0" onClick={() => setSelectedProduct(null)} />
           
-          {/* МОДАЛКА: max-h змінено на 85vh (-5%) */}
-          <div className={`relative bg-white w-full ${selectedProduct.category === 'Sæt' || selectedProduct.category === 'Kits' ? 'max-w-6xl' : 'max-w-5xl'} rounded-[3rem] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-300`}>
+          <div className={`relative bg-white w-full ${selectedProduct.category === 'Sæt' || selectedProduct.category === 'Kits' ? 'max-w-6xl' : 'max-w-5xl'} rounded-[3rem] shadow-2xl flex flex-col mb-10 max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-300`}>
             
             {/* Modal Header */}
             <div className="px-10 py-6 border-b flex items-center justify-between bg-white shrink-0">
