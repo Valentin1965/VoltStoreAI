@@ -32,9 +32,10 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
   const [selectedAddCat, setSelectedAddCat] = useState<Category | ''>('');
   const [selectedAddProdId, setSelectedAddProdId] = useState<string>('');
 
-  const salesLeaders = useMemo(() => 
-    products.filter(p => p.is_leader === true).slice(0, 5), 
-  [products]);
+  const salesLeaders = useMemo(
+    () => products.filter(p => p.is_leader === true && p.category !== 'Sæt' && p.category !== 'Kits').slice(0, 5),
+    [products]
+  );
 
   const currentTotal = useMemo(() => {
     if (!selectedProduct) return 0;
@@ -217,7 +218,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
       {/* 6. ENHANCED MODAL FOR BESTSELLERS */}
       {selectedProduct && (
         <div className="fixed inset-0 z-[10000] flex flex-col items-center pt-[5vh] px-4 bg-slate-900/90 backdrop-blur-xl animate-fade-in overflow-y-auto text-left">
-          <div className={`bg-white w-full ${selectedProduct.category === 'Sæt' ? 'max-w-6xl' : 'max-w-5xl'} rounded-[3rem] shadow-2xl flex flex-col mb-10 max-h-[90vh] overflow-hidden text-slate-900`}>
+          <div className={`bg-white w-full ${selectedProduct.category === 'Sæt' ? 'max-w-6xl' : 'max-w-5xl'} rounded-[3rem] shadow-2xl flex flex-col mb-10 max-h-[90vh] overflow-hidden text-slate-900 min-h-0`}>
             
             {/* Modal Header */}
             <div className="px-10 py-6 border-b flex items-center justify-between bg-white shrink-0">
@@ -236,7 +237,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
               <button onClick={() => setSelectedProduct(null)} className="p-3 hover:bg-slate-50 rounded-full transition-all text-slate-400"><X size={32} /></button>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-8 md:p-12">
+            <div className="flex-1 md:min-h-0 md:overflow-y-auto custom-scrollbar p-8 md:p-12">
               {selectedProduct.category === 'Sæt' ? (
                 /* --- KIT MODAL --- */
                 <div className="space-y-10">

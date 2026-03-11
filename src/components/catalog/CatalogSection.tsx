@@ -578,9 +578,9 @@ export const CatalogSection: React.FC = () => {
 
       {/* Modern Product Detail Modal */}
       {selectedProduct && (
-        <div className="fixed inset-0 z-[1000000] flex items-end md:items-center justify-center md:p-10 bg-slate-900/95 backdrop-blur-xl animate-fade-in text-left">
+        <div className="fixed inset-0 z-[1000000] flex items-end md:items-center justify-center md:p-10 bg-slate-900/95 backdrop-blur-xl animate-fade-in text-left overflow-y-auto">
           <div className="absolute inset-0" onClick={() => setSelectedProduct(null)} />
-          <div className="relative bg-white w-full md:max-w-7xl h-[95vh] md:h-auto md:max-h-[90vh] rounded-t-[3rem] md:rounded-[4rem] shadow-3xl flex flex-col overflow-hidden text-slate-900 border border-white/20 min-h-0">
+          <div className="relative bg-white w-full md:max-w-7xl md:max-h-[90vh] rounded-t-[3rem] md:rounded-[4rem] shadow-3xl flex flex-col overflow-hidden text-slate-900 border border-white/20 min-h-0">
              
              {/* Header */}
              <div className="px-8 md:px-12 py-6 md:py-8 border-b flex items-center justify-between bg-white shrink-0 sticky top-0 z-10">
@@ -622,8 +622,8 @@ export const CatalogSection: React.FC = () => {
                 </div>
              </div>
              
-             {/* Body — min-h-0 so flex child can shrink and scroll on mobile */}
-             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 md:p-12 text-slate-900">
+             {/* Body — mobile scrolls via outer wrapper; desktop via inner area */}
+             <div className="flex-1 md:min-h-0 md:overflow-y-auto custom-scrollbar p-6 md:p-12 text-slate-900">
                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
                  <div className="lg:col-span-5 space-y-8">
                     <div className="space-y-4">

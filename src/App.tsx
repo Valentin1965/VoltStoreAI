@@ -53,14 +53,16 @@ export class ErrorBoundary extends React.Component<
   static getDerivedStateFromError() { return { hasError: true }; }
   render() {
     if (this.state.hasError) return (
-      <div className="p-12 text-center m-10 glass-panel rounded-[3rem] notranslate" translate="no">
-        <div className="text-rose-500 font-black uppercase tracking-widest text-xs mb-4">System Anomaly Detected</div>
-        <h2 className="text-2xl font-black text-slate-900 mb-6 uppercase">Interface standard failed</h2>
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          {this.props.onRecover && (
-            <button onClick={this.props.onRecover} className="btn-action">Go home</button>
-          )}
-          <button onClick={() => window.location.reload()} className="btn-action">Reboot Terminal</button>
+      <div className="min-h-[70vh] flex items-center justify-center px-4 py-10 notranslate" translate="no">
+        <div className="glass-panel rounded-[3rem] p-8 md:p-12 text-center max-w-xl w-full">
+          <div className="text-rose-500 font-black uppercase tracking-widest text-xs mb-4">System Anomaly Detected</div>
+          <h2 className="text-2xl font-black text-slate-900 mb-6 uppercase">Interface standard failed</h2>
+          <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3">
+            {this.props.onRecover && (
+              <button onClick={this.props.onRecover} className="btn-action w-full sm:w-auto">На головну</button>
+            )}
+            <button onClick={() => window.location.reload()} className="btn-action w-full sm:w-auto">Reboot Terminal</button>
+          </div>
         </div>
       </div>
     );

@@ -684,7 +684,10 @@ const paginatedOrders = filteredOrders.slice(
                       </tr>
                     ))
                   )}
-                  {(activeTab === 'products' ? filteredAdminProducts : filteredAdminProducts.filter(p => p.category === 'Sæt')).map(p => (
+                  {activeTab === 'products' && filteredAdminProducts.map(p => (
+                    <ProductRow key={p.id} product={p} onEdit={handleOpenModal} onDelete={handleDelete} formatPrice={formatPrice} getLoc={getLoc} />
+                  ))}
+                  {activeTab === 'kits' && filteredAdminProducts.filter(p => p.category === 'Sæt').map(p => (
                     <ProductRow key={p.id} product={p} onEdit={handleOpenModal} onDelete={handleDelete} formatPrice={formatPrice} getLoc={getLoc} />
                   ))}
                 </tbody>

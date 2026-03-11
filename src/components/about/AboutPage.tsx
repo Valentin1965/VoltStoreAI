@@ -40,9 +40,12 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [kitComponents, setKitComponents] = useState<KitComponent[]>([]);
 
-  const topProducts = useMemo(() => products.filter(p => p.is_leader).slice(0, 4), [products]);
-
   const isKit = (cat: string) => cat === 'Sæt' || cat === 'Kits';
+  const topProducts = useMemo(
+    () => products.filter(p => p.is_leader && !isKit(p.category)).slice(0, 4),
+    [products]
+  );
+
   const safeParse = (input: any) => {
     if (!input) return [];
     if (Array.isArray(input)) return input;
@@ -207,10 +210,9 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
 
       {/* PRODUCT MODAL (SYNCHRONIZED WITH CATALOG) */}
       {selectedProduct && (
-        <div className="fixed inset-0 z-[1000000] flex items-end md:items-center justify-center md:p-10 bg-slate-900/95 backdrop-blur-xl animate-fade-in text-left">
+        <div className="fixed inset-0 z-[1000000] flex items-end md:items-center justify-center md:p-10 bg-slate-900/95 backdrop-blur-xl animate-fade-in text-left overflow-y-auto">
           <div className="absolute inset-0" onClick={() => setSelectedProduct(null)} />
-          
-          <div className="relative bg-white w-full md:max-w-7xl h-full md:h-auto md:max-h-[90vh] rounded-t-[2.5rem] md:rounded-[3rem] shadow-[0_30px_100px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden text-slate-900 border border-white/20">
+          <div className="relative bg-white w-full md:max-w-7xl md:max-h-[90vh] rounded-t-[2.5rem] md:rounded-[3rem] shadow-[0_30px_100px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden text-slate-900 border border-white/20 min-h-0">
             
             {/* Modal Header */}
             <div className="px-6 md:px-12 py-6 md:py-8 border-b flex items-center justify-between bg-white shrink-0 sticky top-0 z-10">
@@ -255,7 +257,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
             </div>
             
             {/* Modal Content */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-12 text-left text-slate-900">
+            <div className="flex-1 md:min-h-0 md:overflow-y-auto custom-scrollbar p-6 md:p-12 text-left text-slate-900">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-12">
                 
                 {/* Left Side: Media */}
