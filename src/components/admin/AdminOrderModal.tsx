@@ -84,22 +84,21 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
   };
 
   return (
-    <div className="fixed inset-0 z-[10002] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-md text-left">
-      <div className="bg-white w-full max-w-3xl rounded-[2.5rem] shadow-3xl relative border border-slate-100 flex flex-col max-h-[90vh] overflow-hidden">
-        
+    <div className="fixed inset-0 z-[10002] flex items-end md:items-center justify-center p-0 md:p-4 bg-slate-900/95 backdrop-blur-md text-left overflow-y-auto">
+      <div className="bg-white w-full md:max-w-3xl rounded-t-[2rem] md:rounded-[2.5rem] shadow-3xl relative border border-slate-100 flex flex-col max-h-[95vh] overflow-hidden min-h-0 flex-1 md:flex-initial">
         {/* Header */}
-        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="bg-emerald-500 p-2.5 rounded-2xl text-white shadow-lg">
+        <div className="px-4 md:px-8 py-4 md:py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+          <div className="flex items-center gap-3 md:gap-4 min-w-0">
+            <div className="bg-emerald-500 p-2.5 rounded-2xl text-white shadow-lg shrink-0">
               <Package size={20} />
             </div>
-            <div>
-              <div className="text-xs font-black uppercase tracking-widest text-slate-900">Ordre #{orderNo}</div>
-              <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{orderDate}</div>
+            <div className="min-w-0">
+              <div className="text-sm md:text-xs font-black uppercase tracking-widest text-slate-900">Ordre #{orderNo}</div>
+              <div className="text-xs md:text-[9px] text-slate-500 md:text-slate-400 font-bold uppercase tracking-widest mt-0.5">{orderDate}</div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={exportWord} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={exportWord} className="flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 bg-emerald-500 text-white rounded-xl text-xs md:text-[9px] font-black uppercase tracking-widest transition-all">
               <Download size={14} /> Word
             </button>
             <button onClick={onClose} className="p-2.5 hover:bg-slate-200 rounded-xl transition-all text-slate-400">
@@ -108,68 +107,66 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
           </div>
         </div>
 
-        {/* Body */}
-        <div className="overflow-y-auto p-8 space-y-6">
+        {/* Body — scrollable, readable on mobile */}
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
-              <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
-                <Users size={11} /> Kontakt
+            <div className="p-4 md:p-6 bg-slate-50 rounded-2xl border border-slate-100">
+              <div className="text-xs md:text-[9px] font-black uppercase tracking-widest text-slate-500 md:text-slate-400 mb-2 md:mb-3 flex items-center gap-2">
+                <Users size={14} className="md:w-[11px] md:h-[11px]" /> Kontakt
               </div>
-              <div className="text-sm font-black text-slate-900">{o.customer_name}</div>
-              <div className="text-[10px] text-slate-500 mt-1">{o.customer_email}</div>
+              <div className="text-base md:text-sm font-black text-slate-900">{o.customer_name}</div>
+              <div className="text-sm md:text-[10px] text-slate-500 mt-1">{o.customer_email}</div>
             </div>
-            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
-              <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
-                <MapPin size={11} /> Adresse
+            <div className="p-4 md:p-6 bg-slate-50 rounded-2xl border border-slate-100">
+              <div className="text-xs md:text-[9px] font-black uppercase tracking-widest text-slate-500 md:text-slate-400 mb-2 md:mb-3 flex items-center gap-2">
+                <MapPin size={14} className="md:w-[11px] md:h-[11px]" /> Adresse
               </div>
-              <div className="text-[10px] text-slate-700 leading-relaxed">
+              <div className="text-sm md:text-[10px] text-slate-700 leading-relaxed">
                 {addr}<br/>{city}
               </div>
             </div>
           </div>
 
           {/* Status Selection */}
-          <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
-            <div className="text-[13.5px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <Activity size={11} /> Стан замовлення
+          <div className="p-4 md:p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+            <div className="text-sm md:text-[13.5px] font-black uppercase tracking-widest text-slate-500 md:text-slate-400 flex items-center gap-2">
+              <Activity size={14} className="md:w-[11px] md:h-[11px]" /> Стан замовлення
             </div>
             <div className="grid grid-cols-2 gap-2">
               {ORDER_STATUSES.map(s => (
-                <button 
-                  key={s.key} 
+                <button
+                  key={s.key}
                   type="button"
                   onClick={() => setStatusEdit(prev => ({ ...prev, status: s.key }))}
-                  className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 text-left transition-all ${
-                    statusEdit.status === s.key 
-                      ? `${s.color} border-current font-black` 
+                  className={`flex items-center gap-2 px-3 md:px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                    statusEdit.status === s.key
+                      ? `${s.color} border-current font-black`
                       : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
                   }`}
                 >
-                  <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                    statusEdit.status === s.key ? s.dot : 'bg-slate-200'
-                  }`} />
-                  <span className="text-[10px] font-bold uppercase tracking-wider">{s.label}</span>
+                  <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusEdit.status === s.key ? s.dot : 'bg-slate-200'}`} />
+                  <span className="text-xs md:text-[10px] font-bold uppercase tracking-wider">{s.label}</span>
                 </button>
               ))}
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <input 
-                type="date" 
-                value={statusEdit.shipping_date} 
-                onChange={e => setStatusEdit(prev => ({ ...prev, shipping_date: e.target.value }))} 
-                className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-[11px] font-bold" 
+              <input
+                type="date"
+                value={statusEdit.shipping_date}
+                onChange={e => setStatusEdit(prev => ({ ...prev, shipping_date: e.target.value }))}
+                className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 md:py-2 text-sm md:text-[11px] font-bold"
               />
-              <input 
-                type="date" 
-                value={statusEdit.arrival_date} 
-                onChange={e => setStatusEdit(prev => ({ ...prev, arrival_date: e.target.value }))} 
-                className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-[11px] font-bold" 
+              <input
+                type="date"
+                value={statusEdit.arrival_date}
+                onChange={e => setStatusEdit(prev => ({ ...prev, arrival_date: e.target.value }))}
+                className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 md:py-2 text-sm md:text-[11px] font-bold"
               />
             </div>
-            <button 
-              onClick={saveStatus} 
-              disabled={isSaving} 
-              className="w-full py-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+            <button
+              onClick={saveStatus}
+              disabled={isSaving}
+              className="w-full py-3.5 md:py-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl text-xs md:text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
             >
               {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               Gem status

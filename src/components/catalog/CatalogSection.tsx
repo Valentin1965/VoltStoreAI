@@ -81,9 +81,9 @@ const CategorySpecs: React.FC<{ product: Product }> = ({ product }) => {
   const renderSpec = (label: string, value: any, suffix: string = '') => {
     if (value === undefined || value === null || value === '') return null;
     return (
-      <div className="flex justify-between items-center py-2 border-b border-slate-50 last:border-0">
-        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
-        <span className="text-[10px] font-bold text-slate-900">{value}{suffix}</span>
+      <div className="flex justify-between items-center py-2.5 md:py-2 border-b border-slate-50 last:border-0">
+        <span className="text-xs md:text-[9px] font-black text-slate-500 md:text-slate-400 uppercase tracking-wider md:tracking-widest">{label}</span>
+        <span className="text-sm md:text-[10px] font-bold text-slate-900">{String(value)}{suffix}</span>
       </div>
     );
   };
@@ -576,77 +576,97 @@ export const CatalogSection: React.FC = () => {
         )}
       </div>
 
-      {/* Modern Product Detail Modal */}
+      {/* Modern Product Detail Modal — mobile: full-screen sheet with readable text; desktop: grid modal */}
       {selectedProduct && (
-        <div className="fixed inset-0 z-[1000000] flex items-end md:items-center justify-center md:p-10 bg-slate-900/95 backdrop-blur-xl animate-fade-in text-left overflow-y-auto">
-          <div className="absolute inset-0" onClick={() => setSelectedProduct(null)} />
-          <div className="relative bg-white w-full md:max-w-7xl md:max-h-[90vh] rounded-t-[3rem] md:rounded-[4rem] shadow-3xl flex flex-col overflow-hidden text-slate-900 border border-white/20 min-h-0">
-             
-             {/* Header */}
-             <div className="px-8 md:px-12 py-6 md:py-8 border-b flex items-center justify-between bg-white shrink-0 sticky top-0 z-10">
-                <div className="flex items-center gap-6">
-                   <div className="bg-emerald-600 p-4 rounded-2xl text-white shadow-xl shadow-emerald-500/20 ring-4 ring-emerald-50"><Zap size={24} /></div>
-                   <div>
-                     <h2 className="text-2xl md:text-3xl font-black uppercase text-slate-900 leading-tight tracking-tighter truncate max-w-[200px] sm:max-w-none flex items-center gap-3">
+        <div className="fixed inset-0 z-[1000000] flex flex-col md:flex-row md:items-center justify-end md:justify-center md:p-10 bg-slate-900/95 backdrop-blur-xl animate-fade-in text-left md:overflow-y-auto">
+          <div className="absolute inset-0 z-0" onClick={() => setSelectedProduct(null)} aria-hidden />
+          <div 
+            className="relative z-10 bg-white w-full md:max-w-7xl md:max-h-[90vh] rounded-t-[2rem] md:rounded-[4rem] shadow-3xl flex flex-col overflow-hidden text-slate-900 border border-white/20 min-h-0 flex-1 md:flex-none max-h-[95vh] md:max-h-[90vh]"
+            onClick={e => e.stopPropagation()}
+          >
+             {/* Header — compact on mobile */}
+             <div className="px-4 md:px-12 py-4 md:py-8 border-b flex items-center justify-between bg-white shrink-0 sticky top-0 z-20">
+                <div className="flex items-center gap-3 md:gap-6 min-w-0">
+                   <div className="bg-emerald-600 p-2.5 md:p-4 rounded-xl md:rounded-2xl text-white shadow-lg shrink-0"><Zap size={20} className="md:w-6 md:h-6" /></div>
+                   <div className="min-w-0">
+                     <h2 className="text-lg md:text-3xl font-black uppercase text-slate-900 leading-tight tracking-tighter truncate flex items-center gap-2">
                        {getLoc(selectedProduct.name)}
-                       {selectedProduct.is_leader && <Crown size={24} className="text-amber-500 fill-amber-500 shrink-0" />}
+                       {selectedProduct.is_leader && <Crown size={18} className="text-amber-500 fill-amber-500 shrink-0 md:w-6 md:h-6" />}
                      </h2>
-                     <div className="flex flex-wrap gap-3 mt-2">
-                        <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg uppercase tracking-widest border border-emerald-100">{t(`cat_${selectedProduct.category}`)}</span>
-                        {selectedProduct.manufacturer && <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-lg uppercase tracking-widest border border-blue-100">{selectedProduct.manufacturer}</span>}
-                        {selectedProduct.is_leader && <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-3 py-1 rounded-lg uppercase tracking-widest border border-amber-100 flex items-center gap-1"><Star size={10} fill="currentColor" /> {t('sales_leader')}</span>}
-                        {!selectedProduct.is_active && <span className="text-[9px] font-black text-rose-600 bg-rose-50 px-3 py-1 rounded-lg uppercase tracking-widest border border-rose-100">{t('inactive_status') || 'Inactive'}</span>}
+                     <div className="flex flex-wrap gap-2 mt-1 md:mt-2">
+                        <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg uppercase tracking-widest border border-emerald-100">{t(`cat_${selectedProduct.category}`)}</span>
+                        {selectedProduct.manufacturer && <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg uppercase border border-blue-100">{selectedProduct.manufacturer}</span>}
+                        {selectedProduct.is_leader && <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100 flex items-center gap-1"><Star size={10} fill="currentColor" /> {t('sales_leader')}</span>}
+                        {!selectedProduct.is_active && <span className="text-[9px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100">{t('inactive_status') || 'Inactive'}</span>}
                      </div>
                    </div>
                 </div>
-                <div className="flex items-center gap-3">
-                   <button 
-                    onClick={() => handleBookingClick(selectedProduct)} 
-                    className={`p-4 rounded-2xl transition-all border ${isInWishlist(selectedProduct.id) ? 'bg-rose-50 border-rose-100 text-rose-500 shadow-inner' : 'bg-slate-50 border-slate-100 text-slate-300'}`}
-                   >
-                     <Heart size={20} fill={isInWishlist(selectedProduct.id) ? "currentColor" : "none"} />
-                   </button>
-                   {/* Share / Copy link button */}
-                   <button
-                     onClick={() => handleCopyProductLink(selectedProduct)}
-                     title={t('product_copy_link')}
-                     className={`p-4 rounded-2xl transition-all border flex items-center gap-2 text-[9px] font-black uppercase tracking-widest
-                       ${copiedLink
-                         ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
-                         : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-emerald-200 hover:text-emerald-500'
-                       }`}
-                   >
-                     {copiedLink ? <><CheckCheck size={18} /> {t('product_copied')}</> : <><Link2 size={18} /> {t('product_share')}  </>}
-                   </button>
-                   <button onClick={() => setSelectedProduct(null)} className="p-3 hover:bg-slate-100 rounded-2xl text-slate-400 transition-all"><X size={32} /></button>
+                <div className="flex items-center gap-2 md:gap-3 shrink-0">
+                   <button onClick={() => handleBookingClick(selectedProduct)} className={`p-2.5 md:p-4 rounded-xl md:rounded-2xl transition-all border ${isInWishlist(selectedProduct.id) ? 'bg-rose-50 border-rose-100 text-rose-500' : 'bg-slate-50 border-slate-100 text-slate-300'}`} aria-label={t('nav_wishlist')}><Heart size={18} className="md:w-5 md:h-5" fill={isInWishlist(selectedProduct.id) ? "currentColor" : "none"} /></button>
+                   <button onClick={() => handleCopyProductLink(selectedProduct)} className={`p-2.5 md:p-4 rounded-xl md:rounded-2xl border flex items-center gap-1.5 text-[9px] font-black uppercase ${copiedLink ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`}><Link2 size={16} className="md:w-[18px] md:h-[18px]" /> {copiedLink ? t('product_copied') : t('product_share')}</button>
+                   <button onClick={() => setSelectedProduct(null)} className="p-2.5 md:p-3 hover:bg-slate-100 rounded-xl md:rounded-2xl text-slate-400"><X size={24} className="md:w-8 md:h-8" /></button>
                 </div>
              </div>
-             
-             {/* Body — mobile scrolls via outer wrapper; desktop via inner area */}
-             <div className="flex-1 md:min-h-0 md:overflow-y-auto custom-scrollbar p-6 md:p-12 text-slate-900">
+
+             {/* Mobile: single full-height scrollable column with readable text */}
+             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar md:hidden">
+               <div className="p-4 pb-32 space-y-6">
+                 <div className="bg-slate-50 rounded-2xl p-6 flex items-center justify-center border border-slate-100 min-h-[220px]">
+                   <img src={selectedProduct.image || IMAGE_FALLBACK} className="max-w-full max-h-[200px] object-contain" alt="" />
+                 </div>
+                 {selectedProduct.images && selectedProduct.images.length > 0 && (
+                   <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
+                     {[selectedProduct.image, ...selectedProduct.images].filter(Boolean).map((img, idx) => (
+                       <div key={idx} className="w-16 h-16 shrink-0 bg-slate-50 rounded-xl border border-slate-100 p-1.5 flex items-center justify-center snap-start">
+                         <img src={img} className="max-w-full max-h-full object-contain" alt="" />
+                       </div>
+                     ))}
+                   </div>
+                 )}
+                 <section className="bg-white border border-slate-100 rounded-2xl p-5">
+                   <h3 className="text-xs font-black uppercase text-emerald-600 tracking-widest mb-3 flex items-center gap-2"><Info size={14} /> {t('about_product') || 'Asset Details'}</h3>
+                   <p className="text-slate-700 text-base leading-relaxed font-medium">{getLoc(selectedProduct.description) || '—'}</p>
+                 </section>
+                 <section className="bg-slate-50 border border-slate-100 rounded-2xl p-5">
+                   <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest mb-3 flex items-center gap-2"><Layers size={14} className="text-emerald-500" /> {t('specs_title') || 'Technical specs'}</h3>
+                   <CategorySpecs product={selectedProduct} />
+                 </section>
+                 <section className="bg-white border border-slate-100 rounded-2xl p-5">
+                   <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest mb-3 flex items-center gap-2"><FileText size={14} className="text-emerald-500" /> {t('documentation_title') || 'Documentation'}</h3>
+                   {Array.isArray(selectedProduct.docs) && selectedProduct.docs.length > 0 ? (
+                     <div className="space-y-2">
+                       {selectedProduct.docs.map((d: any, i: number) => (
+                         <a key={i} href={d.url} target="_blank" rel="noopener noreferrer" className="flex justify-between items-center p-3 bg-slate-50 rounded-xl text-slate-800 text-sm font-bold">
+                           {d.title || 'Tech Sheet'} <Download size={16} className="text-emerald-500 shrink-0" />
+                         </a>
+                       ))}
+                     </div>
+                   ) : (
+                     <p className="text-slate-500 text-sm italic">{t('product_no_docs')}</p>
+                   )}
+                 </section>
+                 {selectedProduct.video_url && (
+                   <a href={selectedProduct.video_url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-slate-900 text-white rounded-2xl">
+                     <span className="text-sm font-black uppercase flex items-center gap-2"><PlayCircle size={20} className="text-emerald-400" /> {t('product_watch_review')}</span>
+                     <ExternalLink size={18} />
+                   </a>
+                 )}
+               </div>
+             </div>
+
+             {/* Desktop: grid body (unchanged) — hidden on mobile */}
+             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 md:p-12 text-slate-900 hidden md:block">
                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
                  <div className="lg:col-span-5 space-y-8">
                     <div className="space-y-4">
-                      <div className="bg-slate-50 rounded-[3rem] p-12 flex items-center justify-center border border-slate-100 h-[350px] md:h-[450px] shadow-inner relative group overflow-hidden">
-                        <img 
-                          src={selectedProduct.image || IMAGE_FALLBACK} 
-                          className="max-w-full max-h-full object-contain drop-shadow-2xl transition-transform duration-700 group-hover:scale-110" 
-                          alt="" 
-                        />
+                      <div className="bg-slate-50 rounded-[3rem] p-12 flex items-center justify-center border border-slate-100 h-[350px] lg:h-[450px] shadow-inner relative group overflow-hidden">
+                        <img src={selectedProduct.image || IMAGE_FALLBACK} className="max-w-full max-h-full object-contain drop-shadow-2xl transition-transform duration-700 group-hover:scale-110" alt="" />
                       </div>
-                      
-                      {/* Image Scrolling / Gallery */}
                       {selectedProduct.images && selectedProduct.images.length > 0 && (
                         <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar snap-x">
                           {[selectedProduct.image, ...selectedProduct.images].filter(Boolean).map((img, idx) => (
-                            <div 
-                              key={idx} 
-                              className="w-24 h-24 shrink-0 bg-slate-50 rounded-2xl border border-slate-100 p-2 flex items-center justify-center cursor-pointer hover:border-emerald-400 transition-all snap-start"
-                              onClick={() => {
-                                const mainImg = document.querySelector('.lg\\:col-span-5 img') as HTMLImageElement;
-                                if (mainImg) mainImg.src = img;
-                              }}
-                            >
+                            <div key={idx} className="w-24 h-24 shrink-0 bg-slate-50 rounded-2xl border border-slate-100 p-2 flex items-center justify-center cursor-pointer hover:border-emerald-400 transition-all snap-start"
+                              onClick={() => { const mainImg = document.querySelector('.lg\\:col-span-5 img') as HTMLImageElement; if (mainImg) mainImg.src = img; }}>
                               <img src={img} className="max-w-full max-h-full object-contain" alt="" />
                             </div>
                           ))}
@@ -655,15 +675,11 @@ export const CatalogSection: React.FC = () => {
                     </div>
                     {selectedProduct.video_url && (
                       <div className="bg-slate-900 rounded-[2rem] p-6 flex items-center justify-between text-white group cursor-pointer hover:bg-emerald-600 transition-all">
-                        <div className="flex items-center gap-4">
-                          <PlayCircle className="text-emerald-400 group-hover:text-white" size={28} />
-                          <div className="text-[10px] font-black uppercase tracking-widest">{t('product_watch_review')}</div>
-                        </div>
+                        <div className="flex items-center gap-4"><PlayCircle className="text-emerald-400 group-hover:text-white" size={28} /><div className="text-[10px] font-black uppercase tracking-widest">{t('product_watch_review')}</div></div>
                         <ExternalLink size={18} className="opacity-40" />
                       </div>
                     )}
                  </div>
-
                  <div className="lg:col-span-7 space-y-12">
                     <div className="space-y-4">
                       <h4 className="text-[11px] font-black uppercase text-emerald-500 tracking-[0.2em] flex items-center gap-2"><Info size={16} /> Asset Details</h4>
@@ -671,13 +687,11 @@ export const CatalogSection: React.FC = () => {
                         {getLoc(selectedProduct.description)}
                       </div>
                     </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                        <div className="space-y-4">
                           <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-widest flex items-center gap-2"><Layers size={14} className="text-emerald-500" /> Technical Filters</h4>
                           <CategorySpecs product={selectedProduct} />
                        </div>
-                       
                        <div className="space-y-4">
                           <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-widest flex items-center gap-2"><FileText size={14} className="text-emerald-500" /> Documentation</h4>
                           <div className="space-y-2">
@@ -694,17 +708,13 @@ export const CatalogSection: React.FC = () => {
                </div>
              </div>
 
-             {/* Footer */}
-             <div className="px-6 md:px-12 py-6 md:py-10 bg-slate-900 flex flex-col sm:flex-row items-center justify-between gap-6 md:gap-8 border-t border-white/5 sticky bottom-0 z-10 shrink-0">
-                <div className="text-left scale-150 md:scale-[2] origin-left ml-4 md:ml-10">
-                  <span className="text-[9px] font-black text-slate-500 uppercase block mb-1 tracking-widest">{t('total')}</span>
-                  <DualPrice 
-                    priceExVat={currentTotal} 
-                    className="text-emerald-400" 
-                    secondaryClassName="text-emerald-400/60"
-                  />
+             {/* Footer — sticky on both */}
+             <div className="px-4 md:px-12 py-4 md:py-10 bg-slate-900 flex flex-col sm:flex-row items-center justify-between gap-4 md:gap-8 border-t border-white/5 shrink-0 sticky bottom-0 z-20">
+                <div className="text-left">
+                  <span className="text-[9px] font-black text-slate-500 uppercase block mb-0.5 tracking-widest">{t('total')}</span>
+                  <DualPrice priceExVat={currentTotal} className="text-emerald-400 text-xl md:text-3xl" secondaryClassName="text-emerald-400/60" />
                 </div>
-                <div className="flex items-center gap-4 w-full sm:w-auto">
+                <div className="flex items-center gap-3 w-full sm:w-auto">
                   <DocExportButton
                     mode="product"
                     product={{
@@ -718,17 +728,13 @@ export const CatalogSection: React.FC = () => {
                       specs: Array.isArray(selectedProduct.specs) ? selectedProduct.specs : [],
                       features: selectedProduct.features || [],
                     }}
-                    className="shrink-0"
+                    className="shrink-0 hidden sm:block"
                   />
                   <button 
-                    onClick={() => { 
-                      addItem({ ...selectedProduct, price: currentTotal }); 
-                      addNotification(t('item_added'), 'success'); 
-                      setSelectedProduct(null); 
-                    }} 
-                    className="flex-1 sm:flex-none px-16 py-6 bg-emerald-500 text-white rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-4 active:scale-95 shadow-2xl transition-all"
+                    onClick={() => { addItem({ ...selectedProduct, price: currentTotal }); addNotification(t('item_added'), 'success'); setSelectedProduct(null); }} 
+                    className="flex-1 sm:flex-none px-6 md:px-16 py-4 md:py-6 bg-emerald-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 active:scale-95 shadow-2xl"
                   >
-                    <ShoppingBag size={24} /> {t('add_to_cart')}
+                    <ShoppingBag size={22} className="md:w-6 md:h-6" /> {t('add_to_cart')}
                   </button>
                 </div>
              </div>

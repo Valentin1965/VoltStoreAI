@@ -246,59 +246,59 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
 
   // ── Render ────────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-md animate-fade-in text-left">
-      <div className="bg-white w-full max-w-6xl rounded-[3rem] shadow-3xl relative border-2 border-slate-950 flex flex-col max-h-[95vh] animate-modal-in overflow-hidden">
+    <div className="fixed inset-0 z-[10000] flex items-end md:items-center justify-center p-0 md:p-4 bg-slate-900/95 backdrop-blur-md animate-fade-in text-left overflow-y-auto">
+      <div className="bg-white w-full md:max-w-6xl rounded-t-[2rem] md:rounded-[3rem] shadow-3xl relative border-2 border-slate-950 flex flex-col max-h-[95vh] md:max-h-[95vh] animate-modal-in overflow-hidden min-h-0 flex-1 md:flex-initial">
 
         {/* Header */}
-        <div className="px-10 py-6 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="bg-slate-900 p-2 rounded-lg text-emerald-500"><Settings size={18} /></div>
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">
+        <div className="px-4 md:px-10 py-4 md:py-6 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
+          <div className="flex items-center gap-3 md:gap-4 min-w-0">
+            <div className="bg-slate-900 p-2 rounded-lg text-emerald-500 shrink-0"><Settings size={18} /></div>
+            <h3 className="text-xs md:text-sm font-black uppercase tracking-widest text-slate-900 truncate">
               {formData.category === 'Sæt' ? 'Kit Assembly Panel' : 'Asset Configuration Panel'}
             </h3>
           </div>
-          <button onClick={onClose} className="p-3 hover:bg-slate-100 rounded-2xl transition-all text-slate-400"><X size={24} /></button>
+          <button onClick={onClose} className="p-2.5 md:p-3 hover:bg-slate-100 rounded-2xl transition-all text-slate-400 shrink-0"><X size={24} /></button>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs — readable on mobile */}
         <div className="flex border-b border-slate-100 shrink-0">
           {formData.category === 'Sæt' ? (
             (['main', 'kit_builder'] as const).map(tab => (
               <button key={tab} onClick={() => setModalTab(tab)}
-                className={`flex-1 py-5 text-center font-black text-[10px] uppercase tracking-widest transition-colors ${modalTab === tab ? 'border-b-4 border-emerald-500 text-emerald-600' : 'text-slate-500 hover:text-slate-900'}`}>
+                className={`flex-1 py-4 md:py-5 text-center font-black text-xs md:text-[10px] uppercase tracking-wider md:tracking-widest transition-colors ${modalTab === tab ? 'border-b-4 border-emerald-500 text-emerald-600' : 'text-slate-500 hover:text-slate-900'}`}>
                 {tab === 'main' ? 'Kit Identity' : 'Component Assembly'}
               </button>
             ))
           ) : (
             (['main', 'media', 'specs'] as const).map(tab => (
               <button key={tab} onClick={() => setModalTab(tab)}
-                className={`flex-1 py-5 text-center font-black text-[10px] uppercase tracking-widest transition-colors ${modalTab === tab ? 'border-b-4 border-emerald-500 text-emerald-600' : 'text-slate-500 hover:text-slate-900'}`}>
+                className={`flex-1 py-4 md:py-5 text-center font-black text-xs md:text-[10px] uppercase tracking-wider md:tracking-widest transition-colors ${modalTab === tab ? 'border-b-4 border-emerald-500 text-emerald-600' : 'text-slate-500 hover:text-slate-900'}`}>
                 {tab === 'main' ? 'Main Info' : tab === 'media' ? 'Media' : 'Specifications'}
               </button>
             ))
           )}
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-10 text-left">
+        {/* Body — scrollable on mobile with min-h-0 */}
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 md:p-10 text-left">
           <div className="space-y-10 animate-fade-in">
 
             {/* ── TAB MAIN ─────────────────────────────────────────── */}
             {modalTab === 'main' && (
               <div className="space-y-10 animate-fade-in">
                 {formData.category !== 'Sæt' && (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-slate-50 p-5 md:p-8 rounded-2xl md:rounded-[2.5rem] border border-slate-100 shadow-inner">
                     <div className="space-y-2">
-                      <label className="text-[9px] font-black text-slate-900 uppercase ml-2">Asset Class (Target Table)</label>
+                      <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">Asset Class (Target Table)</label>
                       <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}
                         className="input-premium appearance-none bg-white" disabled={!!editingProduct}>
                         {Object.keys(categoryToTable).map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[9px] font-black text-slate-900 uppercase ml-2">Brand (BrandProd)</label>
+                      <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">Brand (BrandProd)</label>
                       <input value={formData.BrandProd || ''} onChange={e => setFormData({ ...formData, BrandProd: e.target.value })}
-                        className="input-premium bg-white" placeholder="e.g. Huawei, Victron, Daikin..." />
+                        className="input-premium bg-white text-sm md:text-base" placeholder="e.g. Huawei, Victron, Daikin..." />
                     </div>
                   </div>
                 )}
@@ -306,11 +306,11 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-2">Localization Matrix</h4>
+                      <h4 className="text-xs md:text-[10px] font-black uppercase text-slate-400 tracking-widest px-2">Localization Matrix</h4>
                       <div className="flex gap-1.5">
                         {(['da','en','no','se'] as Language[]).map(l => (
                           <button key={l} type="button" onClick={() => setEditLang(l)}
-                            className={`w-9 h-9 rounded-xl text-[9px] font-black uppercase transition-all ${editLang === l ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
+                            className={`w-9 h-9 rounded-xl text-xs md:text-[9px] font-black uppercase transition-all ${editLang === l ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
                             {l}
                           </button>
                         ))}
@@ -318,26 +318,26 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                     </div>
                     <div className="space-y-5">
                       <div className="space-y-2">
-                        <label className="text-[9px] font-black text-slate-900 uppercase ml-2">Display Name / Model Name ({editLang})</label>
+                        <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">Display Name / Model Name ({editLang})</label>
                         <input required
                           value={formData.category === 'Sæt' ? (formData.name?.[editLang] || '') : (formData.ModelName || '')}
                           onChange={e => {
                             if (formData.category === 'Sæt') setFormData({ ...formData, name: { ...formData.name, [editLang]: e.target.value } });
                             else setFormData({ ...formData, ModelName: e.target.value });
                           }}
-                          className="input-premium" placeholder={formData.category === 'Sæt' ? 'e.g. Premium Solar Kit' : 'e.g. SUN2000-10KTL-M1'} />
+                          className="input-premium text-sm md:text-base" placeholder={formData.category === 'Sæt' ? 'e.g. Premium Solar Kit' : 'e.g. SUN2000-10KTL-M1'} />
                       </div>
 
                       {formData.category === 'Sæt' ? (
                         <div className="grid grid-cols-2 gap-6">
                           <div className="space-y-2">
-                            <label className="text-[9px] font-black text-slate-900 uppercase ml-2">Power (kW)</label>
+                            <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">Power (kW)</label>
                             <input type="number" step="0.1" value={formData.power_kw || 0}
                               onChange={e => setFormData({ ...formData, power_kw: Number(e.target.value) })} className="input-premium" />
                           </div>
                           <div className="space-y-2">
-                            <label className="text-[9px] font-black text-slate-900 uppercase ml-2">Phases</label>
-                            <select value={formData.phases || 3} onChange={e => setFormData({ ...formData, phases: Number(e.target.value) })} className="input-premium">
+                            <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">Phases</label>
+                            <select value={formData.phases || 3} onChange={e => setFormData({ ...formData, phases: Number(e.target.value) })} className="input-premium text-sm md:text-base">
                               <option value={1}>1 Phase</option>
                               <option value={3}>3 Phases</option>
                             </select>
@@ -347,7 +347,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                         <>
                           <div className="grid grid-cols-2 gap-6">
                             <div className="space-y-2">
-                              <label className="text-[9px] font-black text-slate-900 uppercase ml-2">Main Image</label>
+                              <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">Main Image</label>
                               <input type="file" accept="image/*"
                                 onChange={e => setSelectedImageFiles(e.target.files ? [e.target.files[0]] : [])}
                                 className="input-premium file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
@@ -355,7 +355,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                               {formData.image && !selectedImageFiles[0] && <img src={formData.image} alt="Current" className="mt-2 w-24 h-24 object-cover rounded-xl" />}
                             </div>
                             <div className="space-y-2">
-                              <label className="text-[9px] font-black text-slate-900 uppercase ml-2">Gallery Images</label>
+                              <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">Gallery Images</label>
                               <input type="file" accept="image/*" multiple
                                 onChange={e => setSelectedImageFiles(Array.from(e.target.files || []))}
                                 className="input-premium file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
@@ -367,12 +367,12 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                           </div>
                           <div className="grid grid-cols-2 gap-6">
                             <div className="space-y-2">
-                              <label className="text-[9px] font-black text-slate-900 uppercase ml-2">Price Ex. VAT (EUR)</label>
+                              <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">Price Ex. VAT (EUR)</label>
                               <input type="number" step="0.01" value={formData.PriceEurExVat || 0}
                                 onChange={e => setFormData({ ...formData, PriceEurExVat: Number(e.target.value) })} className="input-premium" />
                             </div>
                             <div className="space-y-2">
-                              <label className="text-[9px] font-black text-slate-900 uppercase ml-2">Stock Level</label>
+                              <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">Stock Level</label>
                               <input type="number" value={formData.StockLvl || 0}
                                 onChange={e => setFormData({ ...formData, StockLvl: Number(e.target.value) })} className="input-premium" />
                             </div>
@@ -384,15 +384,15 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
 
                   <div className="space-y-6">
                     <div className="space-y-2">
-                      <label className="text-[9px] font-black text-slate-900 uppercase ml-2">Short Description ({editLang})</label>
+                      <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">Short Description ({editLang})</label>
                       <textarea value={formData.description?.[editLang] || ''}
                         onChange={e => setFormData({ ...formData, description: { ...formData.description, [editLang]: e.target.value } })}
                         className="input-premium min-h-[150px] py-4" placeholder="Brief technical summary..." />
                     </div>
                     <div className="flex items-center gap-6 bg-slate-50 p-6 rounded-3xl border border-slate-100">
                       <div className="flex-1 space-y-1">
-                        <div className="text-[10px] font-black uppercase text-slate-900">Visibility Status</div>
-                        <div className="text-[8px] font-bold text-slate-400 uppercase">Show in public catalog</div>
+                        <div className="text-xs md:text-[10px] font-black uppercase text-slate-900">Visibility Status</div>
+                        <div className="text-[10px] md:text-[8px] font-bold text-slate-400 uppercase">Show in public catalog</div>
                       </div>
                       <button type="button" onClick={() => setFormData({ ...formData, is_active: !formData.is_active })}
                         className={`w-14 h-8 rounded-full transition-all relative ${formData.is_active ? 'bg-emerald-500' : 'bg-slate-200'}`}>
@@ -401,8 +401,8 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                     </div>
                     <div className="flex items-center gap-6 bg-slate-50 p-6 rounded-3xl border border-slate-100">
                       <div className="flex-1 space-y-1">
-                        <div className="text-[10px] font-black uppercase text-slate-900">Sales Leader</div>
-                        <div className="text-[8px] font-bold text-slate-400 uppercase">Mark as best seller</div>
+                        <div className="text-xs md:text-[10px] font-black uppercase text-slate-900">Sales Leader</div>
+                        <div className="text-[10px] md:text-[8px] font-bold text-slate-400 uppercase">Mark as best seller</div>
                       </div>
                       <button type="button" onClick={() => setFormData({ ...formData, is_leader: !formData.is_leader })}
                         className={`w-14 h-8 rounded-full transition-all relative ${formData.is_leader ? 'bg-amber-500' : 'bg-slate-200'}`}>
@@ -418,7 +418,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
             {modalTab === 'media' && (
               <div className="space-y-10 animate-fade-in">
                 <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner space-y-6">
-                  <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-2">Image Gallery (URLs)</h4>
+                  <h4 className="text-xs md:text-[10px] font-black uppercase text-slate-400 tracking-widest px-2">Image Gallery (URLs)</h4>
                   <div className="space-y-4">
                     {localImages.map((url, idx) => (
                       <div key={idx} className="flex gap-4 group">
@@ -439,7 +439,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                 </div>
 
                 <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner space-y-6">
-                  <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-2">PDF Documentation</h4>
+                  <h4 className="text-xs md:text-[10px] font-black uppercase text-slate-400 tracking-widest px-2">PDF Documentation</h4>
                   <div className="space-y-4">
                     {localDocs.map((doc, idx) => (
                       <div key={idx} className="flex gap-4 group">
@@ -488,7 +488,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
             {modalTab === 'specs' && (
               <div className="space-y-10 animate-fade-in">
                 <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner space-y-6">
-                  <h4 className="text-[10px] font-black uppercase text-emerald-600 tracking-widest flex items-center gap-2">
+                  <h4 className="text-xs md:text-[10px] font-black uppercase text-emerald-600 tracking-widest flex items-center gap-2">
                     <Database size={14} /> Technical Schema: {formData.category}
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -524,7 +524,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                 </div>
 
                 <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner space-y-6">
-                  <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-2">Custom Specifications</h4>
+                  <h4 className="text-xs md:text-[10px] font-black uppercase text-slate-400 tracking-widest px-2">Custom Specifications</h4>
                   <div className="space-y-4">
                     {localSpecs.map((s, idx) => (
                       <div key={idx} className="flex gap-4">
@@ -554,7 +554,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                   </h4>
                   <div className="flex flex-col gap-8 bg-slate-50/50 p-10 rounded-[3rem] border border-slate-100 shadow-inner">
                     <div className="space-y-3">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">1. Select Category</label>
+                      <label className="text-xs md:text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">1. Select Category</label>
                       <div className="flex gap-3 overflow-x-auto pb-4 flex-nowrap custom-scrollbar min-h-[60px]">
                         <Marker label="All" active={compCategoryFilter === 'All'} onClick={() => { setCompCategoryFilter('All'); setCompBrandFilter(''); setCompModelFilter(''); }} />
                         {categories.filter(c => c !== 'Sæt' && c !== 'All').map(c => (
@@ -564,14 +564,14 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-slate-200/50">
                       <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">2. Filter by Brand</label>
+                        <label className="text-xs md:text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">2. Filter by Brand</label>
                         <select value={compBrandFilter} onChange={e => { setCompBrandFilter(e.target.value); setCompModelFilter(''); }} className="input-premium !py-4 !text-xs bg-white shadow-sm">
                           <option value="">All Brands</option>
                           {compAvailableBrands.map(b => <option key={b} value={b}>{b}</option>)}
                         </select>
                       </div>
                       <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">3. Select Model</label>
+                        <label className="text-xs md:text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">3. Select Model</label>
                         <div className="flex gap-3">
                           <select value={compModelFilter} onChange={e => setCompModelFilter(e.target.value)} className="input-premium !py-4 !text-xs bg-white flex-1 shadow-sm" disabled={!compBrandFilter}>
                             <option value="">All Models</option>
@@ -586,26 +586,26 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                     {compCategoryFilter !== 'All' && (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6 border-t border-slate-200/50">
                         {compCategoryFilter === 'Batterier' && (<>
-                          <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Battery Type</label><div className="flex flex-wrap gap-2">{compAvailableBattTypes.map(t => <Marker key={t} label={t} active={compBattTypeFilter === t} onClick={() => setCompBattTypeFilter(compBattTypeFilter === t ? '' : t)} color="slate" />)}</div></div>
-                          <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Capacity (kWh)</label><div className="flex flex-wrap gap-2">{compAvailableCapKwh.map(c => <Marker key={c} label={String(c)} active={compCapKwhFilter === String(c)} onClick={() => setCompCapKwhFilter(compCapKwhFilter === String(c) ? '' : String(c))} color="slate" />)}</div></div>
+                          <div className="space-y-2"><label className="text-xs md:text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Battery Type</label><div className="flex flex-wrap gap-2">{compAvailableBattTypes.map(t => <Marker key={t} label={t} active={compBattTypeFilter === t} onClick={() => setCompBattTypeFilter(compBattTypeFilter === t ? '' : t)} color="slate" />)}</div></div>
+                          <div className="space-y-2"><label className="text-xs md:text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Capacity (kWh)</label><div className="flex flex-wrap gap-2">{compAvailableCapKwh.map(c => <Marker key={c} label={String(c)} active={compCapKwhFilter === String(c)} onClick={() => setCompCapKwhFilter(compCapKwhFilter === String(c) ? '' : String(c))} color="slate" />)}</div></div>
                         </>)}
                         {compCategoryFilter === 'Invertere' && (<>
-                          <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Inverter Type</label><div className="flex flex-wrap gap-2">{compAvailableInvTypes.map(t => <Marker key={t} label={t} active={compInvTypeFilter === t} onClick={() => setCompInvTypeFilter(compInvTypeFilter === t ? '' : t)} color="slate" />)}</div></div>
-                          <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Phases</label><div className="flex flex-wrap gap-2">{compAvailablePhases.map(p => <Marker key={p} label={String(p)} active={compPhasesFilter === String(p)} onClick={() => setCompPhasesFilter(compPhasesFilter === String(p) ? '' : String(p))} color="slate" />)}</div></div>
-                          <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">MPPTs</label><div className="flex flex-wrap gap-2">{compAvailableNumMppts.map(n => <Marker key={n} label={String(n)} active={compNumMpptsFilter === String(n)} onClick={() => setCompNumMpptsFilter(compNumMpptsFilter === String(n) ? '' : String(n))} color="slate" />)}</div></div>
+                          <div className="space-y-2"><label className="text-xs md:text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Inverter Type</label><div className="flex flex-wrap gap-2">{compAvailableInvTypes.map(t => <Marker key={t} label={t} active={compInvTypeFilter === t} onClick={() => setCompInvTypeFilter(compInvTypeFilter === t ? '' : t)} color="slate" />)}</div></div>
+                          <div className="space-y-2"><label className="text-xs md:text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Phases</label><div className="flex flex-wrap gap-2">{compAvailablePhases.map(p => <Marker key={p} label={String(p)} active={compPhasesFilter === String(p)} onClick={() => setCompPhasesFilter(compPhasesFilter === String(p) ? '' : String(p))} color="slate" />)}</div></div>
+                          <div className="space-y-2"><label className="text-xs md:text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">MPPTs</label><div className="flex flex-wrap gap-2">{compAvailableNumMppts.map(n => <Marker key={n} label={String(n)} active={compNumMpptsFilter === String(n)} onClick={() => setCompNumMpptsFilter(compNumMpptsFilter === String(n) ? '' : String(n))} color="slate" />)}</div></div>
                         </>)}
                         {compCategoryFilter === 'Varmepumper' && (<>
-                          <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">HP Type</label><div className="flex flex-wrap gap-2">{compAvailableHpTypes.map(t => <Marker key={t} label={t} active={compHpTypeFilter === t} onClick={() => setCompHpTypeFilter(compHpTypeFilter === t ? '' : t)} color="slate" />)}</div></div>
-                          <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Phases</label><div className="flex flex-wrap gap-2">{compAvailablePhases1.map(p => <Marker key={p} label={String(p)} active={compPhases1Filter === String(p)} onClick={() => setCompPhases1Filter(compPhases1Filter === String(p) ? '' : String(p))} color="slate" />)}</div></div>
-                          <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Refrigerant</label><div className="flex flex-wrap gap-2">{compAvailableRefrType.map(r => <Marker key={r} label={r} active={compRefrTypeFilter === r} onClick={() => setCompRefrTypeFilter(compRefrTypeFilter === r ? '' : r)} color="slate" />)}</div></div>
-                          <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Heat Cap (kW)</label><div className="flex flex-wrap gap-2">{compAvailableHeatCapKw.map(h => <Marker key={h} label={String(h)} active={compHeatCapKwFilter === String(h)} onClick={() => setCompHeatCapKwFilter(compHeatCapKwFilter === String(h) ? '' : String(h))} color="slate" />)}</div></div>
+                          <div className="space-y-2"><label className="text-xs md:text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">HP Type</label><div className="flex flex-wrap gap-2">{compAvailableHpTypes.map(t => <Marker key={t} label={t} active={compHpTypeFilter === t} onClick={() => setCompHpTypeFilter(compHpTypeFilter === t ? '' : t)} color="slate" />)}</div></div>
+                          <div className="space-y-2"><label className="text-xs md:text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Phases</label><div className="flex flex-wrap gap-2">{compAvailablePhases1.map(p => <Marker key={p} label={String(p)} active={compPhases1Filter === String(p)} onClick={() => setCompPhases1Filter(compPhases1Filter === String(p) ? '' : String(p))} color="slate" />)}</div></div>
+                          <div className="space-y-2"><label className="text-xs md:text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Refrigerant</label><div className="flex flex-wrap gap-2">{compAvailableRefrType.map(r => <Marker key={r} label={r} active={compRefrTypeFilter === r} onClick={() => setCompRefrTypeFilter(compRefrTypeFilter === r ? '' : r)} color="slate" />)}</div></div>
+                          <div className="space-y-2"><label className="text-xs md:text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Heat Cap (kW)</label><div className="flex flex-wrap gap-2">{compAvailableHeatCapKw.map(h => <Marker key={h} label={String(h)} active={compHeatCapKwFilter === String(h)} onClick={() => setCompHeatCapKwFilter(compHeatCapKwFilter === String(h) ? '' : String(h))} color="slate" />)}</div></div>
                         </>)}
                         {compCategoryFilter === 'Solpaneler' && (<>
-                          <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Panel Type</label><div className="flex flex-wrap gap-2">{compAvailableSolarPanelTypes.map(t => <Marker key={t} label={t} active={compSolarPanelTypeFilter === t} onClick={() => setCompSolarPanelTypeFilter(compSolarPanelTypeFilter === t ? '' : t)} color="slate" />)}</div></div>
-                          <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Power (Wp)</label><div className="flex flex-wrap gap-2">{compAvailableRatedPwrWp.map(p => <Marker key={p} label={String(p)} active={compRatedPwrWpFilter === String(p)} onClick={() => setCompRatedPwrWpFilter(compRatedPwrWpFilter === String(p) ? '' : String(p))} color="slate" />)}</div></div>
+                          <div className="space-y-2"><label className="text-xs md:text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Panel Type</label><div className="flex flex-wrap gap-2">{compAvailableSolarPanelTypes.map(t => <Marker key={t} label={t} active={compSolarPanelTypeFilter === t} onClick={() => setCompSolarPanelTypeFilter(compSolarPanelTypeFilter === t ? '' : t)} color="slate" />)}</div></div>
+                          <div className="space-y-2"><label className="text-xs md:text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Power (Wp)</label><div className="flex flex-wrap gap-2">{compAvailableRatedPwrWp.map(p => <Marker key={p} label={String(p)} active={compRatedPwrWpFilter === String(p)} onClick={() => setCompRatedPwrWpFilter(compRatedPwrWpFilter === String(p) ? '' : String(p))} color="slate" />)}</div></div>
                         </>)}
                         {compCategoryFilter === 'Power Station' && (
-                          <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Chg Power (kW)</label><div className="flex flex-wrap gap-2">{compAvailableChgPwrKw.map(p => <Marker key={p} label={String(p)} active={compChgPwrKwFilter === String(p)} onClick={() => setCompChgPwrKwFilter(compChgPwrKwFilter === String(p) ? '' : String(p))} color="slate" />)}</div></div>
+                          <div className="space-y-2"><label className="text-xs md:text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Chg Power (kW)</label><div className="flex flex-wrap gap-2">{compAvailableChgPwrKw.map(p => <Marker key={p} label={String(p)} active={compChgPwrKwFilter === String(p)} onClick={() => setCompChgPwrKwFilter(compChgPwrKwFilter === String(p) ? '' : String(p))} color="slate" />)}</div></div>
                         )}
                       </div>
                     )}
@@ -706,15 +706,15 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-10 py-8 border-t border-slate-100 bg-slate-50/50 rounded-b-[3rem] flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-            <ShieldCheck size={16} className="text-emerald-500" /> Connected Table: {categoryToTable[formData.category]}
+        {/* Footer — stacked on mobile, readable text */}
+        <div className="px-4 md:px-10 py-4 md:py-8 border-t border-slate-100 bg-slate-50/50 rounded-b-[2rem] md:rounded-b-[3rem] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 shrink-0">
+          <div className="flex items-center gap-3 text-xs md:text-[9px] font-black text-slate-500 md:text-slate-400 uppercase tracking-wider md:tracking-widest">
+            <ShieldCheck size={16} className="text-emerald-500 shrink-0" /> <span className="truncate">Table: {categoryToTable[formData.category]}</span>
           </div>
-          <div className="flex gap-4">
-            <button type="button" onClick={onClose} className="px-10 py-5 font-black uppercase text-[10px] text-slate-400 hover:text-slate-900 transition-colors">Cancel Access</button>
-            <button onClick={handleSubmit} type="button" className="btn-action !bg-slate-900 shadow-2xl px-16 !rounded-2xl group ring-4 ring-slate-900/10">
-              <Save size={20} className="text-emerald-500 group-hover:scale-125 transition-transform duration-500" /> Commit to Registry
+          <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4">
+            <button type="button" onClick={onClose} className="px-6 py-4 sm:py-5 font-black uppercase text-xs md:text-[10px] text-slate-400 hover:text-slate-900 transition-colors rounded-2xl border border-slate-200 sm:border-0">Cancel</button>
+            <button onClick={handleSubmit} type="button" className="btn-action !bg-slate-900 shadow-2xl px-6 md:px-16 py-4 md:py-5 !rounded-2xl group ring-4 ring-slate-900/10 text-sm md:text-base">
+              <Save size={20} className="text-emerald-500 group-hover:scale-125 transition-transform duration-500 shrink-0" /> Commit to Registry
             </button>
           </div>
         </div>
