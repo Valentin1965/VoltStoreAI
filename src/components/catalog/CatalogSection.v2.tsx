@@ -141,10 +141,10 @@ export const CatalogSection: React.FC = () => {
         <div className="fixed inset-0 z-[1000] flex flex-col items-center pt-[5vh] px-4 bg-slate-900/90 backdrop-blur-xl animate-in fade-in duration-500 overflow-y-auto">
           <div className="absolute inset-0" onClick={() => setSelectedProduct(null)} />
           
-          <div className={`relative bg-white w-full ${selectedProduct.category === 'Sæt' || selectedProduct.category === 'Kits' ? 'max-w-6xl' : 'max-w-5xl'} rounded-[3rem] shadow-2xl flex flex-col mb-10 max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-300`}>
+          <div className={`relative bg-white w-full ${selectedProduct.category === 'Sæt' || selectedProduct.category === 'Kits' ? 'max-w-6xl' : 'max-w-5xl'} rounded-[3rem] shadow-2xl flex flex-col mb-10 max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-300 min-h-0`}>
             
             {/* Modal Header */}
-            <div className="px-10 py-6 border-b flex items-center justify-between bg-white shrink-0">
+            <div className="px-6 md:px-10 py-5 md:py-6 border-b flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center gap-4 text-left">
                 <div className="bg-emerald-500 p-3 rounded-2xl text-white shadow-lg shadow-emerald-600/20"><Zap size={22} /></div>
                 <div>
@@ -160,7 +160,7 @@ export const CatalogSection: React.FC = () => {
               <button onClick={() => setSelectedProduct(null)} className="p-3 hover:bg-slate-50 rounded-full transition-all text-slate-400"><X size={32} /></button>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-8 md:p-12">
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 md:p-12">
               {selectedProduct.category === 'Sæt' || selectedProduct.category === 'Kits' ? (
                 /* --- KIT ARCHITECT VIEW --- */
                 <div className="space-y-10">

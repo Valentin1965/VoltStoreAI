@@ -12,6 +12,7 @@ export const translations = {
     nav_admin: "Admin",
     nav_about: "Om os",
     nav_cabinet: "Min Side",
+    nav_cart: "Kurv",
 
     // ── Search ────────────────────────────────────────────────────────────────
     search_placeholder: "Søg efter udstyr...",
@@ -426,6 +427,7 @@ export const translations = {
     nav_admin: "Admin",
     nav_about: "About Us",
     nav_cabinet: "Cabinet",
+    nav_cart: "Cart",
     search_placeholder: "Search equipment...",
     footer_tagline: "Reliable energy independence through innovation across Scandinavia.",
     footer_quick_links: "Quick Links",

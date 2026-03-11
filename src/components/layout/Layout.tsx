@@ -129,7 +129,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
 
               {/* ── Navigation links ─────────────────── */}
               <div className="space-y-1">
-                {[...navItems, { id: AppView.ADMIN, label: t('nav_admin'), icon: ShieldAlert }].map((item) => (
+                {[...navItems, { id: AppView.CABINET, label: t('nav_cabinet'), icon: User }, { id: AppView.CART, label: t('nav_cart'), icon: ShoppingCart }, { id: AppView.ADMIN, label: t('nav_admin'), icon: ShieldAlert }].map((item) => (
                   <button key={item.id} onClick={() => { setView(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${currentView === item.id ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600 hover:bg-slate-50'}`}>
                     <item.icon size={20} className="shrink-0" />
                     <span className="text-sm font-black uppercase tracking-tight leading-tight text-left">{item.label}</span>

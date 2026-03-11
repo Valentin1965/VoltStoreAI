@@ -580,10 +580,10 @@ export const CatalogSection: React.FC = () => {
       {selectedProduct && (
         <div className="fixed inset-0 z-[1000000] flex items-end md:items-center justify-center md:p-10 bg-slate-900/95 backdrop-blur-xl animate-fade-in text-left">
           <div className="absolute inset-0" onClick={() => setSelectedProduct(null)} />
-          <div className="relative bg-white w-full md:max-w-7xl h-[95vh] md:h-auto md:max-h-[90vh] rounded-t-[3rem] md:rounded-[4rem] shadow-3xl flex flex-col overflow-hidden text-slate-900 border border-white/20">
+          <div className="relative bg-white w-full md:max-w-7xl h-[95vh] md:h-auto md:max-h-[90vh] rounded-t-[3rem] md:rounded-[4rem] shadow-3xl flex flex-col overflow-hidden text-slate-900 border border-white/20 min-h-0">
              
              {/* Header */}
-             <div className="px-8 md:px-12 py-8 border-b flex items-center justify-between bg-white shrink-0 sticky top-0 z-10">
+             <div className="px-8 md:px-12 py-6 md:py-8 border-b flex items-center justify-between bg-white shrink-0 sticky top-0 z-10">
                 <div className="flex items-center gap-6">
                    <div className="bg-emerald-600 p-4 rounded-2xl text-white shadow-xl shadow-emerald-500/20 ring-4 ring-emerald-50"><Zap size={24} /></div>
                    <div>
@@ -622,8 +622,8 @@ export const CatalogSection: React.FC = () => {
                 </div>
              </div>
              
-             {/* Body */}
-             <div className="flex-1 overflow-y-auto custom-scrollbar p-8 md:p-12 text-slate-900">
+             {/* Body — min-h-0 so flex child can shrink and scroll on mobile */}
+             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 md:p-12 text-slate-900">
                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
                  <div className="lg:col-span-5 space-y-8">
                     <div className="space-y-4">
@@ -695,8 +695,8 @@ export const CatalogSection: React.FC = () => {
              </div>
 
              {/* Footer */}
-             <div className="px-8 md:px-12 py-8 md:py-10 bg-slate-900 flex flex-col sm:flex-row items-center justify-between gap-8 border-t border-white/5 sticky bottom-0 z-10">
-                <div className="text-left scale-[2] origin-left ml-10">
+             <div className="px-6 md:px-12 py-6 md:py-10 bg-slate-900 flex flex-col sm:flex-row items-center justify-between gap-6 md:gap-8 border-t border-white/5 sticky bottom-0 z-10 shrink-0">
+                <div className="text-left scale-150 md:scale-[2] origin-left ml-4 md:ml-10">
                   <span className="text-[9px] font-black text-slate-500 uppercase block mb-1 tracking-widest">{t('total')}</span>
                   <DualPrice 
                     priceExVat={currentTotal} 

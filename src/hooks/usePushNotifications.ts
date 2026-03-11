@@ -18,7 +18,11 @@ export function usePushNotifications(clientId?: string | null) {
 
   // ── Check support + existing subscription on mount ───────────────────────
   useEffect(() => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setStatus('unsupported');
+      return;
+    }
+    if (typeof Notification === 'undefined') {
       setStatus('unsupported');
       return;
     }

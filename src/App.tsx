@@ -42,8 +42,11 @@ try {
   console.warn('[GA] Initialization skipped or failed');
 }
 
-export class ErrorBoundary extends React.Component<{children?: React.ReactNode}, {hasError: boolean}> {
-  constructor(props: {children?: React.ReactNode}) {
+export class ErrorBoundary extends React.Component<
+  { children?: React.ReactNode; onRecover?: () => void },
+  { hasError: boolean }
+> {
+  constructor(props: { children?: React.ReactNode; onRecover?: () => void }) {
     super(props);
     this.state = { hasError: false };
   }
@@ -53,7 +56,12 @@ export class ErrorBoundary extends React.Component<{children?: React.ReactNode},
       <div className="p-12 text-center m-10 glass-panel rounded-[3rem] notranslate" translate="no">
         <div className="text-rose-500 font-black uppercase tracking-widest text-xs mb-4">System Anomaly Detected</div>
         <h2 className="text-2xl font-black text-slate-900 mb-6 uppercase">Interface standard failed</h2>
-        <button onClick={() => window.location.reload()} className="btn-action mx-auto">Reboot Terminal</button>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {this.props.onRecover && (
+            <button onClick={this.props.onRecover} className="btn-action">Go home</button>
+          )}
+          <button onClick={() => window.location.reload()} className="btn-action">Reboot Terminal</button>
+        </div>
       </div>
     );
     return this.props.children;
@@ -254,7 +262,7 @@ const AppContent: React.FC = () => {
     >
       <Layout currentView={currentView} setView={handleSetView}>
         <div id="app-main-content" className="min-h-[70vh] relative notranslate" translate="no">
-          <ErrorBoundary>
+          <ErrorBoundary key={currentView} onRecover={() => handleSetView(AppView.ABOUT)}>
             {renderedView}
             <Suspense fallback={null}>
               <LiveAssistant />
