@@ -42,6 +42,32 @@ try {
   console.warn('[GA] Initialization skipped or failed');
 }
 
+/** Catches errors in Cabinet so mobile users see a clear message instead of generic "Interface standard failed" */
+class CabinetErrorBoundary extends React.Component<
+  { children: React.ReactNode; onGoHome: () => void },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-[50vh] flex items-center justify-center px-4 py-10">
+          <div className="bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-100 max-w-md w-full text-center">
+            <div className="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-rose-500">
+              <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            </div>
+            <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-2">Cabinet unavailable</h2>
+            <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mb-6">Please try again later or use a desktop browser.</p>
+            <button onClick={() => { this.setState({ hasError: false }); this.props.onGoHome(); }} className="btn-action w-full">Go home</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export class ErrorBoundary extends React.Component<
   { children?: React.ReactNode; onRecover?: () => void },
   { hasError: boolean }
@@ -247,9 +273,11 @@ const AppContent: React.FC = () => {
       case AppView.ABOUT: return <AboutPage onNavigateToCatalog={handleSetView} />;
       case AppView.CABINET:
         return (
-          <Suspense fallback={<PageLoader />}>
-            <ClientCabinet />
-          </Suspense>
+          <CabinetErrorBoundary key="cabinet" onGoHome={() => handleSetView(AppView.ABOUT)}>
+            <Suspense fallback={<PageLoader />}>
+              <ClientCabinet />
+            </Suspense>
+          </CabinetErrorBoundary>
         );
       default: return <AboutPage onNavigateToCatalog={handleSetView} />;
     }

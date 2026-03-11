@@ -16,34 +16,53 @@ export function usePushNotifications(clientId?: string | null) {
   const [status, setStatus]           = useState<PushStatus>('loading');
   const [isSubscribed, setIsSubscribed] = useState(false);
 
-  // ── Check support + existing subscription on mount ───────────────────────
+  // ── Check support + existing subscription on mount (safe for mobile) ─────
   useEffect(() => {
-    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-      setStatus('unsupported');
-      return;
+    let cancelled = false;
+    try {
+      if (typeof navigator === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+        setStatus('unsupported');
+        return;
+      }
+      if (typeof Notification === 'undefined') {
+        setStatus('unsupported');
+        return;
+      }
+      const perm = Notification.permission;
+      if (perm === 'denied') {
+        setStatus('denied');
+        return;
+      }
+      const sw = navigator.serviceWorker;
+      if (!sw || typeof sw.ready !== 'function') {
+        setStatus('unsupported');
+        return;
+      }
+      sw.ready
+        .then(reg => {
+          if (cancelled) return;
+          if (!reg || !reg.pushManager) {
+            setStatus(perm === 'default' ? 'default' : 'granted');
+            return;
+          }
+          return reg.pushManager.getSubscription();
+        })
+        .then(sub => {
+          if (cancelled) return;
+          if (sub) {
+            setIsSubscribed(true);
+            setStatus('granted');
+          } else {
+            setStatus(perm === 'default' ? 'default' : 'granted');
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setStatus(perm === 'default' ? 'default' : 'granted');
+        });
+    } catch (_) {
+      if (!cancelled) setStatus('unsupported');
     }
-    if (typeof Notification === 'undefined') {
-      setStatus('unsupported');
-      return;
-    }
-
-    const perm = Notification.permission;
-    if (perm === 'denied') { setStatus('denied'); return; }
-
-    // Check if browser already has an active push subscription
-    navigator.serviceWorker.ready
-      .then(reg => reg.pushManager.getSubscription())
-      .then(sub => {
-        if (sub) {
-          setIsSubscribed(true);
-          setStatus('granted');
-        } else {
-          setStatus(perm === 'default' ? 'default' : 'granted');
-        }
-      })
-      .catch(() => {
-        setStatus(perm === 'default' ? 'default' : (perm as PushStatus));
-      });
+    return () => { cancelled = true; };
   }, []);
 
   // ── Subscribe ─────────────────────────────────────────────────────────────
@@ -125,8 +144,12 @@ export function usePushNotifications(clientId?: string | null) {
       setIsSubscribed(true);
       return true;
     } catch (err) {
-      console.error('[Push] Subscribe failed:', err);
-      setStatus(Notification.permission === 'denied' ? 'denied' : 'default');
+      console.warn('[Push] Subscribe failed:', err);
+      try {
+        setStatus(typeof Notification !== 'undefined' && Notification.permission === 'denied' ? 'denied' : 'default');
+      } catch {
+        setStatus('unsupported');
+      }
       return false;
     }
   }, [clientId]);
@@ -134,17 +157,29 @@ export function usePushNotifications(clientId?: string | null) {
   // ── Unsubscribe ───────────────────────────────────────────────────────────
   const unsubscribe = useCallback(async (): Promise<void> => {
     try {
+      if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+        setIsSubscribed(false);
+        setStatus('default');
+        return;
+      }
       const reg = await navigator.serviceWorker.ready;
+      if (!reg?.pushManager) {
+        setIsSubscribed(false);
+        setStatus('default');
+        return;
+      }
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
         await supabase.rpc('delete_push_subscription', { p_endpoint: sub.endpoint });
         await sub.unsubscribe();
       }
-      localStorage.removeItem('gls_push_endpoint');
+      if (typeof localStorage !== 'undefined') localStorage.removeItem('gls_push_endpoint');
       setIsSubscribed(false);
       setStatus('default');
     } catch (err) {
-      console.error('[Push] Unsubscribe failed:', err);
+      console.warn('[Push] Unsubscribe failed:', err);
+      setIsSubscribed(false);
+      setStatus('default');
     }
   }, []);
 
