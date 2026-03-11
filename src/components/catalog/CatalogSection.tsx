@@ -2,16 +2,33 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useProducts, SortOption } from '../../contexts/ProductsContext';
 
-const MOBILE_BREAKPOINT = 768;
+const MOBILE_MEDIA = '(max-width: 767px)';
+const LANDSCAPE_MEDIA = '(orientation: landscape)';
 function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia(MOBILE_MEDIA).matches
+  );
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
+    const mql = window.matchMedia(MOBILE_MEDIA);
+    const update = () => setIsMobile(mql.matches);
+    update();
+    mql.addEventListener('change', update);
+    return () => mql.removeEventListener('change', update);
   }, []);
   return isMobile;
+}
+function useIsLandscape() {
+  const [isLandscape, setIsLandscape] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia(LANDSCAPE_MEDIA).matches
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(LANDSCAPE_MEDIA);
+    const update = () => setIsLandscape(mql.matches);
+    update();
+    mql.addEventListener('change', update);
+    return () => mql.removeEventListener('change', update);
+  }, []);
+  return isLandscape;
 }
 import { useCart } from '../../contexts/CartContext';
 import { useWishlist } from '../../contexts/WishlistContext';
@@ -248,6 +265,7 @@ export const CatalogSection: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const isMobile = useIsMobile();
+  const isLandscape = useIsLandscape();
   const [bookingEmailModal, setBookingEmailModal] = useState<Product | null>(null);
   const [bookingEmail, setBookingEmail] = useState('');
   const [bookingName, setBookingName] = useState('');
@@ -589,10 +607,16 @@ export const CatalogSection: React.FC = () => {
         )}
       </div>
 
-      {/* Option C: On mobile — full-screen product page (no modal). Reliable scroll and readable text. */}
+      {/* Option C: On mobile — full-screen product page (no modal). In landscape, header/footer are transparent overlays. */}
       {selectedProduct && isMobile && (
-        <div className="fixed inset-0 z-[1000000] flex flex-col bg-white text-slate-900 animate-fade-in">
-          <header className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-slate-100 bg-white sticky top-0 z-20">
+        <div className="fixed inset-0 z-[1000000] flex flex-col bg-white text-slate-900 animate-fade-in relative">
+          <header
+            className={`flex items-center gap-3 px-4 py-3 z-20 ${
+              isLandscape
+                ? 'absolute top-0 left-0 right-0 bg-white/80 backdrop-blur-md border-b border-slate-200/50'
+                : 'shrink-0 sticky top-0 border-b border-slate-100 bg-white'
+            }`}
+          >
             <button
               type="button"
               onClick={() => setSelectedProduct(null)}
@@ -609,7 +633,7 @@ export const CatalogSection: React.FC = () => {
             <button type="button" onClick={() => setSelectedProduct(null)} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100" aria-label="Close"><X size={22} /></button>
           </header>
           <main className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-            <div className="p-4 pb-28 space-y-6">
+            <div className={`p-4 space-y-6 ${isLandscape ? 'pt-16 pb-24' : 'pb-28'}`}>
               <div className="bg-slate-50 rounded-2xl p-6 flex items-center justify-center border border-slate-100 min-h-[220px]">
                 <img src={selectedProduct.image || IMAGE_FALLBACK} className="max-w-full max-h-[200px] object-contain" alt="" />
               </div>
@@ -652,7 +676,13 @@ export const CatalogSection: React.FC = () => {
               )}
             </div>
           </main>
-          <footer className="shrink-0 px-4 py-4 bg-slate-900 border-t border-white/10 sticky bottom-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <footer
+            className={`px-4 py-4 z-20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 ${
+              isLandscape
+                ? 'absolute bottom-0 left-0 right-0 bg-slate-900/85 backdrop-blur-md border-t border-white/10'
+                : 'shrink-0 sticky bottom-0 bg-slate-900 border-t border-white/10'
+            }`}
+          >
             <div>
               <span className="text-[10px] font-black text-slate-500 uppercase block tracking-widest">{t('total')}</span>
               <DualPrice priceExVat={currentTotal} className="text-emerald-400 text-xl" secondaryClassName="text-emerald-400/60" />
