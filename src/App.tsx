@@ -1,18 +1,9 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
 import ReactGA from "react-ga4";
 import { Layout } from './components/layout/Layout';
 import { CatalogSection } from './components/catalog/CatalogSection';
 import { CartPage } from './components/cart/CartPage';
-import { CheckoutPage } from './components/checkout/CheckoutPage';
-import { OrderSuccessPage } from './components/checkout/OrderSuccessPage';
-import { AdminPanel } from './components/admin/AdminPanel';
-import { AdminPasswordPrompt } from './components/admin/AdminPasswordPrompt';
-import { LiveAssistant } from './components/ai/LiveAssistant';
-import { Calculator } from './components/calculator/Calculator';
-import { WishlistPage } from './components/wishlist/WishlistPage';
-import { ServicePage } from './components/service/ServicePage';
 import { AboutPage } from './components/about/AboutPage';
-import { ClientCabinet } from './components/cabinet/ClientCabinet';
 import { ProductsProvider } from './contexts/ProductsContext';
 import { safeStorage } from './utils/storage';
 import { CartProvider } from './contexts/CartContext';
@@ -24,6 +15,22 @@ import { UserProvider } from './contexts/UserContext';
 import { AppView } from './types';
 import { useUser } from './contexts/UserContext';
 import { useCart } from './contexts/CartContext';
+
+const CheckoutPage = lazy(() => import('./components/checkout/CheckoutPage').then(m => ({ default: m.CheckoutPage })));
+const OrderSuccessPage = lazy(() => import('./components/checkout/OrderSuccessPage').then(m => ({ default: m.OrderSuccessPage })));
+const AdminPanel = lazy(() => import('./components/admin/AdminPanel').then(m => ({ default: m.AdminPanel })));
+const AdminPasswordPrompt = lazy(() => import('./components/admin/AdminPasswordPrompt').then(m => ({ default: m.AdminPasswordPrompt })));
+const LiveAssistant = lazy(() => import('./components/ai/LiveAssistant').then(m => ({ default: m.LiveAssistant })));
+const Calculator = lazy(() => import('./components/calculator/Calculator').then(m => ({ default: m.Calculator })));
+const WishlistPage = lazy(() => import('./components/wishlist/WishlistPage').then(m => ({ default: m.WishlistPage })));
+const ServicePage = lazy(() => import('./components/service/ServicePage').then(m => ({ default: m.ServicePage })));
+const ClientCabinet = lazy(() => import('./components/cabinet/ClientCabinet').then(m => ({ default: m.ClientCabinet })));
+
+const PageLoader = () => (
+  <div className="flex items-center justify-center py-24">
+    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Loading…</div>
+  </div>
+);
 
 
 const GA_MEASUREMENT_ID = "G-YDHWKZZ7HT";
@@ -130,18 +137,60 @@ const AppContent: React.FC = () => {
     switch (currentView) {
       case AppView.CATALOG: return <CatalogSection />;
       case AppView.CART: return <CartPage onCheckout={() => handleSetView(AppView.CHECKOUT)} />;
-      case AppView.CHECKOUT: return <CheckoutPage onBackToCart={() => handleSetView(AppView.CART)} onOrderSuccess={() => handleSetView(AppView.SUCCESS)} setView={handleSetView} />;
-      case AppView.SUCCESS: return <OrderSuccessPage onBackToCatalog={() => handleSetView(AppView.CATALOG)} />;
+      case AppView.CHECKOUT:
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <CheckoutPage
+              onBackToCart={() => handleSetView(AppView.CART)}
+              onOrderSuccess={() => handleSetView(AppView.SUCCESS)}
+              setView={handleSetView}
+            />
+          </Suspense>
+        );
+      case AppView.SUCCESS:
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <OrderSuccessPage onBackToCatalog={() => handleSetView(AppView.CATALOG)} />
+          </Suspense>
+        );
       case AppView.ADMIN: 
         if (!isAdminAuthenticated) {
-          return <AdminPasswordPrompt onSuccess={handleAdminSuccess} />;
+          return (
+            <Suspense fallback={<PageLoader />}>
+              <AdminPasswordPrompt onSuccess={handleAdminSuccess} />
+            </Suspense>
+          );
         }
-        return <AdminPanel onLogout={handleAdminLogout} />;
-      case AppView.CALCULATOR: return <Calculator />;
-      case AppView.WISHLIST: return <WishlistPage />;
-      case AppView.SERVICE: return <ServicePage />;
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <AdminPanel onLogout={handleAdminLogout} />
+          </Suspense>
+        );
+      case AppView.CALCULATOR:
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <Calculator />
+          </Suspense>
+        );
+      case AppView.WISHLIST:
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <WishlistPage />
+          </Suspense>
+        );
+      case AppView.SERVICE:
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <ServicePage />
+          </Suspense>
+        );
       case AppView.ABOUT: return <AboutPage onNavigateToCatalog={handleSetView} />;
-      case AppView.CABINET: return <ClientCabinet />;
+      case AppView.CABINET:
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <ClientCabinet />
+          </Suspense>
+        );
       default: return <AboutPage onNavigateToCatalog={handleSetView} />;
     }
   }, [currentView, isAdminAuthenticated, handleAdminLogout, handleSetView, handleAdminSuccess]);
@@ -157,7 +206,9 @@ const AppContent: React.FC = () => {
         <div id="app-main-content" className="min-h-[70vh] relative notranslate" translate="no">
           <ErrorBoundary>
             {renderedView}
-            <LiveAssistant />
+            <Suspense fallback={null}>
+              <LiveAssistant />
+            </Suspense>
           </ErrorBoundary>
         </div>
       </Layout>

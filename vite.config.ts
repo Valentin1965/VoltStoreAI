@@ -19,6 +19,18 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-ga4'],
+          supabase: ['@supabase/supabase-js'],
+          ui: ['lucide-react'],
+          docs: ['docx', 'file-saver'],
+          utils: ['uuid'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 800,
   },
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-ga4', 'lucide-react', 'uuid'],
