@@ -21,13 +21,6 @@ import { AdminProductModal }          from './AdminProductModal';
 import { AdminRatesModal }            from './AdminRatesModal';
 import { AdminDashboard }            from './AdminDashboard';
 
-// Перевірка, що об'єкт — запис із таблиці замовлень (не продукт/комплект)
-const isOrderRecord = (o: any): boolean =>
-  o != null &&
-  typeof o === 'object' &&
-  (typeof (o as any).customer_email === 'string' || typeof (o as any).order_number === 'string') &&
-  Array.isArray((o as any).items);
-
 // ── ProductRow ──────────────────────────────────────────────────────────
 const ProductRow = React.memo(({ product, onEdit, onDelete, formatPrice, getLoc }: any) => (
   <tr className="hover:bg-slate-50/50 transition-colors group">
@@ -131,6 +124,17 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
 
   // ── Derive allProducts from context (no duplicate fetch) ─────────────────
   const allProducts = useMemo(() => products.map(p => ({ ...p, realId: p.id })), [products]);
+
+  const isOrderRecord = useCallback((x: any) => {
+    if (!x || typeof x !== 'object') return false;
+    // Orders fetched via RPC have these common fields
+    if (!('total_price' in x) || !('status' in x)) return false;
+    // customer_email + items are the strongest signals
+    if ('customer_email' in x && 'items' in x) return true;
+    // fallback for older rows
+    if ('order_number' in x && 'customer_name' in x) return true;
+    return false;
+  }, []);
 
   const filteredAdminProducts = useMemo(() => allProducts.filter(p => {
     if (adminCategoryFilter !== 'All' && p.category !== adminCategoryFilter) return false;
@@ -250,11 +254,6 @@ const paginatedOrders = filteredOrders.slice(
     if (activeTab === 'bookings') fetchBookings();
     if (activeTab === 'clients' || activeTab === 'dashboard')  fetchDbClients();
   }, [activeTab, isMounted, fetchOrders, fetchDbClients, fetchBookings]);
-
-  // Закривати модалку замовлення при виході з вкладки Orders (важливо для мобільної версії)
-  useEffect(() => {
-    if (activeTab !== 'orders') setSelectedOrder(null);
-  }, [activeTab]);
 
   // ── Supabase Realtime — new orders ────────────────────────────────────
   const [newOrdersCount, setNewOrdersCount] = useState(0);
@@ -432,7 +431,14 @@ const paginatedOrders = filteredOrders.slice(
         </div>
         <div className="flex flex-wrap items-center gap-2 bg-white/5 p-2 rounded-[2rem]">
           {(['dashboard', 'products', 'orders', 'bookings', 'kits', 'clients'] as const).map(tab => (
-            <button key={tab} onClick={() => { setActiveTab(tab); if (tab === 'orders') setNewOrdersCount(0); }}
+            <button
+              key={tab}
+              onClick={() => {
+                setActiveTab(tab);
+                // Prevent cross-tab leakage: never show an order modal outside Orders tab
+                if (tab !== 'orders') setSelectedOrder(null);
+                if (tab === 'orders') setNewOrdersCount(0);
+              }}
               className={`relative px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-400 hover:text-white'}`}>
               {tab}
               {tab === 'orders' && newOrdersCount > 0 && (
@@ -741,9 +747,8 @@ const paginatedOrders = filteredOrders.slice(
       </div>
 
       {/* ── Modals ───────────────────────────────────────────────────── */}
-      {activeTab === 'orders' && selectedOrder && isOrderRecord(selectedOrder) && (
+      {selectedOrder && isOrderRecord(selectedOrder) && (
         <AdminOrderModal
-          key={selectedOrder.id}
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
           onUpdated={updated => setSelectedOrder(updated)}

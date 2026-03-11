@@ -24,10 +24,9 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
     arrival_date: o.arrival_date?.slice(0, 10) || '',
   });
 
-  // ✅ Показувати тільки записи з таблиці замовлень (не комплекти/продукти)
-  const looksLikeOrder = o != null && typeof o === 'object' && (typeof (o as any).customer_email === 'string' || typeof (o as any).order_number === 'string');
+  // ✅ Якщо немає замовлення / товарів – нічого не показуємо
   const items: any[] = Array.isArray(o.items) ? o.items : [];
-  if (!looksLikeOrder || !items || items.length === 0) {
+  if (!items || items.length === 0) {
     return null;
   }
 

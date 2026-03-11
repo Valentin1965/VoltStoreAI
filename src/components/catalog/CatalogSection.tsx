@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useProducts, SortOption } from '../../contexts/ProductsContext';
 import { useCart } from '../../contexts/CartContext';
 import { useWishlist } from '../../contexts/WishlistContext';
@@ -265,31 +265,16 @@ export const CatalogSection: React.FC = () => {
     setBookingEmailModal(null);
   };
 
-  // Open product from URL param ?product=ID (надійно для мобільної версії та прямого посилання з email)
-  const openProductFromUrl = useCallback(() => {
+  // Open product from URL param ?product=ID
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const pid = params.get('product');
-    if (!pid || filteredProducts.length === 0) return;
-    const decoded = decodeURIComponent(pid).trim();
-    const match = (p: Product) => String(p.id).trim() === decoded || String(p.id).trim() === pid.trim();
-    const found = filteredProducts.find(match);
-    if (found) setSelectedProduct(found);
+    if (pid && filteredProducts.length > 0) {
+      const decoded = decodeURIComponent(pid);
+      const found = filteredProducts.find(p => p.id === decoded);
+      if (found) setSelectedProduct(found);
+    }
   }, [filteredProducts]);
-
-  useEffect(() => {
-    openProductFromUrl();
-  }, [openProductFromUrl]);
-
-  // Повторна спроба відкрити товар за посиланням, коли продукти підвантажились пізніше (мобільний)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const pid = params.get('product');
-    if (!pid) return;
-    if (filteredProducts.length > 0) return;
-    const t1 = window.setTimeout(openProductFromUrl, 600);
-    const t2 = window.setTimeout(openProductFromUrl, 1500);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [filteredProducts.length, openProductFromUrl]);
 
   const handleCopyProductLink = (product: Product) => {
     // SPA without router — encode view + product ID
@@ -593,14 +578,14 @@ export const CatalogSection: React.FC = () => {
 
       {/* Modern Product Detail Modal — mobile: full-screen sheet with readable text; desktop: grid modal */}
       {selectedProduct && (
-        <div key={String(selectedProduct.id)} className="fixed inset-0 z-[1000000] flex flex-col md:flex-row md:items-center justify-end md:justify-center md:p-10 bg-slate-900/95 backdrop-blur-xl animate-fade-in text-left md:overflow-y-auto">
+        <div className="fixed inset-0 z-[1000000] flex flex-col md:flex-row md:items-center justify-end md:justify-center md:p-10 bg-slate-900/95 backdrop-blur-xl animate-fade-in text-left md:overflow-y-auto">
           <div className="absolute inset-0 z-0" onClick={() => setSelectedProduct(null)} aria-hidden />
           <div 
             className="relative z-10 bg-white w-full md:max-w-7xl md:max-h-[90vh] rounded-t-[2rem] md:rounded-[4rem] shadow-3xl flex flex-col overflow-hidden text-slate-900 border border-white/20 min-h-0 flex-1 md:flex-none max-h-[95vh] md:max-h-[90vh]"
             onClick={e => e.stopPropagation()}
           >
-             {/* Header — compact on mobile; у ландшафті ще компактніший (modal-header-mobile) */}
-             <div className="px-4 md:px-12 py-4 md:py-8 border-b flex items-center justify-between bg-white shrink-0 sticky top-0 z-20 modal-header-mobile">
+             {/* Header — compact on mobile */}
+             <div className="px-4 md:px-12 py-4 md:py-8 border-b flex items-center justify-between bg-white shrink-0 sticky top-0 z-20">
                 <div className="flex items-center gap-3 md:gap-6 min-w-0">
                    <div className="bg-emerald-600 p-2.5 md:p-4 rounded-xl md:rounded-2xl text-white shadow-lg shrink-0"><Zap size={20} className="md:w-6 md:h-6" /></div>
                    <div className="min-w-0">
@@ -623,8 +608,8 @@ export const CatalogSection: React.FC = () => {
                 </div>
              </div>
 
-             {/* Mobile: scrollable middle — min-h гарантує видиму зону при повороті в ландшафт (90°) */}
-             <div className="flex-1 min-h-[35vh] overflow-y-auto custom-scrollbar modal-scroll-mobile md:hidden">
+             {/* Mobile: single full-height scrollable column with readable text */}
+             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar md:hidden">
                <div className="p-4 pb-32 space-y-6">
                  <div className="bg-slate-50 rounded-2xl p-6 flex items-center justify-center border border-slate-100 min-h-[220px]">
                    <img src={selectedProduct.image || IMAGE_FALLBACK} className="max-w-full max-h-[200px] object-contain" alt="" />
@@ -723,8 +708,8 @@ export const CatalogSection: React.FC = () => {
                </div>
              </div>
 
-             {/* Footer — sticky; у ландшафті компактніший (modal-footer-mobile) */}
-             <div className="px-4 md:px-12 py-2 md:py-6 bg-slate-900 flex flex-col sm:flex-row items-center justify-between gap-2 md:gap-6 border-t border-white/5 shrink-0 sticky bottom-0 z-20 modal-footer-mobile">
+             {/* Footer — sticky; height reduced ~40% on mobile (py-2) and desktop (py-6), text/button unchanged */}
+             <div className="px-4 md:px-12 py-2 md:py-6 bg-slate-900 flex flex-col sm:flex-row items-center justify-between gap-2 md:gap-6 border-t border-white/5 shrink-0 sticky bottom-0 z-20">
                 <div className="text-left">
                   <span className="text-[9px] font-black text-slate-500 uppercase block mb-0.5 tracking-widest">{t('total')}</span>
                   <DualPrice priceExVat={currentTotal} className="text-emerald-400 text-xl md:text-3xl" secondaryClassName="text-emerald-400/60" />
