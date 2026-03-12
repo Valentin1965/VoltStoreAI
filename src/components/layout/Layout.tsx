@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { 
   ShoppingCart, LayoutGrid, Calculator, Heart, User, Search, Wrench, 
   X, Info, Phone, Mail, Menu, MapPin, Globe, Lock, ShieldCheck,
-  ShieldAlert, TrendingUp, ScrollText, ChevronRight, Gavel, FileText
+  ShieldAlert, TrendingUp, ScrollText, ChevronRight, Gavel, FileText, ChevronLeft
 } from 'lucide-react';
 import { AppView } from '../../types';
 import { useCart } from '../../contexts/CartContext';
@@ -56,20 +56,43 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
   ];
 
   const currencies: CurrencyCode[] = ['EUR', 'DKK', 'NOK', 'SEK'];
+  const showBack =
+    currentView === AppView.CART ||
+    currentView === AppView.ADMIN ||
+    currentView === AppView.CABINET;
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50" translate="no">
       {/* On mobile: fixed header with very high z-index so hamburger is always clickable above any content */}
       <header className="sticky top-0 z-[50000] max-md:fixed max-md:top-0 max-md:left-0 max-md:right-0 bg-white/95 backdrop-blur-xl border-b border-slate-100 shadow-sm">
         <div className="max-w-7xl mx-auto w-full h-24 flex items-center justify-between px-4 gap-4">
-          <button
-            type="button"
-            onClick={() => setIsMobileMenuOpen(true)}
-            className="lg:hidden min-w-[44px] min-h-[44px] flex items-center justify-center p-2 text-slate-600 hover:bg-slate-100 active:bg-slate-200 rounded-xl transition-colors touch-manipulation"
-            aria-label="Open menu"
-          >
-            <Menu size={24} />
-          </button>
+          <div className="flex items-center gap-2">
+            {showBack && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.history.length > 1) {
+                    window.history.back();
+                  } else {
+                    setView(AppView.CATALOG);
+                  }
+                }}
+                className="lg:hidden min-w-[40px] min-h-[40px] flex items-center justify-center p-2 text-slate-600 hover:bg-slate-100 active:bg-slate-200 rounded-xl transition-colors touch-manipulation"
+                aria-label="Back"
+              >
+                <ChevronLeft size={20} />
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="lg:hidden min-w-[44px] min-h-[44px] flex items-center justify-center p-2 text-slate-600 hover:bg-slate-100 active:bg-slate-200 rounded-xl transition-colors touch-manipulation"
+              aria-label="Open menu"
+            >
+              <Menu size={24} />
+            </button>
+          </div>
 
           <div className="flex items-center gap-3 cursor-pointer shrink-0" onClick={() => setView(AppView.ABOUT)}>
             <GreenLightLogo />
