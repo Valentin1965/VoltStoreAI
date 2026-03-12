@@ -146,72 +146,59 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
       </header>
 
       {isMobileMenuOpen && (
-        <div className="position-fixed top-0 start-0 w-100 h-100 z-[50001] lg:hidden">
-          {/* Backdrop */}
+        <div className="fixed inset-0 z-[50001] lg:hidden">
           <div
-            className="modal-backdrop fade show"
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             onClick={() => setIsMobileMenuOpen(false)}
             aria-hidden
           />
-
-          {/* Offcanvas-like panel (Bootstrap CSS only on mobile) */}
-          <div
-            className="offcanvas offcanvas-start show d-block"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Mobile menu"
-            style={{ width: 300 }}
-          >
-            <div className="offcanvas-header border-bottom">
-              <strong className="text-uppercase">Menu</strong>
+          <div className="absolute top-0 left-0 bottom-0 w-[300px] bg-white flex flex-col shadow-2xl animate-slide-in-left">
+            <div className="p-6 border-b flex justify-between items-center">
+              <span className="font-black uppercase text-slate-900 tracking-widest">Menu</span>
               <button
                 type="button"
-                className="btn-close"
-                aria-label="Close"
                 onClick={() => setIsMobileMenuOpen(false)}
-              />
+                className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors"
+              >
+                <X size={20} />
+              </button>
             </div>
-
-            <div className="offcanvas-body d-flex flex-column gap-4 text-start">
+            <div className="flex-1 p-6 space-y-6 overflow-y-auto text-left">
               {/* Navigation links */}
-              <div className="list-group">
-                {[
-                  ...navItems,
-                  { id: AppView.CABINET, label: t('nav_cabinet'), icon: User },
-                  { id: AppView.CART, label: t('nav_cart'), icon: ShoppingCart },
-                  { id: AppView.ADMIN, label: t('nav_admin'), icon: ShieldAlert }
-                ].map((item) => (
+              <div className="space-y-1">
+                {[...navItems, { id: AppView.CABINET, label: t('nav_cabinet'), icon: User }, { id: AppView.CART, label: t('nav_cart'), icon: ShoppingCart }, { id: AppView.ADMIN, label: t('nav_admin'), icon: ShieldAlert }].map((item) => (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => { setView(item.id); setIsMobileMenuOpen(false); }}
-                    className={`list-group-item list-group-item-action d-flex align-items-center gap-3 ${
-                      currentView === item.id ? 'active' : ''
+                    className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${
+                      currentView === item.id ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600 hover:bg-slate-50'
                     }`}
                   >
-                    <item.icon size={18} className="flex-shrink-0" />
-                    <span className="fw-bold text-uppercase" style={{ fontSize: 12, letterSpacing: '0.04em' }}>
+                    <item.icon size={20} className="shrink-0" />
+                    <span className="text-sm font-black uppercase tracking-tight leading-tight text-left">
                       {item.label}
                     </span>
                   </button>
                 ))}
               </div>
 
-              {/* Language */}
-              <div className="pt-2 border-top">
-                <div className="d-flex align-items-center gap-2 mb-2 text-secondary">
-                  <Globe size={14} />
-                  <small className="text-uppercase fw-bold" style={{ letterSpacing: '0.18em' }}>
-                    {t('language') || 'Language'}
-                  </small>
-                </div>
-                <div className="btn-group w-100" role="group" aria-label="Language selector">
-                  {languages.map((lang) => (
+              {/* Language switcher */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                  <Globe size={11} /> {t('language') || 'Language'}
+                </p>
+                <div className="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-2xl">
+                  {languages.map(lang => (
                     <button
                       key={lang.code}
                       type="button"
                       onClick={() => setLanguage(lang.code)}
-                      className={`btn ${language === lang.code ? 'btn-success' : 'btn-outline-secondary'}`}
+                      className={`py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all ${
+                        language === lang.code
+                          ? 'bg-white text-emerald-600 shadow-md'
+                          : 'text-slate-400 hover:text-slate-600'
+                      }`}
                     >
                       {lang.label}
                     </button>
@@ -219,20 +206,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
                 </div>
               </div>
 
-              {/* Currency */}
-              <div>
-                <div className="d-flex align-items-center gap-2 mb-2 text-secondary">
-                  <small className="text-uppercase fw-bold" style={{ letterSpacing: '0.18em' }}>
-                    Currency
-                  </small>
-                </div>
-                <div className="btn-group w-100" role="group" aria-label="Currency selector">
-                  {currencies.map((curr) => (
+              {/* Currency switcher */}
+              <div className="space-y-3">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                  Currency
+                </p>
+                <div className="grid grid-cols-4 gap-1 bg-slate-900 p-1 rounded-2xl">
+                  {currencies.map(curr => (
                     <button
                       key={curr}
                       type="button"
                       onClick={() => setCurrency(curr)}
-                      className={`btn ${currency === curr ? 'btn-dark' : 'btn-outline-secondary'}`}
+                      className={`py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                        currency === curr
+                          ? 'bg-emerald-500 text-white shadow-md'
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
                     >
                       {curr}
                     </button>

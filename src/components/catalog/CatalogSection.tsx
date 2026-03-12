@@ -784,21 +784,9 @@ export const CatalogSection: React.FC = () => {
         )}
       </div>
 
-      {/* Option C: On mobile — full-screen product page. In landscape: keep vertical (portrait) strip on screen. */}
+      {/* Option C: On mobile — full-screen product page; same layout in portrait and landscape. */}
       {selectedProduct && isMobile && (
-        <div
-          className={`position-fixed top-0 start-0 w-100 h-100 z-[1000000] animate-fade-in d-flex ${
-            isLandscape ? 'justify-content-center align-items-center bg-secondary' : 'bg-white flex-column'
-          }`}
-        >
-          <div
-            className={
-              isLandscape
-                ? 'd-flex flex-column align-self-stretch bg-white overflow-hidden shadow-lg'
-                : 'd-flex flex-column flex-grow-1 w-100 min-h-0'
-            }
-            style={isLandscape ? { width: 'min(400px, 100vw)', maxWidth: '100%', height: '100%' } : undefined}
-          >
+        <div className="position-fixed top-0 start-0 w-100 h-100 z-[1000000] bg-white animate-fade-in d-flex flex-column">
           {/* Header */}
           <div className="border-bottom position-sticky top-0 bg-white z-3 flex-shrink-0">
             <div className="container-fluid px-3 py-2">
@@ -847,8 +835,7 @@ export const CatalogSection: React.FC = () => {
 
           {/* Body */}
           <div className="flex-grow-1 min-h-0 overflow-auto">
-            <div className={`container-fluid px-3 ${isLandscape ? 'pt-3 pb-3' : 'pt-3 pb-3'}`}>
-
+            <div className="container-fluid px-3 pt-3 pb-3">
               <div className="card border-0 shadow-sm mb-3">
                 <div className="ratio ratio-1x1 bg-light rounded-top overflow-hidden">
                   <img src={selectedProduct.image || IMAGE_FALLBACK} className="w-100 h-100 object-fit-contain p-3" alt="" />
@@ -965,7 +952,6 @@ export const CatalogSection: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
           </div>
         </div>
       )}
