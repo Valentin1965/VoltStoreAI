@@ -1,32 +1,39 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useProducts, SortOption } from '../../contexts/ProductsContext';
-const MOBILE_MEDIA = '(max-width: 767px)';
+
+const MOBILE_MEDIA = '(max-width: 1024px)';
 const LANDSCAPE_MEDIA = '(orientation: landscape)';
+
 function useIsMobile() {
-const [isMobile, setIsMobile] = useState(() =>
-typeof window !== 'undefined' && window.matchMedia(MOBILE_MEDIA).matches
-);
-useEffect(() => {
-const mql = window.matchMedia(MOBILE_MEDIA);
-const update = () => setIsMobile(mql.matches);
-update();
-mql.addEventListener('change', update);
-return () => mql.removeEventListener('change', update);
-}, []);
-return isMobile;
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(MOBILE_MEDIA).matches
+  );
+
+  useEffect(() => {
+    const mql = window.matchMedia(MOBILE_MEDIA);
+    const update = () => setIsMobile(mql.matches);
+    update();
+    mql.addEventListener('change', update);
+    return () => mql.removeEventListener('change', update);
+  }, []);
+
+  return isMobile;
 }
+
 function useIsLandscape() {
-const [isLandscape, setIsLandscape] = useState(() =>
-typeof window !== 'undefined' && window.matchMedia(LANDSCAPE_MEDIA).matches
-);
-useEffect(() => {
-const mql = window.matchMedia(LANDSCAPE_MEDIA);
-const update = () => setIsLandscape(mql.matches);
-update();
-mql.addEventListener('change', update);
-return () => mql.removeEventListener('change', update);
-}, []);
-return isLandscape;
+  const [isLandscape, setIsLandscape] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(LANDSCAPE_MEDIA).matches
+  );
+
+  useEffect(() => {
+    const mql = window.matchMedia(LANDSCAPE_MEDIA);
+    const update = () => setIsLandscape(mql.matches);
+    update();
+    mql.addEventListener('change', update);
+    return () => mql.removeEventListener('change', update);
+  }, []);
+
+  return isLandscape;
 }
 import { useCart } from '../../contexts/CartContext';
 import { useWishlist } from '../../contexts/WishlistContext';

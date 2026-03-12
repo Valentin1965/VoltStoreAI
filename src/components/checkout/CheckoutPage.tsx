@@ -178,9 +178,31 @@ export const CheckoutPage: React.FC<{ onBackToCart: () => void; onOrderSuccess: 
           }),
         });
 
-        const payload = await resp.json();
-        if (!resp.ok || !payload.checkoutUrl) {
-          throw new Error(payload.error || 'Unable to start card payment');
+        let payload: any = null;
+        let rawBody: string | null = null;
+
+        try {
+          const contentType = resp.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            payload = await resp.json();
+          } else {
+            rawBody = await resp.text();
+            try {
+              payload = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+              // leave payload as null, we'll handle below
+            }
+          }
+        } catch {
+          // ignore JSON parse errors, handle via resp.ok check below
+        }
+
+        if (!resp.ok || !payload?.checkoutUrl) {
+          const message =
+            (payload && (payload.error || payload.message)) ||
+            rawBody ||
+            `Unable to start card payment (status ${resp.status})`;
+          throw new Error(message);
         }
 
         // Перенаправляємо клієнта на сторінку оплати Mollie
