@@ -789,17 +789,16 @@ export const CatalogSection: React.FC = () => {
         )}
       </div>
 
-      {/* Mobile landscape: bar with thumbnail, "Info about product" button; modal with gallery. */}
+      {/* Mobile landscape: bar with thumbnail, prominent "Info" button; modal with gallery. */}
       {selectedProduct && isMobile && isLandscape && (
         <>
-          <div className="fixed bottom-0 left-0 right-0 z-[1000000] flex items-center gap-3 px-3 py-2.5 bg-white border-t-2 border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+          <div
+            className="fixed left-0 right-0 z-[1000000] flex items-center gap-3 px-4 py-3 bg-white border-t-2 border-emerald-500/30 shadow-[0_-8px_24px_rgba(0,0,0,0.15)]"
+            style={{ bottom: 0, paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+          >
             {/* Thumbnail */}
-            <div className="w-14 h-14 shrink-0 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
-              <img
-                src={selectedProduct.image || IMAGE_FALLBACK}
-                alt=""
-                className="w-full h-full object-contain"
-              />
+            <div className="w-12 h-12 shrink-0 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
+              <img src={selectedProduct.image || IMAGE_FALLBACK} alt="" className="w-full h-full object-contain" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-bold text-slate-900 truncate">{getLoc(selectedProduct.name)}</div>
@@ -808,15 +807,15 @@ export const CatalogSection: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowLandscapeProductInfo(true)}
-              className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold uppercase tracking-wide shadow-md active:scale-95"
+              className="shrink-0 min-h-[48px] flex items-center justify-center gap-2 px-5 py-3 bg-emerald-600 text-white rounded-xl text-base font-black uppercase tracking-wider shadow-lg border-2 border-emerald-700/50 active:scale-95"
             >
-              <Info size={18} />
-              {t('about_product') || 'Info'}
+              <Info size={22} strokeWidth={2.5} />
+              <span>{t('about_product') || 'Info'}</span>
             </button>
             <button
               type="button"
               onClick={() => setSelectedProduct(null)}
-              className="shrink-0 p-2 rounded-xl text-slate-500 hover:bg-slate-100 border border-slate-200"
+              className="shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-500 bg-slate-100 border border-slate-200"
               aria-label="Close"
             >
               <X size={22} />
