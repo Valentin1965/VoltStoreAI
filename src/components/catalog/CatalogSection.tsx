@@ -784,16 +784,23 @@ export const CatalogSection: React.FC = () => {
         )}
       </div>
 
-      {/* Option C: On mobile — full-screen product page (no modal). In landscape, header/footer are transparent overlays. */}
+      {/* Option C: On mobile — full-screen product page. In landscape: keep vertical (portrait) strip on screen. */}
       {selectedProduct && isMobile && (
-        <div className="position-fixed top-0 start-0 w-100 h-100 z-[1000000] bg-white animate-fade-in d-flex flex-column">
-          {/* Header */}
+        <div
+          className={`position-fixed top-0 start-0 w-100 h-100 z-[1000000] animate-fade-in d-flex ${
+            isLandscape ? 'justify-content-center align-items-center bg-secondary' : 'bg-white flex-column'
+          }`}
+        >
           <div
-            className={`border-bottom z-3 position-sticky top-0 ${
-              isLandscape ? 'bg-white bg-opacity-75' : 'bg-white'
-            }`}
-            style={isLandscape ? { backdropFilter: 'blur(12px)' } : undefined}
+            className={
+              isLandscape
+                ? 'd-flex flex-column align-self-stretch bg-white overflow-hidden shadow-lg'
+                : 'd-flex flex-column flex-grow-1 w-100 min-h-0'
+            }
+            style={isLandscape ? { width: 'min(400px, 100vw)', maxWidth: '100%', height: '100%' } : undefined}
           >
+          {/* Header */}
+          <div className="border-bottom position-sticky top-0 bg-white z-3 flex-shrink-0">
             <div className="container-fluid px-3 py-2">
               <div className="d-flex align-items-center gap-2">
                 <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setSelectedProduct(null)}>
@@ -839,7 +846,7 @@ export const CatalogSection: React.FC = () => {
           </div>
 
           {/* Body */}
-          <div className="flex-grow-1 overflow-auto">
+          <div className="flex-grow-1 min-h-0 overflow-auto">
             <div className={`container-fluid px-3 ${isLandscape ? 'pt-3 pb-3' : 'pt-3 pb-3'}`}>
 
               <div className="card border-0 shadow-sm mb-3">
@@ -927,12 +934,7 @@ export const CatalogSection: React.FC = () => {
           </div>
 
           {/* Footer */}
-          <div
-            className={`border-top z-3 position-sticky bottom-0 ${
-              isLandscape ? 'bg-dark bg-opacity-75' : 'bg-dark'
-            }`}
-            style={isLandscape ? { backdropFilter: 'blur(12px)' } : undefined}
-          >
+          <div className="border-top position-sticky bottom-0 bg-dark flex-shrink-0 z-3">
             <div className="container-fluid px-3 py-3 text-white">
               <div className="d-flex align-items-center justify-content-between gap-3">
                 <div>
@@ -963,6 +965,7 @@ export const CatalogSection: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
           </div>
         </div>
       )}
