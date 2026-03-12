@@ -316,6 +316,7 @@ export const CatalogSection: React.FC = () => {
 
   const [showFilters, setShowFilters] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [showLandscapeProductInfo, setShowLandscapeProductInfo] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const isMobile = useIsMobile();
   const isLandscape = useIsLandscape();
@@ -359,6 +360,10 @@ export const CatalogSection: React.FC = () => {
       if (found) setSelectedProduct(found);
     }
   }, [filteredProducts]);
+
+  useEffect(() => {
+    if (!selectedProduct) setShowLandscapeProductInfo(false);
+  }, [selectedProduct]);
 
   const handleCopyProductLink = (product: Product) => {
     // SPA without router — encode view + product ID
@@ -784,10 +789,72 @@ export const CatalogSection: React.FC = () => {
         )}
       </div>
 
-      {/* Option C: On mobile — full-screen product page; same layout in portrait and landscape. */}
-      {selectedProduct && isMobile && (
+      {/* Mobile landscape: bar with "Info about product" button; tapping opens info modal. */}
+      {selectedProduct && isMobile && isLandscape && (
+        <>
+          <div className="fixed bottom-0 left-0 right-0 z-[1000000] flex items-center gap-3 px-4 py-3 bg-white border-t border-slate-200 shadow-lg">
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-bold text-slate-900 truncate">{getLoc(selectedProduct.name)}</div>
+              <div className="text-xs text-slate-500 truncate">{selectedProduct.manufacturer || t(`cat_${selectedProduct.category}`)}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowLandscapeProductInfo(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold uppercase tracking-wide"
+            >
+              <Info size={18} />
+              {t('about_product') || 'Info'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedProduct(null)}
+              className="p-2 rounded-xl text-slate-400 hover:bg-slate-100"
+              aria-label="Close"
+            >
+              <X size={22} />
+            </button>
+          </div>
+
+          {showLandscapeProductInfo && (
+            <div className="fixed inset-0 z-[1000001] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">
+                  <span className="text-sm font-bold text-slate-900">{getLoc(selectedProduct.name)}</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowLandscapeProductInfo(false)}
+                    className="p-2 rounded-xl text-slate-400 hover:bg-slate-100"
+                    aria-label="Close"
+                  >
+                    <X size={22} />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  <div className="flex justify-center">
+                    <img
+                      src={selectedProduct.image || IMAGE_FALLBACK}
+                      alt=""
+                      className="max-h-32 w-auto object-contain"
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black uppercase text-emerald-600 tracking-wider mb-2">{t('about_product') || 'Description'}</h3>
+                    <p className="text-slate-700 text-sm leading-relaxed">{getLoc(selectedProduct.description) || '—'}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black uppercase text-slate-600 tracking-wider mb-2">{t('specs_title') || 'Technical specs'}</h3>
+                    <CategorySpecs product={selectedProduct} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Mobile portrait: full-screen product page. */}
+      {selectedProduct && isMobile && !isLandscape && (
         <div className="position-fixed top-0 start-0 w-100 h-100 z-[1000000] bg-white animate-fade-in d-flex flex-column">
-          {/* Header */}
           <div className="border-bottom position-sticky top-0 bg-white z-3 flex-shrink-0">
             <div className="container-fluid px-3 py-2">
               <div className="d-flex align-items-center gap-2">
@@ -797,43 +864,22 @@ export const CatalogSection: React.FC = () => {
                     {t('back') || 'Back'}
                   </span>
                 </button>
-
                 <div className="flex-grow-1" style={{ minWidth: 0 }}>
                   <div className="fw-bold text-truncate">{getLoc(selectedProduct.name)}</div>
-                  <small className="text-secondary text-truncate d-block">
-                    {selectedProduct.manufacturer || t(`cat_${selectedProduct.category}`)}
-                  </small>
+                  <small className="text-secondary text-truncate d-block">{selectedProduct.manufacturer || t(`cat_${selectedProduct.category}`)}</small>
                 </div>
-
                 <button type="button" className="btn btn-light btn-sm" onClick={() => setSelectedProduct(null)} aria-label="Close">
                   <X size={18} />
                 </button>
               </div>
-
               <div className="mt-2 d-flex flex-wrap gap-2">
-                <span className="badge text-bg-success text-uppercase" style={{ letterSpacing: '0.08em' }}>
-                  {t(`cat_${selectedProduct.category}`)}
-                </span>
-                {selectedProduct.manufacturer && (
-                  <span className="badge text-bg-primary text-uppercase" style={{ letterSpacing: '0.08em' }}>
-                    {selectedProduct.manufacturer}
-                  </span>
-                )}
-                {selectedProduct.is_leader && (
-                  <span className="badge text-bg-warning text-uppercase" style={{ letterSpacing: '0.08em' }}>
-                    {t('sales_leader')}
-                  </span>
-                )}
-                {!selectedProduct.is_active && (
-                  <span className="badge text-bg-secondary text-uppercase" style={{ letterSpacing: '0.08em' }}>
-                    {t('inactive_status') || 'Inactive'}
-                  </span>
-                )}
+                <span className="badge text-bg-success text-uppercase" style={{ letterSpacing: '0.08em' }}>{t(`cat_${selectedProduct.category}`)}</span>
+                {selectedProduct.manufacturer && <span className="badge text-bg-primary text-uppercase" style={{ letterSpacing: '0.08em' }}>{selectedProduct.manufacturer}</span>}
+                {selectedProduct.is_leader && <span className="badge text-bg-warning text-uppercase" style={{ letterSpacing: '0.08em' }}>{t('sales_leader')}</span>}
+                {!selectedProduct.is_active && <span className="badge text-bg-secondary text-uppercase" style={{ letterSpacing: '0.08em' }}>{t('inactive_status') || 'Inactive'}</span>}
               </div>
             </div>
           </div>
-
-          {/* Body */}
           <div className="flex-grow-1 min-h-0 overflow-auto">
             <div className="container-fluid px-3 pt-3 pb-3">
               <div className="card border-0 shadow-sm mb-3">
@@ -841,7 +887,6 @@ export const CatalogSection: React.FC = () => {
                   <img src={selectedProduct.image || IMAGE_FALLBACK} className="w-100 h-100 object-fit-contain p-3" alt="" />
                 </div>
               </div>
-
               {selectedProduct.images && selectedProduct.images.length > 0 && (
                 <div className="d-flex gap-2 overflow-auto pb-2 mb-3">
                   {[selectedProduct.image, ...selectedProduct.images].filter(Boolean).map((img, idx) => (
@@ -851,7 +896,6 @@ export const CatalogSection: React.FC = () => {
                   ))}
                 </div>
               )}
-
               <div className="card mb-3">
                 <div className="card-body">
                   <h6 className="card-title mb-2">
@@ -859,12 +903,9 @@ export const CatalogSection: React.FC = () => {
                       <Info size={16} /> {t('about_product') || 'Asset Details'}
                     </span>
                   </h6>
-                  <p className="card-text mb-0" style={{ fontSize: 16, lineHeight: 1.5 }}>
-                    {getLoc(selectedProduct.description) || '—'}
-                  </p>
+                  <p className="card-text mb-0" style={{ fontSize: 16, lineHeight: 1.5 }}>{getLoc(selectedProduct.description) || '—'}</p>
                 </div>
               </div>
-
               <div className="card mb-3 bg-light">
                 <div className="card-body">
                   <h6 className="card-title mb-2">
@@ -875,7 +916,6 @@ export const CatalogSection: React.FC = () => {
                   <CategorySpecs product={selectedProduct} />
                 </div>
               </div>
-
               <div className="card mb-3">
                 <div className="card-body">
                   <h6 className="card-title mb-3">
@@ -886,13 +926,7 @@ export const CatalogSection: React.FC = () => {
                   {Array.isArray(selectedProduct.docs) && selectedProduct.docs.length > 0 ? (
                     <div className="list-group">
                       {selectedProduct.docs.map((d: any, i: number) => (
-                        <a
-                          key={i}
-                          href={d.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                        >
+                        <a key={i} href={d.url} target="_blank" rel="noopener noreferrer" className="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                           <span className="fw-bold">{d.title || 'Tech Sheet'}</span>
                           <Download size={16} className="text-success" />
                         </a>
@@ -903,14 +937,8 @@ export const CatalogSection: React.FC = () => {
                   )}
                 </div>
               </div>
-
               {selectedProduct.video_url && (
-                <a
-                  href={selectedProduct.video_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-dark w-100 d-flex align-items-center justify-content-between mb-5"
-                >
+                <a href={selectedProduct.video_url} target="_blank" rel="noopener noreferrer" className="btn btn-dark w-100 d-flex align-items-center justify-content-between mb-5">
                   <span className="d-inline-flex align-items-center gap-2 text-uppercase fw-bold" style={{ letterSpacing: '0.08em' }}>
                     <PlayCircle size={18} /> {t('product_watch_review')}
                   </span>
@@ -919,34 +947,20 @@ export const CatalogSection: React.FC = () => {
               )}
             </div>
           </div>
-
-          {/* Footer */}
           <div className="border-top position-sticky bottom-0 bg-dark flex-shrink-0 z-3">
             <div className="container-fluid px-3 py-3 text-white">
               <div className="d-flex align-items-center justify-content-between gap-3">
                 <div>
-                  <small className="text-white-50 text-uppercase fw-bold" style={{ letterSpacing: '0.16em' }}>
-                    {t('total')}
-                  </small>
+                  <small className="text-white-50 text-uppercase fw-bold" style={{ letterSpacing: '0.16em' }}>{t('total')}</small>
                   <DualPrice priceExVat={currentTotal} className="text-emerald-400 text-xl" secondaryClassName="text-emerald-400/60" />
                 </div>
                 <div className="d-flex align-items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleBookingClick(selectedProduct)}
-                    className={`btn btn-sm ${isInWishlist(selectedProduct.id) ? 'btn-outline-danger' : 'btn-outline-light'}`}
-                    aria-label={t('nav_wishlist')}
-                  >
+                  <button type="button" onClick={() => handleBookingClick(selectedProduct)} className={`btn btn-sm ${isInWishlist(selectedProduct.id) ? 'btn-outline-danger' : 'btn-outline-light'}`} aria-label={t('nav_wishlist')}>
                     <Heart size={18} fill={isInWishlist(selectedProduct.id) ? 'currentColor' : 'none'} />
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => { addItem({ ...selectedProduct, price: currentTotal }); addNotification(t('item_added'), 'success'); setSelectedProduct(null); }}
-                    className="btn btn-success"
-                  >
+                  <button type="button" onClick={() => { addItem({ ...selectedProduct, price: currentTotal }); addNotification(t('item_added'), 'success'); setSelectedProduct(null); }} className="btn btn-success">
                     <span className="d-inline-flex align-items-center gap-2 text-uppercase fw-bold" style={{ letterSpacing: '0.08em' }}>
-                      <ShoppingCart size={18} />
-                      {t('add_to_cart')}
+                      <ShoppingCart size={18} /> {t('add_to_cart')}
                     </span>
                   </button>
                 </div>
