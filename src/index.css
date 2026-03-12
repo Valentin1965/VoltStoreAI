@@ -1,3 +1,6 @@
+/* Bootstrap is loaded ONLY on mobile (<768px) to avoid affecting desktop. */
+@import "bootstrap/dist/css/bootstrap.min.css" screen and (max-width: 767px);
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

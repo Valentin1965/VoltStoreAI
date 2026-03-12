@@ -106,6 +106,59 @@ export const ProductCard: React.FC<{
   );
 });
 
+const MobileBsProductCard: React.FC<{
+  product: Product;
+  onSelect: (p: Product) => void;
+  onAddToCart: (e: React.MouseEvent, p: Product) => void;
+}> = React.memo(({ product, onSelect, onAddToCart }) => {
+  const { formatPrice, t, getLoc } = useLanguage();
+  const { getDiscountedPrice, currentUser } = useUser();
+
+  const discountedPrice = getDiscountedPrice(product.price);
+  const hasDiscount = currentUser && currentUser.discount && currentUser.discount > 0;
+
+  return (
+    <div className="card h-100 shadow-sm border-0" role="button" onClick={() => onSelect(product)}>
+      <div className="ratio ratio-1x1 bg-light rounded-top overflow-hidden">
+        <img src={product.image || IMAGE_FALLBACK} alt="" className="w-100 h-100 object-fit-contain p-2" />
+      </div>
+      <div className="card-body d-flex flex-column gap-2">
+        <div className="d-flex align-items-start justify-content-between gap-2">
+          <div className="flex-grow-1" style={{ minWidth: 0 }}>
+            <div className="fw-bold text-uppercase text-truncate" style={{ fontSize: 12, letterSpacing: '0.04em' }}>
+              {getLoc(product.name)}
+            </div>
+            <div className="text-secondary text-truncate" style={{ fontSize: 12 }}>
+              {product.manufacturer || t(`cat_${product.category}`)}
+            </div>
+          </div>
+          {product.is_leader && (
+            <span className="badge text-bg-warning text-uppercase" style={{ fontSize: 10, letterSpacing: '0.08em' }}>
+              {t('sales_leader')}
+            </span>
+          )}
+        </div>
+
+        <div className="mt-auto">
+          <div className="d-flex align-items-baseline justify-content-between">
+            <div className="fw-bold text-success" style={{ fontSize: 16 }}>
+              {formatPrice(discountedPrice)}
+            </div>
+            {hasDiscount && discountedPrice !== product.price && (
+              <div className="text-secondary text-decoration-line-through" style={{ fontSize: 12 }}>
+                {formatPrice(product.price)}
+              </div>
+            )}
+          </div>
+          <button type="button" className="btn btn-dark w-100 mt-2" onClick={(e) => { e.stopPropagation(); onAddToCart(e, product); }}>
+            {t('add_to_cart')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 const CategorySpecs: React.FC<{ product: Product }> = ({ product }) => {
   const renderSpec = (label: string, value: any, suffix: string = '') => {
     if (value === undefined || value === null || value === '') return null;
@@ -393,68 +446,160 @@ export const CatalogSection: React.FC = () => {
     <>
       <div className="relative space-y-6 notranslate mb-10" translate="no">
         {/* Navigation Categories */}
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4 shrink-0">
-          {(categories || []).map(cat => (
-            <button 
-              key={cat} 
-              onClick={() => setSelectedCategory?.(selectedCategory === cat ? 'All' : cat)} 
-              className={`px-3 py-2 lg:px-8 lg:py-4 rounded-2xl text-[9px] lg:text-[10px] font-black uppercase tracking-tight lg:tracking-widest transition-all shrink-0 text-center leading-tight max-w-[64px] lg:max-w-none ${selectedCategory === cat ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-white text-slate-400 border border-slate-100 hover:bg-slate-50'}`}
-            >
-              {t(`cat_${cat}`)}
-            </button>
-          ))}
-        </div>
+        {isMobile ? (
+          <div className="container-fluid px-3">
+            <div className="d-flex gap-2 overflow-auto pb-2">
+              {(categories || []).map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory?.(selectedCategory === cat ? 'All' : cat)}
+                  className={`btn btn-sm ${selectedCategory === cat ? 'btn-dark' : 'btn-outline-secondary'}`}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  {t(`cat_${cat}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4 shrink-0">
+            {(categories || []).map(cat => (
+              <button 
+                key={cat} 
+                onClick={() => setSelectedCategory?.(selectedCategory === cat ? 'All' : cat)} 
+                className={`px-3 py-2 lg:px-8 lg:py-4 rounded-2xl text-[9px] lg:text-[10px] font-black uppercase tracking-tight lg:tracking-widest transition-all shrink-0 text-center leading-tight max-w-[64px] lg:max-w-none ${selectedCategory === cat ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-white text-slate-400 border border-slate-100 hover:bg-slate-50'}`}
+              >
+                {t(`cat_${cat}`)}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Global Controls & Search */}
-        <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
-          <div className="relative w-full lg:max-w-md group">
-            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-            <input 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery?.(e.target.value)}
-              placeholder={t('search_placeholder')}
-              className="w-full bg-white border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-4 text-xs font-black outline-none focus:border-emerald-400 shadow-sm transition-all"
-            />
-          </div>
-          
-          <div className="flex items-center gap-3 w-full lg:w-auto">
-             <button 
-              onClick={() => setShowFilters(true)}
-              className={`flex-1 lg:flex-none flex items-center justify-center gap-3 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeFiltersCount > 0 ? 'bg-emerald-500 text-white shadow-xl' : 'bg-white text-slate-600 border border-slate-100'}`}
-             >
-               <SlidersHorizontal size={14} />
-               {t('filter_btn')} {activeFiltersCount > 0 && <span className="bg-white text-emerald-600 w-5 h-5 rounded-full flex items-center justify-center text-[8px] ml-1">{activeFiltersCount}</span>}
-             </button>
-
-             <select 
-               value={sortBy}
-               onChange={(e) => setSortBy?.(e.target.value as SortOption)}
-               className="bg-white border-2 border-slate-100 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none focus:border-emerald-500 shadow-sm cursor-pointer transition-all"
-             >
-               <option value="newest">{t('sort_newest')}</option>
-               <option value="price-asc">{t('sort_price_asc')}</option>
-               <option value="price-desc">{t('sort_price_desc')}</option>
-               <option value="rating">{t('sort_rating')}</option>
-             </select>
-          </div>
-        </div>
-
-        {/* Filter Sidebar */}
-        <div className={`fixed inset-0 z-[2000000] transition-all duration-500 ${showFilters ? 'visible' : 'invisible'}`}>
-          <div className={`absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity duration-500 ${showFilters ? 'opacity-100' : 'opacity-0'}`} onClick={() => setShowFilters(false)} />
-          <div className={`absolute top-0 right-0 w-full max-w-md h-full bg-white shadow-3xl transition-transform duration-500 flex flex-col ${showFilters ? 'translate-x-0' : 'translate-x-full'}`}>
-            <div className="p-8 border-b flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-emerald-50 text-emerald-500 rounded-xl flex items-center justify-center"><Filter size={20}/></div>
-                <div>
-                  <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">{t('filter_btn')}</h3>
-                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{t('filter_sidebar_title')}</p>
+        {isMobile ? (
+          <div className="container-fluid px-3">
+            <div className="row g-2 align-items-center">
+              <div className="col-12">
+                <div className="input-group">
+                  <span className="input-group-text bg-white"><Search size={16} /></span>
+                  <input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery?.(e.target.value)}
+                    placeholder={t('search_placeholder')}
+                    className="form-control"
+                  />
                 </div>
               </div>
-              <button onClick={() => setShowFilters(false)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-all"><X size={24} /></button>
+              <div className="col-6">
+                <button
+                  type="button"
+                  onClick={() => setShowFilters(true)}
+                  className={`btn w-100 ${activeFiltersCount > 0 ? 'btn-success' : 'btn-outline-secondary'}`}
+                >
+                  <span className="d-inline-flex align-items-center gap-2">
+                    <SlidersHorizontal size={16} />
+                    {t('filter_btn')}
+                    {activeFiltersCount > 0 && (
+                      <span className="badge text-bg-light text-success">{activeFiltersCount}</span>
+                    )}
+                  </span>
+                </button>
+              </div>
+              <div className="col-6">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy?.(e.target.value as SortOption)}
+                  className="form-select"
+                >
+                  <option value="newest">{t('sort_newest')}</option>
+                  <option value="price-asc">{t('sort_price_asc')}</option>
+                  <option value="price-desc">{t('sort_price_desc')}</option>
+                  <option value="rating">{t('sort_rating')}</option>
+                </select>
+              </div>
             </div>
+          </div>
+        ) : (
+          <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+            <div className="relative w-full lg:max-w-md group">
+              <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+              <input 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery?.(e.target.value)}
+                placeholder={t('search_placeholder')}
+                className="w-full bg-white border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-4 text-xs font-black outline-none focus:border-emerald-400 shadow-sm transition-all"
+              />
+            </div>
+            
+            <div className="flex items-center gap-3 w-full lg:w-auto">
+              <button 
+                onClick={() => setShowFilters(true)}
+                className={`flex-1 lg:flex-none flex items-center justify-center gap-3 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeFiltersCount > 0 ? 'bg-emerald-500 text-white shadow-xl' : 'bg-white text-slate-600 border border-slate-100'}`}
+              >
+                <SlidersHorizontal size={14} />
+                {t('filter_btn')} {activeFiltersCount > 0 && <span className="bg-white text-emerald-600 w-5 h-5 rounded-full flex items-center justify-center text-[8px] ml-1">{activeFiltersCount}</span>}
+              </button>
 
-            <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
+              <select 
+                value={sortBy}
+                onChange={(e) => setSortBy?.(e.target.value as SortOption)}
+                className="bg-white border-2 border-slate-100 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none focus:border-emerald-500 shadow-sm cursor-pointer transition-all"
+              >
+                <option value="newest">{t('sort_newest')}</option>
+                <option value="price-asc">{t('sort_price_asc')}</option>
+                <option value="price-desc">{t('sort_price_desc')}</option>
+                <option value="rating">{t('sort_rating')}</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* Filter Sidebar */}
+        {isMobile ? (
+          <div className={`position-fixed top-0 start-0 w-100 h-100 z-[2000000] ${showFilters ? '' : 'd-none'}`}>
+            <div className="modal-backdrop fade show" onClick={() => setShowFilters(false)} aria-hidden />
+            <div className="offcanvas offcanvas-end show d-block" role="dialog" aria-modal="true" aria-label="Filters">
+              <div className="offcanvas-header border-bottom">
+                <div className="d-flex align-items-center gap-2">
+                  <Filter size={18} />
+                  <strong>{t('filter_btn')}</strong>
+                </div>
+                <button type="button" className="btn-close" aria-label="Close" onClick={() => setShowFilters(false)} />
+              </div>
+              <div className="offcanvas-body">
+                <div className="d-flex flex-column gap-3">
+                  <div className="alert alert-secondary py-2 mb-0" role="note">
+                    <small>{t('filter_sidebar_title')}</small>
+                  </div>
+                  <div className="d-flex gap-2">
+                    <button type="button" className="btn btn-outline-secondary w-100" onClick={() => resetFilters?.()}>
+                      {t('filter_reset')}
+                    </button>
+                    <button type="button" className="btn btn-success w-100" onClick={() => { applyFilters?.(); setShowFilters(false); }}>
+                      {t('filter_apply')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className={`fixed inset-0 z-[2000000] transition-all duration-500 ${showFilters ? 'visible' : 'invisible'}`}>
+            <div className={`absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity duration-500 ${showFilters ? 'opacity-100' : 'opacity-0'}`} onClick={() => setShowFilters(false)} />
+            <div className={`absolute top-0 right-0 w-full max-w-md h-full bg-white shadow-3xl transition-transform duration-500 flex flex-col ${showFilters ? 'translate-x-0' : 'translate-x-full'}`}>
+              <div className="p-8 border-b flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-emerald-50 text-emerald-500 rounded-xl flex items-center justify-center"><Filter size={20}/></div>
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">{t('filter_btn')}</h3>
+                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{t('filter_sidebar_title')}</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowFilters(false)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-all"><X size={24} /></button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
               {/* Global Status */}
               <div className="space-y-6">
                 <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-[0.2em] border-l-4 border-emerald-500 pl-4">{t('filter_status_section')}</h4>
@@ -571,30 +716,62 @@ export const CatalogSection: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
-
-        <div className="flex items-center justify-between px-2 text-slate-900 border-b border-slate-100 pb-4">
-          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-            {t('catalog_results_prefix')} <span className="text-emerald-500">{filteredProducts.length}</span> {t('catalog_results_suffix')} <span className="text-slate-900">{t(`cat_${selectedCategory}`)}</span>
           </div>
-        </div>
+        )}
+
+        {isMobile ? (
+          <div className="container-fluid px-3">
+            <div className="d-flex align-items-center justify-content-between border-bottom py-2">
+              <small className="text-secondary text-uppercase fw-bold" style={{ letterSpacing: '0.14em' }}>
+                {t('catalog_results_prefix')} <span className="text-success">{filteredProducts.length}</span> {t('catalog_results_suffix')}
+              </small>
+              <small className="fw-bold">{t(`cat_${selectedCategory}`)}</small>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between px-2 text-slate-900 border-b border-slate-100 pb-4">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+              {t('catalog_results_prefix')} <span className="text-emerald-500">{filteredProducts.length}</span> {t('catalog_results_suffix')} <span className="text-slate-900">{t(`cat_${selectedCategory}`)}</span>
+            </div>
+          </div>
+        )}
 
         {/* Product Grid */}
         {(filteredProducts || []).length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 px-0 animate-fade-in">
-            {filteredProducts.map((p) => (
-              <ProductCard 
-                key={p.id} 
-                product={p} 
-                onSelect={setSelectedProduct} 
-                onAddToCart={(e, prod) => {
-                  e.stopPropagation();
-                  addItem({ ...prod, price: getDiscountedPrice(prod.price) });
-                  addNotification(t('item_added'), 'success');
-                }} 
-              />
-            ))}
-          </div>
+          isMobile ? (
+            <div className="container-fluid px-3 py-3">
+              <div className="row row-cols-2 g-3">
+                {filteredProducts.map((p) => (
+                  <div key={p.id} className="col">
+                    <MobileBsProductCard
+                      product={p}
+                      onSelect={setSelectedProduct}
+                      onAddToCart={(e, prod) => {
+                        e.stopPropagation();
+                        addItem({ ...prod, price: getDiscountedPrice(prod.price) });
+                        addNotification(t('item_added'), 'success');
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 px-0 animate-fade-in">
+              {filteredProducts.map((p) => (
+                <ProductCard 
+                  key={p.id} 
+                  product={p} 
+                  onSelect={setSelectedProduct} 
+                  onAddToCart={(e, prod) => {
+                    e.stopPropagation();
+                    addItem({ ...prod, price: getDiscountedPrice(prod.price) });
+                    addNotification(t('item_added'), 'success');
+                  }} 
+                />
+              ))}
+            </div>
+          )
         ) : (
           <div className="py-32 text-center space-y-6 bg-white rounded-[4rem] border-2 border-dashed border-slate-100">
              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto"><Package size={40} className="text-slate-200" /></div>
@@ -609,103 +786,190 @@ export const CatalogSection: React.FC = () => {
 
       {/* Option C: On mobile — full-screen product page (no modal). In landscape, header/footer are transparent overlays. */}
       {selectedProduct && isMobile && (
-        <div className="fixed inset-0 z-[1000000] flex flex-col bg-white text-slate-900 animate-fade-in relative">
-          <header
-            className={`flex items-center gap-3 px-4 py-3 z-20 ${
-              isLandscape
-                ? 'absolute top-0 left-0 right-0 bg-white/80 backdrop-blur-md border-b border-slate-200/50'
-                : 'shrink-0 sticky top-0 border-b border-slate-100 bg-white'
+        <div className="position-fixed top-0 start-0 w-100 h-100 z-[1000000] bg-white animate-fade-in">
+          {/* Header */}
+          <div
+            className={`border-bottom z-3 ${
+              isLandscape ? 'position-absolute top-0 start-0 end-0 bg-white bg-opacity-75' : 'position-sticky top-0 bg-white'
             }`}
+            style={isLandscape ? { backdropFilter: 'blur(12px)' } : undefined}
           >
-            <button
-              type="button"
-              onClick={() => setSelectedProduct(null)}
-              className="p-2 -ml-1 rounded-xl text-slate-600 hover:bg-slate-100 flex items-center gap-1"
-              aria-label={t('back') || 'Back'}
-            >
-              <ChevronLeft size={24} />
-              <span className="text-sm font-bold">{t('back') || 'Back'}</span>
-            </button>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-base font-black text-slate-900 truncate">{getLoc(selectedProduct.name)}</h1>
-              <p className="text-xs text-slate-500 truncate">{selectedProduct.manufacturer || t(`cat_${selectedProduct.category}`)}</p>
-            </div>
-            <button type="button" onClick={() => setSelectedProduct(null)} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100" aria-label="Close"><X size={22} /></button>
-          </header>
-          <main className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-            <div className={`p-4 space-y-6 ${isLandscape ? 'pt-16 pb-24' : 'pb-28'}`}>
-              <div className="bg-slate-50 rounded-2xl p-6 flex items-center justify-center border border-slate-100 min-h-[220px]">
-                <img src={selectedProduct.image || IMAGE_FALLBACK} className="max-w-full max-h-[200px] object-contain" alt="" />
+            <div className="container-fluid px-3 py-2">
+              <div className="d-flex align-items-center gap-2">
+                <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setSelectedProduct(null)}>
+                  <span className="d-inline-flex align-items-center gap-1">
+                    <ChevronLeft size={18} />
+                    {t('back') || 'Back'}
+                  </span>
+                </button>
+
+                <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                  <div className="fw-bold text-truncate">{getLoc(selectedProduct.name)}</div>
+                  <small className="text-secondary text-truncate d-block">
+                    {selectedProduct.manufacturer || t(`cat_${selectedProduct.category}`)}
+                  </small>
+                </div>
+
+                <button type="button" className="btn btn-light btn-sm" onClick={() => setSelectedProduct(null)} aria-label="Close">
+                  <X size={18} />
+                </button>
               </div>
+
+              <div className="mt-2 d-flex flex-wrap gap-2">
+                <span className="badge text-bg-success text-uppercase" style={{ letterSpacing: '0.08em' }}>
+                  {t(`cat_${selectedProduct.category}`)}
+                </span>
+                {selectedProduct.manufacturer && (
+                  <span className="badge text-bg-primary text-uppercase" style={{ letterSpacing: '0.08em' }}>
+                    {selectedProduct.manufacturer}
+                  </span>
+                )}
+                {selectedProduct.is_leader && (
+                  <span className="badge text-bg-warning text-uppercase" style={{ letterSpacing: '0.08em' }}>
+                    {t('sales_leader')}
+                  </span>
+                )}
+                {!selectedProduct.is_active && (
+                  <span className="badge text-bg-secondary text-uppercase" style={{ letterSpacing: '0.08em' }}>
+                    {t('inactive_status') || 'Inactive'}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="h-100 overflow-auto">
+            <div className={`container-fluid px-3 ${isLandscape ? 'pt-5 pb-5' : 'pt-3 pb-5'}`}>
+              <div className={`pb-5 ${isLandscape ? 'pt-5' : ''}`} />
+
+              <div className="card border-0 shadow-sm mb-3">
+                <div className="ratio ratio-1x1 bg-light rounded-top overflow-hidden">
+                  <img src={selectedProduct.image || IMAGE_FALLBACK} className="w-100 h-100 object-fit-contain p-3" alt="" />
+                </div>
+              </div>
+
               {selectedProduct.images && selectedProduct.images.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
+                <div className="d-flex gap-2 overflow-auto pb-2 mb-3">
                   {[selectedProduct.image, ...selectedProduct.images].filter(Boolean).map((img, idx) => (
-                    <div key={idx} className="w-16 h-16 shrink-0 bg-slate-50 rounded-xl border border-slate-100 p-1.5 flex items-center justify-center snap-start">
-                      <img src={img} className="max-w-full max-h-full object-contain" alt="" />
+                    <div key={idx} className="border rounded bg-light flex-shrink-0" style={{ width: 72, height: 72 }}>
+                      <img src={img} className="w-100 h-100 object-fit-contain p-2" alt="" />
                     </div>
                   ))}
                 </div>
               )}
-              <section className="bg-white border border-slate-100 rounded-2xl p-5">
-                <h3 className="text-sm font-black uppercase text-emerald-600 tracking-widest mb-3 flex items-center gap-2"><Info size={16} /> {t('about_product') || 'Asset Details'}</h3>
-                <p className="text-slate-700 text-base leading-relaxed font-medium">{getLoc(selectedProduct.description) || '—'}</p>
-              </section>
-              <section className="bg-slate-50 border border-slate-100 rounded-2xl p-5">
-                <h3 className="text-sm font-black uppercase text-slate-700 tracking-widest mb-3 flex items-center gap-2"><Layers size={16} className="text-emerald-500" /> {t('specs_title') || 'Technical specs'}</h3>
-                <CategorySpecs product={selectedProduct} />
-              </section>
-              <section className="bg-white border border-slate-100 rounded-2xl p-5">
-                <h3 className="text-sm font-black uppercase text-slate-700 tracking-widest mb-3 flex items-center gap-2"><FileText size={16} className="text-emerald-500" /> {t('documentation_title') || 'Documentation'}</h3>
-                {Array.isArray(selectedProduct.docs) && selectedProduct.docs.length > 0 ? (
-                  <div className="space-y-2">
-                    {selectedProduct.docs.map((d: any, i: number) => (
-                      <a key={i} href={d.url} target="_blank" rel="noopener noreferrer" className="flex justify-between items-center p-3 bg-slate-50 rounded-xl text-slate-800 text-sm font-bold">
-                        {d.title || 'Tech Sheet'} <Download size={16} className="text-emerald-500 shrink-0" />
-                      </a>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-slate-500 text-sm italic">{t('product_no_docs')}</p>
-                )}
-              </section>
+
+              <div className="card mb-3">
+                <div className="card-body">
+                  <h6 className="card-title mb-2">
+                    <span className="d-inline-flex align-items-center gap-2 text-success text-uppercase" style={{ letterSpacing: '0.12em', fontWeight: 800, fontSize: 12 }}>
+                      <Info size={16} /> {t('about_product') || 'Asset Details'}
+                    </span>
+                  </h6>
+                  <p className="card-text mb-0" style={{ fontSize: 16, lineHeight: 1.5 }}>
+                    {getLoc(selectedProduct.description) || '—'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="card mb-3 bg-light">
+                <div className="card-body">
+                  <h6 className="card-title mb-2">
+                    <span className="d-inline-flex align-items-center gap-2 text-uppercase text-secondary" style={{ letterSpacing: '0.12em', fontWeight: 800, fontSize: 12 }}>
+                      <Layers size={16} /> {t('specs_title') || 'Technical specs'}
+                    </span>
+                  </h6>
+                  <CategorySpecs product={selectedProduct} />
+                </div>
+              </div>
+
+              <div className="card mb-3">
+                <div className="card-body">
+                  <h6 className="card-title mb-3">
+                    <span className="d-inline-flex align-items-center gap-2 text-uppercase text-secondary" style={{ letterSpacing: '0.12em', fontWeight: 800, fontSize: 12 }}>
+                      <FileText size={16} /> {t('documentation_title') || 'Documentation'}
+                    </span>
+                  </h6>
+                  {Array.isArray(selectedProduct.docs) && selectedProduct.docs.length > 0 ? (
+                    <div className="list-group">
+                      {selectedProduct.docs.map((d: any, i: number) => (
+                        <a
+                          key={i}
+                          href={d.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                        >
+                          <span className="fw-bold">{d.title || 'Tech Sheet'}</span>
+                          <Download size={16} className="text-success" />
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-secondary fst-italic">{t('product_no_docs')}</div>
+                  )}
+                </div>
+              </div>
+
               {selectedProduct.video_url && (
-                <a href={selectedProduct.video_url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-slate-900 text-white rounded-2xl">
-                  <span className="text-sm font-black uppercase flex items-center gap-2"><PlayCircle size={20} className="text-emerald-400" /> {t('product_watch_review')}</span>
+                <a
+                  href={selectedProduct.video_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-dark w-100 d-flex align-items-center justify-content-between mb-5"
+                >
+                  <span className="d-inline-flex align-items-center gap-2 text-uppercase fw-bold" style={{ letterSpacing: '0.08em' }}>
+                    <PlayCircle size={18} /> {t('product_watch_review')}
+                  </span>
                   <ExternalLink size={18} />
                 </a>
               )}
+
+              {/* Spacer so footer overlay doesn't hide last content */}
+              <div style={{ height: 96 }} />
             </div>
-          </main>
-          <footer
-            className={`px-4 py-4 z-20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 ${
-              isLandscape
-                ? 'absolute bottom-0 left-0 right-0 bg-slate-900/85 backdrop-blur-md border-t border-white/10'
-                : 'shrink-0 sticky bottom-0 bg-slate-900 border-t border-white/10'
+          </div>
+
+          {/* Footer */}
+          <div
+            className={`border-top z-3 ${
+              isLandscape ? 'position-absolute bottom-0 start-0 end-0 bg-dark bg-opacity-75' : 'position-sticky bottom-0 bg-dark'
             }`}
+            style={isLandscape ? { backdropFilter: 'blur(12px)' } : undefined}
           >
-            <div>
-              <span className="text-[10px] font-black text-slate-500 uppercase block tracking-widest">{t('total')}</span>
-              <DualPrice priceExVat={currentTotal} className="text-emerald-400 text-xl" secondaryClassName="text-emerald-400/60" />
+            <div className="container-fluid px-3 py-3 text-white">
+              <div className="d-flex align-items-center justify-content-between gap-3">
+                <div>
+                  <small className="text-white-50 text-uppercase fw-bold" style={{ letterSpacing: '0.16em' }}>
+                    {t('total')}
+                  </small>
+                  <div className="fw-bold text-success" style={{ fontSize: 18 }}>
+                    <DualPrice priceExVat={currentTotal} className="text-emerald-400 text-xl" secondaryClassName="text-emerald-400/60" />
+                  </div>
+                </div>
+                <div className="d-flex align-items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleBookingClick(selectedProduct)}
+                    className={`btn btn-sm ${isInWishlist(selectedProduct.id) ? 'btn-outline-danger' : 'btn-outline-light'}`}
+                    aria-label={t('nav_wishlist')}
+                  >
+                    <Heart size={18} fill={isInWishlist(selectedProduct.id) ? 'currentColor' : 'none'} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { addItem({ ...selectedProduct, price: currentTotal }); addNotification(t('item_added'), 'success'); setSelectedProduct(null); }}
+                    className="btn btn-success"
+                  >
+                    <span className="d-inline-flex align-items-center gap-2 text-uppercase fw-bold" style={{ letterSpacing: '0.08em' }}>
+                      <ShoppingCart size={18} />
+                      {t('add_to_cart')}
+                    </span>
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => handleBookingClick(selectedProduct)}
-                className={`p-3 rounded-xl border ${isInWishlist(selectedProduct.id) ? 'bg-rose-50 border-rose-200 text-rose-500' : 'bg-white/10 border-white/20 text-white'}`}
-                aria-label={t('nav_wishlist')}
-              >
-                <Heart size={20} fill={isInWishlist(selectedProduct.id) ? 'currentColor' : 'none'} />
-              </button>
-              <button
-                type="button"
-                onClick={() => { addItem({ ...selectedProduct, price: currentTotal }); addNotification(t('item_added'), 'success'); setSelectedProduct(null); }}
-                className="flex-1 sm:flex-none btn-action py-3 px-6 flex items-center justify-center gap-2"
-              >
-                <ShoppingCart size={18} />
-                <span className="font-black uppercase text-sm">{t('add_to_cart')}</span>
-              </button>
-            </div>
-          </footer>
+          </div>
         </div>
       )}
 
