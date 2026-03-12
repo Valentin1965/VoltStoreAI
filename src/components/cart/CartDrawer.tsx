@@ -91,9 +91,33 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onCheck
                     </div>
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex items-center gap-1.5 bg-slate-100 rounded-lg p-0.5">
-                        <button onClick={() => updateQuantity(item.id, -1)} className="w-6 h-6 flex items-center justify-center rounded-md bg-white text-slate-400 hover:text-yellow-600 shadow-sm transition-all"><Minus size={10} /></button>
-                        <span className="w-5 text-center font-black text-[10px] text-slate-900">{item.quantity}</span>
-                        <button onClick={() => updateQuantity(item.id, 1)} className="w-6 h-6 flex items-center justify-center rounded-md bg-white text-slate-400 hover:text-yellow-600 shadow-sm transition-all"><Plus size={10} /></button>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.id, -1)}
+                          className="w-6 h-6 flex items-center justify-center rounded-md bg-white text-slate-400 hover:text-yellow-600 shadow-sm transition-all"
+                        >
+                          <Minus size={10} />
+                        </button>
+                        <input
+                          type="number"
+                          min={1}
+                          value={item.quantity}
+                          onChange={(e) => {
+                            const next = parseInt(e.target.value.replace(/[^0-9]/g, ''), 10);
+                            if (!Number.isFinite(next)) return;
+                            const safe = Math.max(1, next);
+                            const delta = safe - item.quantity;
+                            if (delta !== 0) updateQuantity(item.id, delta);
+                          }}
+                          className="w-10 text-center font-black text-[10px] text-emerald-900 bg-emerald-50 border border-emerald-200 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.id, 1)}
+                          className="w-6 h-6 flex items-center justify-center rounded-md bg-white text-slate-400 hover:text-yellow-600 shadow-sm transition-all"
+                        >
+                          <Plus size={10} />
+                        </button>
                       </div>
                       <button onClick={() => removeItem(item.id)} className="text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
                     </div>

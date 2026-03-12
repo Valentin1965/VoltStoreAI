@@ -231,9 +231,33 @@ export const CartPage: React.FC<CartPageProps> = ({ onCheckout }) => {
                       <h3 className="font-black text-slate-900 text-sm uppercase tracking-tight truncate max-w-[250px]">{getLoc(item.name)}</h3>
                       <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-3">{t('cat_' + item.category)}</p>
                       <div className="flex items-center gap-1.5 bg-slate-50 rounded-xl p-1 border border-slate-100 shadow-inner w-fit">
-                        <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-emerald-600 transition-all"><Minus size={12} /></button>
-                        <span className="w-8 text-center font-black text-xs text-slate-900">{item.quantity}</span>
-                        <button onClick={() => updateQuantity(item.id, 1)}  className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-emerald-600 transition-all"><Plus  size={12} /></button>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.id, -1)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-emerald-600 transition-all"
+                        >
+                          <Minus size={12} />
+                        </button>
+                        <input
+                          type="number"
+                          min={1}
+                          value={item.quantity}
+                          onChange={(e) => {
+                            const next = parseInt(e.target.value.replace(/[^0-9]/g, ''), 10);
+                            if (!Number.isFinite(next)) return;
+                            const safe = Math.max(1, next);
+                            const delta = safe - item.quantity;
+                            if (delta !== 0) updateQuantity(item.id, delta);
+                          }}
+                          className="w-12 text-center font-black text-xs text-emerald-900 bg-emerald-50 border border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.id, 1)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-emerald-600 transition-all"
+                        >
+                          <Plus size={12} />
+                        </button>
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2 min-w-[140px]">
