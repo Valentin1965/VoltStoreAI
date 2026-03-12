@@ -59,10 +59,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50" translate="no">
-      <header className="sticky top-0 z-[100] bg-white/90 backdrop-blur-xl border-b border-slate-100 shadow-sm">
+      <header className="sticky top-0 z-[1100] bg-white/90 backdrop-blur-xl border-b border-slate-100 shadow-sm">
         <div className="max-w-7xl mx-auto w-full h-24 flex items-center justify-between px-4 gap-4">
           
-          <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors relative z-[1101] pointer-events-auto"
+          >
             <Menu size={24} />
           </button>
 

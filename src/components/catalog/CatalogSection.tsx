@@ -786,11 +786,11 @@ export const CatalogSection: React.FC = () => {
 
       {/* Option C: On mobile — full-screen product page (no modal). In landscape, header/footer are transparent overlays. */}
       {selectedProduct && isMobile && (
-        <div className="position-fixed top-0 start-0 w-100 h-100 z-[1000000] bg-white animate-fade-in">
+        <div className="position-fixed top-0 start-0 w-100 h-100 z-[1000000] bg-white animate-fade-in d-flex flex-column">
           {/* Header */}
           <div
-            className={`border-bottom z-3 ${
-              isLandscape ? 'position-absolute top-0 start-0 end-0 bg-white bg-opacity-75' : 'position-sticky top-0 bg-white'
+            className={`border-bottom z-3 position-sticky top-0 ${
+              isLandscape ? 'bg-white bg-opacity-75' : 'bg-white'
             }`}
             style={isLandscape ? { backdropFilter: 'blur(12px)' } : undefined}
           >
@@ -839,9 +839,8 @@ export const CatalogSection: React.FC = () => {
           </div>
 
           {/* Body */}
-          <div className="h-100 overflow-auto">
-            <div className={`container-fluid px-3 ${isLandscape ? 'pt-5 pb-5' : 'pt-3 pb-5'}`}>
-              <div className={`pb-5 ${isLandscape ? 'pt-5' : ''}`} />
+          <div className="flex-grow-1 overflow-auto">
+            <div className={`container-fluid px-3 ${isLandscape ? 'pt-3 pb-3' : 'pt-3 pb-3'}`}>
 
               <div className="card border-0 shadow-sm mb-3">
                 <div className="ratio ratio-1x1 bg-light rounded-top overflow-hidden">
@@ -924,16 +923,13 @@ export const CatalogSection: React.FC = () => {
                   <ExternalLink size={18} />
                 </a>
               )}
-
-              {/* Spacer so footer overlay doesn't hide last content */}
-              <div style={{ height: 96 }} />
             </div>
           </div>
 
           {/* Footer */}
           <div
-            className={`border-top z-3 ${
-              isLandscape ? 'position-absolute bottom-0 start-0 end-0 bg-dark bg-opacity-75' : 'position-sticky bottom-0 bg-dark'
+            className={`border-top z-3 position-sticky bottom-0 ${
+              isLandscape ? 'bg-dark bg-opacity-75' : 'bg-dark'
             }`}
             style={isLandscape ? { backdropFilter: 'blur(12px)' } : undefined}
           >
@@ -943,9 +939,7 @@ export const CatalogSection: React.FC = () => {
                   <small className="text-white-50 text-uppercase fw-bold" style={{ letterSpacing: '0.16em' }}>
                     {t('total')}
                   </small>
-                  <div className="fw-bold text-success" style={{ fontSize: 18 }}>
-                    <DualPrice priceExVat={currentTotal} className="text-emerald-400 text-xl" secondaryClassName="text-emerald-400/60" />
-                  </div>
+                  <DualPrice priceExVat={currentTotal} className="text-emerald-400 text-xl" secondaryClassName="text-emerald-400/60" />
                 </div>
                 <div className="d-flex align-items-center gap-2">
                   <button
