@@ -15,7 +15,8 @@ const setupApp = () => {
   // (Required so navigator.serviceWorker.ready resolves and PushManager works)
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch((err) => {
+      // Cache-bust SW URL to ensure updates after deploys (CDN/browser caches).
+      navigator.serviceWorker.register('/sw.js?v=23').catch((err) => {
         console.warn('[SW] registration failed', err);
       });
     });

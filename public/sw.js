@@ -1,4 +1,5 @@
-const CACHE_NAME = 'gl-solar-v22';
+// Bump this to force SW cache invalidation on deploy.
+const CACHE_NAME = 'gl-solar-v23';
 const OFFLINE_URL = '/index.html';
 
 const ASSETS = [
@@ -43,6 +44,25 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // ✅ Always try network first for SPA navigation / index.html
+  // This ensures users receive updated asset hashes after deploy.
+  const isNavigation = event.request.mode === 'navigate';
+  const isIndexHtml = url.pathname === '/' || url.pathname.endsWith('/index.html');
+
+  if (isNavigation || isIndexHtml) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request).then((r) => r || caches.match(OFFLINE_URL)))
+    );
+    return;
+  }
+
+  // Cache-first for other requests (JS/CSS/images), with network fallback + cache update.
   event.respondWith(
     caches.match(event.request).then((response) => {
       if (response) return response;
@@ -54,9 +74,7 @@ self.addEventListener('fetch', (event) => {
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
         return networkResponse;
       }).catch(() => {
-        if (event.request.mode === 'navigate') {
-          return caches.match(OFFLINE_URL);
-        }
+        // For non-navigation requests we can just fail silently.
       });
     })
   );
