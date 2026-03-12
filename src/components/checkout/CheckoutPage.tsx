@@ -130,13 +130,18 @@ export const CheckoutPage: React.FC<{ onBackToCart: () => void; onOrderSuccess: 
         delivery_same_as_billing: formData.delivery_same,
         delivery_street: formData.delivery_same ? formData.street : formData.delivery_street,
         delivery_city: formData.delivery_same ? formData.city : formData.delivery_city,
+        delivery_country: formData.delivery_same ? formData.country : formData.delivery_country,
+        delivery_postal_code: formData.delivery_same ? formData.postal_code : formData.delivery_postal_code,
+        delivery_house_number: formData.delivery_same ? formData.house_number : formData.delivery_house_number,
+        delivery_phone: formData.delivery_same ? formData.phone : formData.delivery_phone,
         total_price: totalPrice,
         currency: language === 'da' ? 'DKK' : 'EUR',
         payment_method: paymentMethod,
         items: items.map(it => ({ id: it.id, name: getLoc(it.name), price: it.price, quantity: it.quantity })),
         customer_message: clientMessage,
         status: 'pending',
-        lang: language
+        lang: language,
+        department: 'Online'
       };
 
       const { data, error } = await supabase.from('orders').insert([orderData]).select().single();
@@ -246,9 +251,9 @@ export const CheckoutPage: React.FC<{ onBackToCart: () => void; onOrderSuccess: 
                 >
                   {paymentMethod === 'Credit Card' && <div className="w-2 h-2 bg-white rounded-full" />}
                 </div>
-                <div className="text-sm font-black uppercase text-slate-900">Card payment (Mollie)</div>
+                <div className="text-sm font-black uppercase text-slate-900">{t('checkout_card_title')}</div>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                  Secure online card payment
+                  {t('checkout_card_desc')}
                 </p>
               </button>
             </div>
@@ -282,12 +287,16 @@ export const CheckoutPage: React.FC<{ onBackToCart: () => void; onOrderSuccess: 
             </div>
             <div className="space-y-3 pt-4">
               <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                <span>Subtotal</span>
+                <span>{t('checkout_subtotal')}</span>
                 <span>{formatPrice(totalPrice)}</span>
               </div>
               <div className="flex justify-between items-center text-2xl font-black text-white pt-4 border-t border-white/10">
-                <span>Total</span>
+                <span>{t('checkout_total')}</span>
                 <span className="text-emerald-400">{formatPrice(finalPrice)}</span>
+              </div>
+              <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-widest pt-1">
+                <span>{t('checkout_total_incl_vat_21')}</span>
+                <span className="text-emerald-400/90">{formatPrice(finalPrice * 1.21)}</span>
               </div>
             </div>
             <button type="submit" disabled={isProcessing} 

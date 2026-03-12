@@ -268,7 +268,6 @@ return (
 export const CatalogSection: React.FC = () => {
 const { t, formatPrice, getLoc } = useLanguage();
 const productsContext = useProducts();
-// Safe context extraction
 const {
 filteredProducts = [], categories = [], selectedCategory = 'All' as (Category | 'All'), setSelectedCategory, isLoading = false,
 searchQuery = '', setSearchQuery, priceRange = [0, 100000], setPriceRange,
@@ -309,7 +308,6 @@ const [bookingEmail, setBookingEmail] = useState('');
 const [bookingName, setBookingName] = useState('');
 const handleBookingClick = async (product: Product) => {
 if (isInWishlist(product.id)) {
-// Cancel — no email needed
 await toggleWishlist(product);
 return;
 }
@@ -331,7 +329,6 @@ setPendingEmail(bookingEmail);
 await toggleWishlist(bookingEmailModal, bookingEmail, bookingName);
 setBookingEmailModal(null);
 };
-// Open product from URL param ?product=ID
 useEffect(() => {
 const params = new URLSearchParams(window.location.search);
 const pid = params.get('product');
@@ -345,7 +342,6 @@ useEffect(() => {
 if (!selectedProduct) setShowLandscapeProductInfo(false);
 }, [selectedProduct]);
 const handleCopyProductLink = (product: Product) => {
-// SPA without router — encode view + product ID
 const base = `${window.location.origin}${window.location.pathname}`;
 const url = `${base}?view=catalog&product=${encodeURIComponent(product.id)}`;
 navigator.clipboard.writeText(url).then(() => {
@@ -572,14 +568,12 @@ className="bg-white border-2 border-slate-100 px-6 py-4 rounded-2xl text-[10px] 
 <button onClick={() => setShowFilters(false)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-all"><X size={24} /></button>
 </div>
 <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
-{/* Global Status */}
 <div className="space-y-6">
 <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-[0.2em] border-l-4 border-emerald-500 pl-4">{t('filter_status_section')}</h4>
 <div className="grid grid-cols-1 gap-6">
 {renderCheckbox(t('filter_bestsellers'), showOnlyLeaders, () => setShowOnlyLeaders?.(!showOnlyLeaders))}
 </div>
 </div>
-{/* Category Selection */}
 <div className="space-y-6">
 <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-[0.2em] border-l-4 border-amber-500 pl-4">{t('filter_panel_categories')}</h4>
 <div className="flex flex-wrap gap-3 max-h-60 overflow-y-auto custom-scrollbar pr-2 p-1">
@@ -594,7 +588,6 @@ color="amber"
 ))}
 </div>
 </div>
-{/* Brand Search (Global) */}
 <div className="space-y-6">
 <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-[0.2em] border-l-4 border-blue-500 pl-4">{t('filter_panel_brand')}</h4>
 <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto custom-scrollbar pr-2 p-1">
@@ -609,7 +602,6 @@ color="blue"
 )) : <span className="text-[9px] text-slate-300 font-bold uppercase">{t('filter_no_brands')}</span>}
 </div>
 </div>
-{/* Category Specific Filters */}
 <div className="space-y-8">
 <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-[0.2em] border-l-4 border-amber-500 pl-4">
 {t(`cat_${selectedCategory}`)} Filters
@@ -743,14 +735,13 @@ addNotification(t('item_added'), 'success');
 </div>
 )}
 </div>
-{/* Mobile landscape: bar with thumbnail, prominent "Info" button; modal with gallery. */}
+{/* Mobile landscape: bar with thumbnail */}
 {selectedProduct && isMobile && isLandscape && (
 <>
 <div
 className="fixed left-0 right-0 z-[1000000] flex items-center gap-3 px-4 py-3 bg-white border-t-2 border-emerald-500/30 shadow-[0_-8px_24px_rgba(0,0,0,0.15)]"
 style={{ bottom: 0, paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
 >
-{/* Thumbnail */}
 <div className="w-12 h-12 shrink-0 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
 <img src={selectedProduct.image || IMAGE_FALLBACK} alt="" className="w-full h-full object-contain" />
 </div>
@@ -791,13 +782,8 @@ aria-label="Close"
 </div>
 <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ paddingBottom: '100px' }}>
 <div className="flex justify-center">
-<img
-src={selectedProduct.image || IMAGE_FALLBACK}
-alt=""
-className="max-h-32 w-auto object-contain"
-/>
+<img src={selectedProduct.image || IMAGE_FALLBACK} alt="" className="max-h-32 w-auto object-contain" />
 </div>
-{/* Gallery */}
 {selectedProduct.images && selectedProduct.images.length > 0 && (
 <div className="flex gap-2 overflow-x-auto pb-1">
 {[selectedProduct.image, ...selectedProduct.images].filter(Boolean).map((img, idx) => (
@@ -821,7 +807,7 @@ className="max-h-32 w-auto object-contain"
 )}
 </>
 )}
-{/* Mobile portrait: full-screen product page. */}
+{/* Mobile portrait */}
 {selectedProduct && isMobile && !isLandscape && (
 <div className="position-fixed top-0 start-0 w-100 h-100 z-[1000000] bg-white animate-fade-in d-flex flex-column">
 <div className="border-bottom position-sticky top-0 bg-white z-3 flex-shrink-0">
@@ -938,7 +924,7 @@ className="max-h-32 w-auto object-contain"
 </div>
 </div>
 )}
-{/* Desktop: modal (option B kept for md+) */}
+{/* Desktop modal */}
 {selectedProduct && !isMobile && (
 <div className="fixed inset-0 z-[1000000] flex flex-col md:flex-row md:items-center justify-end md:justify-center md:p-10 bg-slate-900/95 backdrop-blur-xl animate-fade-in text-left md:overflow-y-auto">
 <div className="absolute inset-0 z-0" onClick={() => setSelectedProduct(null)} aria-hidden />
@@ -946,7 +932,6 @@ className="max-h-32 w-auto object-contain"
 className="relative z-10 bg-white w-full md:max-w-7xl md:max-h-[90vh] rounded-t-[2rem] md:rounded-[4rem] shadow-3xl flex flex-col overflow-hidden text-slate-900 border border-white/20 min-h-0 flex-1 md:flex-none max-h-[95vh] md:max-h-[90vh]"
 onClick={e => e.stopPropagation()}
 >
-{/* Header — compact on mobile */}
 <div className="px-4 md:px-12 py-4 md:py-8 border-b flex items-center justify-between bg-white shrink-0 sticky top-0 z-20">
 <div className="flex items-center gap-3 md:gap-6 min-w-0">
 <div className="bg-emerald-600 p-2.5 md:p-4 rounded-xl md:rounded-2xl text-white shadow-lg shrink-0"><Zap size={20} className="md:w-6 md:h-6" /></div>
@@ -969,7 +954,6 @@ onClick={e => e.stopPropagation()}
 <button onClick={() => setSelectedProduct(null)} className="p-2.5 md:p-3 hover:bg-slate-100 rounded-xl md:rounded-2xl text-slate-400"><X size={24} className="md:w-8 md:h-8" /></button>
 </div>
 </div>
-{/* Mobile: single full-height scrollable column with readable text */}
 <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar md:hidden">
 <div className="p-4 pb-32 space-y-6">
 <div className="bg-slate-50 rounded-2xl p-6 flex items-center justify-center border border-slate-100 min-h-[220px]">
@@ -1014,7 +998,6 @@ onClick={e => e.stopPropagation()}
 )}
 </div>
 </div>
-{/* Desktop: grid body (unchanged) — hidden on mobile */}
 <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 md:p-12 text-slate-900 hidden md:block">
 <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
 <div className="lg:col-span-5 space-y-8">
@@ -1026,7 +1009,7 @@ onClick={e => e.stopPropagation()}
 <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar snap-x">
 {[selectedProduct.image, ...selectedProduct.images].filter(Boolean).map((img, idx) => (
 <div key={idx} className="w-24 h-24 shrink-0 bg-slate-50 rounded-2xl border border-slate-100 p-2 flex items-center justify-center cursor-pointer hover:border-emerald-400 transition-all snap-start"
-onClick={() => { const mainImg = document.querySelector('.lg\\3a col-span-5 img') as HTMLImageElement; if (mainImg) mainImg.src = img; }}>
+onClick={() => { const mainImg = document.querySelector('.lg\\:col-span-5 img') as HTMLImageElement; if (mainImg) mainImg.src = img; }}>
 <img src={img} className="max-w-full max-h-full object-contain" alt="" />
 </div>
 ))}
@@ -1067,7 +1050,6 @@ onClick={() => { const mainImg = document.querySelector('.lg\\3a col-span-5 img'
 </div>
 </div>
 </div>
-{/* Footer — sticky; height reduced ~40% on mobile (py-2) and desktop (py-6), text/button unchanged */}
 <div className="px-4 md:px-12 py-2 md:py-6 bg-slate-900 flex flex-col sm:flex-row items-center justify-between gap-2 md:gap-6 border-t border-white/5 shrink-0 sticky bottom-0 z-20">
 <div className="text-left">
 <span className="text-[9px] font-black text-slate-500 uppercase block mb-0.5 tracking-widest">{t('total')}</span>
