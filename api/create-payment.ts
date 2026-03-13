@@ -23,14 +23,16 @@ export default async function handler(req: any, res: any) {
     }
 
     // 1. Створюємо платіж (використовуємо any для обходу помилок типізації SDK)
+    const baseUrl = (process.env.SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://www.glsolargroup.dk')).replace(/\/$/, '');
+
     const payment = await mollieClient.payments.create({
       amount: {
         currency: 'EUR',
         value: Number(amount).toFixed(2),
       },
-      description: `VoltStore Order #${orderId.slice(0, 8)}`,
-      redirectUrl: `https://volt-store-ai.vercel.app/order-success?id=${orderId}`,
-      webhookUrl: `https://volt-store-ai.vercel.app/api/webhook`, 
+      description: `Order #${orderId.slice(0, 8)}`,
+      redirectUrl: `${baseUrl}/?view=success&id=${orderId}`,
+      webhookUrl: `${baseUrl}/api/webhook`, 
       metadata: {
         orderId: orderId,
         customerEmail: customerEmail
