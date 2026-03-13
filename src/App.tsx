@@ -219,6 +219,13 @@ const AppContent: React.FC = () => {
     };
   }, [handleSetView]);
 
+  // Prefetch checkout bundle when user is on Cart (reduces visible loading)
+  useEffect(() => {
+    if (currentView === AppView.CART) {
+      import('./components/checkout/CheckoutPage');
+    }
+  }, [currentView]);
+
   const renderedView = useMemo(() => {
     switch (currentView) {
       case AppView.CATALOG: return <CatalogSection />;

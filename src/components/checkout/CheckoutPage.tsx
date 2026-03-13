@@ -8,7 +8,7 @@ import {
   ChevronLeft, Truck, CreditCard, MapPin, Loader2,
   ArrowRight, ShieldCheck, UserCircle, Building2,
   Mail, MessageSquare, Package, ChevronDown, ChevronUp, User,
-  AlertCircle
+  AlertCircle, Check
 } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { sendOrderEmails } from '../../services/emailService';
@@ -25,9 +25,9 @@ interface FormData {
 const emptyForm: FormData = {
   first_name: '', last_name: '', email: '', phone: '',
   company_name: '', vat_number: '',
-  country: 'Danmark', city: '', street: '', house_number: '', apartment: '', postal_code: '',
+  country: '', city: '', street: '', house_number: '', apartment: '', postal_code: '',
   delivery_same: true,
-  delivery_country: 'Danmark', delivery_city: '', delivery_street: '',
+  delivery_country: '', delivery_city: '', delivery_street: '',
   delivery_house_number: '', delivery_apartment: '', delivery_postal_code: '', delivery_phone: '',
 };
 
@@ -234,6 +234,78 @@ export const CheckoutPage: React.FC<{ onBackToCart: () => void; onOrderSuccess: 
           </section>
 
           <section className="bg-white rounded-[3rem] p-10 shadow-2xl border border-slate-50">
+            <div className="flex items-center justify-between gap-4 mb-6">
+              <div className="flex items-center gap-4">
+                <div className="bg-slate-900 p-3 rounded-2xl text-white shadow-lg"><MapPin size={24} /></div>
+                <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900">
+                  {t('checkout_delivery_address')}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleFieldChange('delivery_same', !formData.delivery_same)}
+                className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900"
+              >
+                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${formData.delivery_same ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>
+                  {formData.delivery_same && <Check size={14} className="text-white" strokeWidth={4} />}
+                </div>
+                {t('checkout_delivery_same')}
+              </button>
+            </div>
+
+            <div className={`space-y-4 transition-opacity ${formData.delivery_same ? 'opacity-50' : 'opacity-100'}`}>
+              <div className="grid grid-cols-3 gap-3">
+                <input
+                  disabled={formData.delivery_same}
+                  value={formData.delivery_street}
+                  onChange={e => handleFieldChange('delivery_street', e.target.value)}
+                  placeholder={t('field_street_short')}
+                  className="col-span-2 w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                />
+                <input
+                  disabled={formData.delivery_same}
+                  value={formData.delivery_house_number}
+                  onChange={e => handleFieldChange('delivery_house_number', e.target.value)}
+                  placeholder={t('field_house_short')}
+                  className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <input
+                  disabled={formData.delivery_same}
+                  value={formData.delivery_postal_code}
+                  onChange={e => handleFieldChange('delivery_postal_code', e.target.value)}
+                  placeholder={t('field_postal_short')}
+                  className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                />
+                <input
+                  disabled={formData.delivery_same}
+                  value={formData.delivery_city}
+                  onChange={e => handleFieldChange('delivery_city', e.target.value)}
+                  placeholder={t('field_city_short')}
+                  className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <input
+                  disabled={formData.delivery_same}
+                  value={formData.delivery_country}
+                  onChange={e => handleFieldChange('delivery_country', e.target.value)}
+                  placeholder={t('field_country')}
+                  className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                />
+                <input
+                  disabled={formData.delivery_same}
+                  value={formData.delivery_phone}
+                  onChange={e => handleFieldChange('delivery_phone', e.target.value)}
+                  placeholder={t('checkout_placeholder_phone')}
+                  className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="bg-white rounded-[3rem] p-10 shadow-2xl border border-slate-50">
             <div className="flex items-center gap-4 mb-8">
               <div className="bg-slate-900 p-3 rounded-2xl text-white shadow-lg"><CreditCard size={24} /></div>
               <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900">{t('checkout_payment_title')}</h2>
@@ -286,8 +358,12 @@ export const CheckoutPage: React.FC<{ onBackToCart: () => void; onOrderSuccess: 
               <MessageSquare size={18} className="text-emerald-500" />
               <span className="text-[10px] font-black uppercase tracking-widest">{t('checkout_message_section')}</span>
             </div>
-            <textarea value={clientMessage} onChange={e => setClientMessage(e.target.value)} placeholder={t('checkout_message_placeholder')}
-              className="w-full bg-slate-50 rounded-2xl p-5 text-[10px] font-bold outline-none border-2 border-transparent focus:border-emerald-500 transition-all min-h-[90px] resize-none" />
+            <textarea
+              value={clientMessage}
+              onChange={e => setClientMessage(e.target.value)}
+              placeholder={t('checkout_message_placeholder')}
+              className="w-full bg-slate-50 rounded-2xl p-5 text-[10px] font-bold outline-none border-2 border-slate-200 focus:border-emerald-500 transition-all min-h-[90px] resize-none"
+            />
           </section>
         </div>
 
@@ -296,16 +372,22 @@ export const CheckoutPage: React.FC<{ onBackToCart: () => void; onOrderSuccess: 
             <h3 className="text-xl font-black uppercase tracking-tighter mb-6 flex items-center gap-3">
               <Package size={20} className="text-emerald-500" /> {t('checkout_summary_title')}
             </h3>
-            <div className="space-y-4 mb-8 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-              {items.map(it => (
-                <div key={it.id} className="flex justify-between items-center gap-4 py-2 border-b border-white/5">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-black uppercase truncate">{getLoc(it.name)}</div>
-                    <div className="text-[9px] text-slate-500 font-bold uppercase">{it.quantity} × {formatPrice(it.price)}</div>
-                  </div>
-                  <div className="text-[11px] font-black text-emerald-400">{formatPrice(it.price * it.quantity)}</div>
+            <div className="space-y-4 mb-8 max-h-[360px] overflow-y-auto custom-scrollbar pr-2">
+              {items.length === 0 ? (
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  {t('empty_cart')}
                 </div>
-              ))}
+              ) : (
+                items.map(it => (
+                  <div key={it.id} className="flex justify-between items-center gap-4 py-2 border-b border-white/5">
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-black uppercase truncate">{getLoc(it.name)}</div>
+                      <div className="text-[9px] text-slate-500 font-bold uppercase">{it.quantity} × {formatPrice(it.price)}</div>
+                    </div>
+                    <div className="text-[11px] font-black text-emerald-400">{formatPrice(it.price * it.quantity)}</div>
+                  </div>
+                ))
+              )}
             </div>
             <div className="space-y-3 pt-4">
               <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
