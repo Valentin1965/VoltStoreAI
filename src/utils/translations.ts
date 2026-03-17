@@ -60,6 +60,12 @@ export const translations = {
     product_no_desc: "Ingen beskrivelse tilgængelig for dette sæt endnu.",
 
     // ── Calculator (Energy) ───────────────────────────────────────────────────
+    calc_input_parameters_title: "Inddata",
+    calc_monthly_consumption: "Månedligt forbrug",
+    calc_daily_consumption: "Dagligt forbrug",
+    calc_avg_hourly_load: "Gns. timelast",
+    calc_peak_load: "Spidsbelastning (x3)",
+    calc_backup_duration: "Backup-varighed",
     calc_how_we_calculate_title: "Sådan beregner vi",
     calc_how_we_calculate_inverter_title: "1) Inverter",
     calc_how_we_calculate_battery_title: "2) Batteri",
@@ -498,6 +504,12 @@ export const translations = {
     product_no_desc: "Ingen beskrivelse tilgængelig for dette sæt endnu.",
 
     // ── Calculator (Energy) ───────────────────────────────────────────────────
+    calc_input_parameters_title: "Inndata",
+    calc_monthly_consumption: "Månedlig forbruk",
+    calc_daily_consumption: "Daglig forbruk",
+    calc_avg_hourly_load: "Gj.sn. timelast",
+    calc_peak_load: "Toppbelastning (x3)",
+    calc_backup_duration: "Backup-varighet",
     calc_how_we_calculate_title: "Slik beregner vi",
     calc_how_we_calculate_inverter_title: "1) Inverter",
     calc_how_we_calculate_battery_title: "2) Batteri",
@@ -907,6 +919,12 @@ export const translations = {
     product_no_desc: "Ingen beskrivelse tilgængelig for dette sæt endnu.",
 
     // ── Calculator (Energy) ───────────────────────────────────────────────────
+    calc_input_parameters_title: "Indata",
+    calc_monthly_consumption: "Månadsförbrukning",
+    calc_daily_consumption: "Daglig förbrukning",
+    calc_avg_hourly_load: "Genomsnittlig timlast",
+    calc_peak_load: "Topplast (x3)",
+    calc_backup_duration: "Backup-tid",
     calc_how_we_calculate_title: "Så räknar vi",
     calc_how_we_calculate_inverter_title: "1) Växelriktare",
     calc_how_we_calculate_battery_title: "2) Batteri",
@@ -1316,6 +1334,12 @@ export const translations = {
     product_no_desc: "No description available for this kit yet.",
 
     // ── Calculator (Energy) ───────────────────────────────────────────────────
+    calc_input_parameters_title: "Input parameters",
+    calc_monthly_consumption: "Monthly consumption",
+    calc_daily_consumption: "Daily consumption",
+    calc_avg_hourly_load: "Average hourly load",
+    calc_peak_load: "Peak load (x3)",
+    calc_backup_duration: "Backup duration",
     calc_how_we_calculate_title: "How we calculate",
     calc_how_we_calculate_inverter_title: "1) Inverter",
     calc_how_we_calculate_battery_title: "2) Battery",
