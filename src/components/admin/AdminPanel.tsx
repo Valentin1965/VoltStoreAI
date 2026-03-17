@@ -73,13 +73,11 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [dbClients, setDbClients]             = useState<any[]>([]);
 
-  // Orders: pagination + search + status + date filters
+  // Orders: pagination + search + status filter
   const ORDERS_PER_PAGE = 25;
   const [ordersPage, setOrdersPage]               = useState(0);
   const [ordersSearch, setOrdersSearch]           = useState('');
   const [ordersStatusFilter, setOrdersStatusFilter] = useState('all');
-  const [ordersLifecycleFilter, setOrdersLifecycleFilter] = useState<'all' | 'current' | 'history'>('current');
-  const [ordersDateFilter, setOrdersDateFilter]   = useState<string>('');
 
   // UI modals
   const [isModalOpen, setIsModalOpen]           = useState(false);
@@ -97,6 +95,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
   const [localSpecs, setLocalSpecs]                 = useState<ProductSpec[]>([{ label: '', value: '' }]);
   const [localDocs, setLocalDocs]                   = useState<any[]>([{ title: '', url: '' }]);
   const [localKitComponents, setLocalKitComponents] = useState<KitComponent[]>([]);
+  const [localKitComponentsAdditional, setLocalKitComponentsAdditional] = useState<KitComponent[]>([]);
   const [selectedImageFiles, setSelectedImageFiles] = useState<File[]>([]);
   const [formData, setFormData]                     = useState<any>({ category: 'Invertere', BrandProd: '', ModelName: '', PriceEurExVat: 0, StockLvl: 0, is_active: true, is_leader: false });
 
@@ -125,94 +124,28 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
   // ── Derive allProducts from context (no duplicate fetch) ─────────────────
   const allProducts = useMemo(() => products.map(p => ({ ...p, realId: p.id })), [products]);
 
-  const isOrderRecord = useCallback((x: any) => {
-    if (!x || typeof x !== 'object') return false;
-    // Orders fetched via RPC have these common fields
-    if (!('total_price' in x) || !('status' in x)) return false;
-    // customer_email + items are the strongest signals
-    if ('customer_email' in x && 'items' in x) return true;
-    // fallback for older rows
-    if ('order_number' in x && 'customer_name' in x) return true;
-    return false;
-  }, []);
-
   const filteredAdminProducts = useMemo(() => allProducts.filter(p => {
     if (adminCategoryFilter !== 'All' && p.category !== adminCategoryFilter) return false;
     if (adminManufacturerFilter && !(p.BrandProd || p.manufacturer || '').toLowerCase().includes(adminManufacturerFilter.toLowerCase())) return false;
     return true;
   }), [allProducts, adminCategoryFilter, adminManufacturerFilter]);
 
-  // ── Shared terminal statuses for lifecycle filtering ─────────────────────
-  const terminalStatuses = ['delivered', 'cancelled', 'expired', 'failed', 'refunded'];
-
-  // ── Orders subset used for client presence (не залежить від пошуку) ──────
-  const ordersForClients = useMemo(() => {
-    return orders.filter(o => {
-      // Тільки замовлення з товарами
-      if (!o.items || !Array.isArray(o.items) || o.items.length === 0) {
-        return false;
-      }
-
-      const paymentStatus = (o as any).status as string | undefined;
-
-      // Життєвий цикл
-      if (ordersLifecycleFilter === 'current' && paymentStatus && terminalStatuses.includes(paymentStatus)) {
-        return false;
-      }
-      if (ordersLifecycleFilter === 'history' && (!paymentStatus || !terminalStatuses.includes(paymentStatus))) {
-        return false;
-      }
-
-      // Фільтр по логістичному статусу
-      if (ordersStatusFilter !== 'all' && (o as any).order_status !== ordersStatusFilter) {
-        return false;
-      }
-
-      // Фільтр по дню створення (created_at)
-      if (ordersDateFilter) {
-        const created = (o.created_at || '').slice(0, 10);
-        if (created !== ordersDateFilter) return false;
-      }
-
-      return true;
-    });
-  }, [orders, ordersLifecycleFilter, ordersStatusFilter, ordersDateFilter, terminalStatuses]);
-
-  // ── Clients that actually have at least one relevant order ───────────────
-  const clientsWithOrders = useMemo(
-    () =>
-      dbClients.filter((c: any) =>
-        ordersForClients.some(o =>
-          o.customer_email?.toLowerCase() === c.email?.toLowerCase()
-        )
-      ),
-    [dbClients, ordersForClients]
-  );
-
   // ── Orders: filter + paginate ──────────────────────────────────────────────
- // ── Orders: filter + paginate + ONLY WITH ITEMS ─────────────────────────────
-// ── Orders: filter + paginate (для таблиці) ────────────────────────────────
-const filteredOrders = useMemo(() => {
-  const q = ordersSearch.toLowerCase().trim();
+  const filteredOrders = useMemo(() => {
+    const q = ordersSearch.toLowerCase().trim();
+    return orders.filter(o => {
+      if (ordersStatusFilter !== 'all' && (o as any).order_status !== ordersStatusFilter) return false;
+      if (!q) return true;
+      return (
+        o.customer_name?.toLowerCase().includes(q) ||
+        o.customer_email?.toLowerCase().includes(q) ||
+        (o as any).order_number?.toLowerCase().includes(q)
+      );
+    });
+  }, [orders, ordersSearch, ordersStatusFilter]);
 
-  return ordersForClients.filter(o => {
-    // Пошук по клієнту / email / номеру
-    if (!q) return true;
-    return (
-      o.customer_name?.toLowerCase().includes(q) ||
-      o.customer_email?.toLowerCase().includes(q) ||
-      (o as any).order_number?.toLowerCase().includes(q)
-    );
-  });
-}, [ordersForClients, ordersSearch]);
-
-// ✅ ТІЛЬКИ ОДНА оголошення!
-const totalOrderPages = Math.ceil(filteredOrders.length / ORDERS_PER_PAGE);
-const paginatedOrders = filteredOrders.slice(
-  ordersPage * ORDERS_PER_PAGE,
-  (ordersPage + 1) * ORDERS_PER_PAGE
-);
-
+  const totalOrderPages  = Math.ceil(filteredOrders.length / ORDERS_PER_PAGE);
+  const paginatedOrders  = filteredOrders.slice(ordersPage * ORDERS_PER_PAGE, (ordersPage + 1) * ORDERS_PER_PAGE);
 
   // ── Data fetchers ─────────────────────────────────────────────────────
   const fetchOrders = useCallback(async () => {
@@ -250,7 +183,7 @@ const paginatedOrders = filteredOrders.slice(
   useEffect(() => { setIsMounted(true); }, []);
   useEffect(() => {
     if (!isMounted) return;
-    if (activeTab === 'dashboard' || activeTab === 'orders' || activeTab === 'clients') fetchOrders();
+    if (activeTab === 'dashboard' || activeTab === 'orders') fetchOrders();
     if (activeTab === 'bookings') fetchBookings();
     if (activeTab === 'clients' || activeTab === 'dashboard')  fetchDbClients();
   }, [activeTab, isMounted, fetchOrders, fetchDbClients, fetchBookings]);
@@ -337,27 +270,15 @@ const paginatedOrders = filteredOrders.slice(
   };
 
   const openClientHistory = useCallback(async (client: any) => {
-    setIsLoadingClientHistory(true);
-
-    // Беремо тільки реальні замовлення з товарами
-    const clientOrders = orders
-      .filter(o =>
-        o.customer_email === client.email &&
-        Array.isArray((o as any).items) &&
-        (o as any).items.length > 0
-      )
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-    if (clientOrders.length === 0) {
-      setIsLoadingClientHistory(false);
-      addNotification('Цей клієнт ще не має замовлень', 'info');
-      return;
-    }
-
     setSelectedClient(client);
+    setIsLoadingClientHistory(true);
+    // Filter from already-loaded orders — no direct table query needed after RLS
+    const clientOrders = orders
+      .filter(o => o.customer_email === client.email)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     setClientHistory(clientOrders);
     setIsLoadingClientHistory(false);
-  }, [orders, addNotification]);
+  }, [orders]);
 
   // ── Modal open helpers ────────────────────────────────────────────────
   const resetKitFilters = () => {
@@ -387,7 +308,10 @@ const paginatedOrders = filteredOrders.slice(
       setLocalImages(product.images?.length > 0 ? product.images : [product.image || '']);
       setLocalSpecs(parsedField(product.specs, [{ label: '', value: '' }]));
       setLocalDocs(parsedField(product.docs, [{ title: '', url: '' }]));
-      setLocalKitComponents(Array.isArray(product.kitComponents) ? product.kitComponents : []);
+      // Split kit components into base (is_base !== false) and additional (is_base === false)
+      const allKitComps: KitComponent[] = Array.isArray(product.kitComponents) ? product.kitComponents : [];
+      setLocalKitComponents(allKitComps.filter((c: any) => c.is_base !== false));
+      setLocalKitComponentsAdditional(allKitComps.filter((c: any) => c.is_base === false));
     } else {
       setEditingProduct(null);
       setFormData({ category: forcedCategory || 'Invertere', is_active: true, is_leader: false, StockLvl: 10, BrandProd: '', ModelName: '', PriceEurExVat: 0, name: emptyLoc(), description: emptyLoc(), power_kw: 0, phases: 3 });
@@ -395,6 +319,7 @@ const paginatedOrders = filteredOrders.slice(
       setLocalSpecs([{ label: '', value: '' }]);
       setLocalDocs([{ title: '', url: '' }]);
       setLocalKitComponents([]);
+      setLocalKitComponentsAdditional([]);
       if (forcedCategory === 'Sæt') setModalTab('kit_builder');
     }
     setSelectedImageFiles([]);
@@ -431,14 +356,7 @@ const paginatedOrders = filteredOrders.slice(
         </div>
         <div className="flex flex-wrap items-center gap-2 bg-white/5 p-2 rounded-[2rem]">
           {(['dashboard', 'products', 'orders', 'bookings', 'kits', 'clients'] as const).map(tab => (
-            <button
-              key={tab}
-              onClick={() => {
-                setActiveTab(tab);
-                // Prevent cross-tab leakage: never show an order modal outside Orders tab
-                if (tab !== 'orders') setSelectedOrder(null);
-                if (tab === 'orders') setNewOrdersCount(0);
-              }}
+            <button key={tab} onClick={() => { setActiveTab(tab); if (tab === 'orders') setNewOrdersCount(0); }}
               className={`relative px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-400 hover:text-white'}`}>
               {tab}
               {tab === 'orders' && newOrdersCount > 0 && (
@@ -456,7 +374,7 @@ const paginatedOrders = filteredOrders.slice(
             <Layers size={14} className="inline mr-2" /> New Kit
           </button>
           <button onClick={() => handleOpenModal()} className="btn-action !bg-emerald-500 !py-3 !px-6 !text-[9px] !rounded-2xl ml-2">
-            <Plus size={14} /> New Product
+            <Plus size={14} /> New Asset
           </button>
           <button onClick={onLogout} className="p-3 text-rose-400 hover:bg-rose-50 rounded-2xl transition-all"><LogOut size={18} /></button>
         </div>
@@ -504,26 +422,9 @@ const paginatedOrders = filteredOrders.slice(
                   onChange={e => { setOrdersSearch(e.target.value); setOrdersPage(0); }}
                   className="w-full bg-white border border-slate-200 rounded-xl py-2 pl-9 pr-3 text-[10px] font-black uppercase outline-none focus:border-emerald-500 transition-all" />
               </div>
-              <input
-                type="date"
-                value={ordersDateFilter}
-                onChange={e => { setOrdersDateFilter(e.target.value); setOrdersPage(0); }}
-                className="bg-white border border-slate-200 rounded-xl py-2 px-3 text-[10px] font-black uppercase outline-none focus:border-emerald-500 transition-all cursor-pointer"
-              />
-              <select
-                value={ordersLifecycleFilter}
-                onChange={e => { setOrdersLifecycleFilter(e.target.value as any); setOrdersPage(0); }}
-                className="bg-white border border-slate-200 rounded-xl py-2 px-3 text-[10px] font-black uppercase outline-none focus:border-emerald-500 transition-all cursor-pointer"
-              >
-                <option value="current">Current</option>
-                <option value="history">History</option>
-                <option value="all">All</option>
-              </select>
-              <select
-                value={ordersStatusFilter}
+              <select value={ordersStatusFilter}
                 onChange={e => { setOrdersStatusFilter(e.target.value); setOrdersPage(0); }}
-                className="bg-white border border-slate-200 rounded-xl py-2 px-3 text-[10px] font-black uppercase outline-none focus:border-emerald-500 transition-all cursor-pointer"
-              >
+                className="bg-white border border-slate-200 rounded-xl py-2 px-3 text-[10px] font-black uppercase outline-none focus:border-emerald-500 transition-all cursor-pointer">
                 <option value="all">{t('admin_status_all')}</option>
                 <option value="accepted">{t('admin_status_accepted')}</option>
                 <option value="in_progress">{t('admin_status_in_progress')}</option>
@@ -616,8 +517,8 @@ const paginatedOrders = filteredOrders.slice(
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {clientsWithOrders.length === 0 && <tr><td colSpan={6} className="p-10 text-center text-[10px] text-slate-300 font-bold uppercase tracking-widest">{t('admin_no_clients')}</td></tr>}
-                  {clientsWithOrders.map((c: any) => (
+                  {dbClients.length === 0 && <tr><td colSpan={6} className="p-10 text-center text-[10px] text-slate-300 font-bold uppercase tracking-widest">{t('admin_no_clients')}</td></tr>}
+                  {dbClients.map((c: any) => (
                     <tr key={c.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => openClientHistory(c)}>
                       <td className="p-6">
                         <div className="flex items-center gap-4">
@@ -702,10 +603,7 @@ const paginatedOrders = filteredOrders.slice(
                       </tr>
                     ))
                   )}
-                  {activeTab === 'products' && filteredAdminProducts.map(p => (
-                    <ProductRow key={p.id} product={p} onEdit={handleOpenModal} onDelete={handleDelete} formatPrice={formatPrice} getLoc={getLoc} />
-                  ))}
-                  {activeTab === 'kits' && filteredAdminProducts.filter(p => p.category === 'Sæt').map(p => (
+                  {(activeTab === 'products' ? filteredAdminProducts : filteredAdminProducts.filter(p => p.category === 'Sæt')).map(p => (
                     <ProductRow key={p.id} product={p} onEdit={handleOpenModal} onDelete={handleDelete} formatPrice={formatPrice} getLoc={getLoc} />
                   ))}
                 </tbody>
@@ -747,7 +645,7 @@ const paginatedOrders = filteredOrders.slice(
       </div>
 
       {/* ── Modals ───────────────────────────────────────────────────── */}
-      {selectedOrder && isOrderRecord(selectedOrder) && (
+      {selectedOrder && (
         <AdminOrderModal
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
@@ -784,27 +682,49 @@ const paginatedOrders = filteredOrders.slice(
           localSpecs={localSpecs} setLocalSpecs={setLocalSpecs}
           localDocs={localDocs} setLocalDocs={setLocalDocs}
           localKitComponents={localKitComponents} setLocalKitComponents={setLocalKitComponents}
-          selectedImageFiles={selectedImageFiles} setSelectedImageFiles={setSelectedImageFiles}
+          localKitComponentsAdditional={localKitComponentsAdditional} setLocalKitComponentsAdditional={setLocalKitComponentsAdditional}
+          selectedImageFiles={selectedImageFiles}
+          setSelectedImageFiles={setSelectedImageFiles}
           allProducts={allProducts}
-          editLang={editLang} setEditLang={setEditLang}
-          compSearch={compSearch} setCompSearch={setCompSearch}
-          compCategoryFilter={compCategoryFilter} setCompCategoryFilter={setCompCategoryFilter}
-          compBrandFilter={compBrandFilter} setCompBrandFilter={setCompBrandFilter}
-          compModelFilter={compModelFilter} setCompModelFilter={setCompModelFilter}
-          compBattTypeFilter={compBattTypeFilter} setCompBattTypeFilter={setCompBattTypeFilter}
-          compCapKwhFilter={compCapKwhFilter} setCompCapKwhFilter={setCompCapKwhFilter}
-          compInvTypeFilter={compInvTypeFilter} setCompInvTypeFilter={setCompInvTypeFilter}
-          compPhasesFilter={compPhasesFilter} setCompPhasesFilter={setCompPhasesFilter}
-          compNumMpptsFilter={compNumMpptsFilter} setCompNumMpptsFilter={setCompNumMpptsFilter}
-          compHpTypeFilter={compHpTypeFilter} setCompHpTypeFilter={setCompHpTypeFilter}
-          compPhases1Filter={compPhases1Filter} setCompPhases1Filter={setCompPhases1Filter}
-          compRefrTypeFilter={compRefrTypeFilter} setCompRefrTypeFilter={setCompRefrTypeFilter}
-          compHeatCapKwFilter={compHeatCapKwFilter} setCompHeatCapKwFilter={setCompHeatCapKwFilter}
-          compSolarPanelTypeFilter={compSolarPanelTypeFilter} setCompSolarPanelTypeFilter={setCompSolarPanelTypeFilter}
-          compRatedPwrWpFilter={compRatedPwrWpFilter} setCompRatedPwrWpFilter={setCompRatedPwrWpFilter}
-          compChgPwrKwFilter={compChgPwrKwFilter} setCompChgPwrKwFilter={setCompChgPwrKwFilter}
+          editLang={editLang}
+          setEditLang={setEditLang}
+          compSearch={compSearch}
+          setCompSearch={setCompSearch}
+          compCategoryFilter={compCategoryFilter}
+          setCompCategoryFilter={setCompCategoryFilter}
+          compBrandFilter={compBrandFilter}
+          setCompBrandFilter={setCompBrandFilter}
+          compModelFilter={compModelFilter}
+          setCompModelFilter={setCompModelFilter}
+          compBattTypeFilter={compBattTypeFilter}
+          setCompBattTypeFilter={setCompBattTypeFilter}
+          compCapKwhFilter={compCapKwhFilter}
+          setCompCapKwhFilter={setCompCapKwhFilter}
+          compInvTypeFilter={compInvTypeFilter}
+          setCompInvTypeFilter={setCompInvTypeFilter}
+          compPhasesFilter={compPhasesFilter}
+          setCompPhasesFilter={setCompPhasesFilter}
+          compNumMpptsFilter={compNumMpptsFilter}
+          setCompNumMpptsFilter={setCompNumMpptsFilter}
+          compHpTypeFilter={compHpTypeFilter}
+          setCompHpTypeFilter={setCompHpTypeFilter}
+          compPhases1Filter={compPhases1Filter}
+          setCompPhases1Filter={setCompPhases1Filter}
+          compRefrTypeFilter={compRefrTypeFilter}
+          setCompRefrTypeFilter={setCompRefrTypeFilter}
+          compHeatCapKwFilter={compHeatCapKwFilter}
+          setCompHeatCapKwFilter={setCompHeatCapKwFilter}
+          compSolarPanelTypeFilter={compSolarPanelTypeFilter}
+          setCompSolarPanelTypeFilter={setCompSolarPanelTypeFilter}
+          compRatedPwrWpFilter={compRatedPwrWpFilter}
+          setCompRatedPwrWpFilter={setCompRatedPwrWpFilter}
+          compChgPwrKwFilter={compChgPwrKwFilter}
+          setCompChgPwrKwFilter={setCompChgPwrKwFilter}
           onClose={() => setIsModalOpen(false)}
-          onSaved={fetchProducts}
+          onSaved={async () => {
+            await fetchProducts();
+            setIsModalOpen(false);
+          }}
         />
       )}
 

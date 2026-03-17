@@ -65,6 +65,7 @@ export interface Product {
   specs?: ProductSpec[] | string;
   docs?: ProductDoc[] | string;
   kitComponents?: KitComponent[];
+  base_price?: number;  // Kit: manually set base price (EUR excl. VAT), overrides total_price display if > 0
   
   // New specific fields from user tables
   BrandProd?: string;

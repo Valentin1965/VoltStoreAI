@@ -15,8 +15,14 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  if (!process.env.MOLLIE_API_KEY) {
+    console.error('MOLLIE_API_KEY is not set');
+    return res.status(503).json({ error: 'Card payment is not configured', message: 'MOLLIE_API_KEY missing' });
+  }
+
   try {
-    const { amount, orderId, customerEmail } = req.body;
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const { amount, orderId, customerEmail } = body;
 
     if (!amount || !orderId || !customerEmail) {
       return res.status(400).json({ error: 'Missing required payment data' });

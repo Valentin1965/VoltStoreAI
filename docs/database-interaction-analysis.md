@@ -39,7 +39,21 @@
 
 ---
 
-## 4. Admin: продукти, зображення, курси
+## 4. Таблиця `kits` (комплекти)
+
+**Де записується:** `AdminProductModal.tsx` — при збереженні комплекту (category Sæt) у `payload.components` передається масив об'єктів.
+
+**Ідентифікатор основний / додатковий компонент:** кожен елемент масиву `components` містить поле **`is_base`** (boolean):
+- `is_base: true` — основний (базовий) компонент;
+- `is_base: false` — додатковий компонент.
+
+Форма в адмінці (блоки «Базові компоненти» / «Додаткові компоненти») відповідає цьому полю: перший блок записується з `is_base: true`, другий — з `is_base: false`. При читанні з БД масив компонентів розділяється за `is_base` для відображення в двох блоках.
+
+**Структура елемента в `components`:** `component_id`, `name`, `price`, `quantity`, `type_complect`, `market`, `is_base`.
+
+---
+
+## 5. Admin: продукти, зображення, курси
 
 - **Products:** `ProductsContext.tsx` — `insert`/`update` по таблиці з адмінки; `AdminProductModal.tsx` — оновлення/створення продукту.
 - **Storage:** `AdminProductModal.tsx` — `supabase.storage.from('product-assets').upload(...)`.
@@ -49,7 +63,7 @@
 
 ---
 
-## 5. Читання даних
+## 6. Читання даних
 
 - **orders:** `OrderSuccessPage.tsx`, `orderService.getOrdersByEmail` — `select`.
 - **clients:** через RPC `get_client_by_id`, `login_client_by_email`, `admin_get_clients` (з admin_key).
@@ -57,7 +71,7 @@
 
 ---
 
-## 6. Що зроблено для запобігання помилкам
+## 7. Що зроблено для запобігання помилкам
 
 1. **orders.department:** у `CheckoutPage` при insert передається `department: 'Online'`, щоб не порушувати NOT NULL.
 2. **Повнота адреси доставки:** у `orderData` додано `delivery_country`, `delivery_postal_code`, `delivery_house_number`, `delivery_phone` для узгодженості з колонками БД.

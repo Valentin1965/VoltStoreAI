@@ -1,505 +1,731 @@
-import React, { useState, useMemo } from 'react';
-import { useNotification } from '../../contexts/NotificationContext';
-import { useCart } from '../../contexts/CartContext';
-import { useLanguage } from '../../contexts/LanguageContext';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useProducts } from '../../contexts/ProductsContext';
-import { 
-  RotateCcw, Check, ShieldCheck, 
-  Activity, Cpu, Zap, Settings2, Target, Wallet, Sparkles,
-  Loader2, ArrowRight, Layers, CheckCircle2, Database, AlertCircle,
-  Trash2, Plus, X, Search, ChevronDown, ChevronUp, Package
-} from 'lucide-react';
-import { Product } from '../../types';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { useCart } from '../../contexts/CartContext';
+import { useNotification } from '../../contexts/NotificationContext';
 import { DualPrice } from '../PriceDisplay';
-import { DocExportButton } from '../DocExportButton';
-import { IMAGE_FALLBACK } from '../../utils/constants';
+import { Product } from '../../types';
+import { Calculator as CalculatorIcon, Zap, Battery, Sun, RefreshCw, Printer, Trash2 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 
-interface CalculatorProps { initialStep?: 1 | 3; }
-
-interface KitComponent {
-  product: Product | null;
-  name: string;
-  quantity: number;
-  price: number;
-  type: 'Inverter' | 'Battery' | 'Panel' | 'Accessories';
-}
-
-interface CalculatedKit {
-  title: string;
-  description: string;
-  totalPrice: number;
-  components: KitComponent[];
-  benefits: string[];
-}
-
-const useLocalizedName = () => {
-  const { language } = useLanguage();
-  return (p: Product): string => {
-    if (!p.name) return 'Unnamed';
-    if (typeof p.name === 'string') return p.name;
-    return (p.name as any)[language] || (p.name as any).en || (p.name as any).da || 'Unnamed';
-  };
+type CalculatorResult = {
+  id: string;
+  createdAt: string;
+  monthlyKwh: number;
+  hourlyKwh: number;
+  dailyKwh: number;
+  recommendedInverterPower: number;
+  recommendedBatteryCapacity: number;
+  recommendedSolarPanels: number;
+  estimatedCost: number;
+  notes: string;
 };
 
-export const Calculator: React.FC<CalculatorProps> = ({ initialStep = 1 }) => {
-  const [step, setStep] = useState<number>(initialStep);
-  const [loading, setLoading] = useState(false);
+type RecommendedItem = { product: Product; quantity: number };
 
-  const [consumption, setConsumption] = useState<string>('300');
-  const [phase, setPhase] = useState<'1' | '3'>('1');
-  const [goal, setGoal] = useState<'savings' | 'backup' | 'independence'>('savings');
-  const [budget, setBudget] = useState<'eco' | 'standard' | 'premium'>('standard');
+const STORAGE_KEY = 'gls_calculator_results_v1';
 
-  const [result, setResult] = useState<CalculatedKit | null>(null);
+const getCalculatorResults = (): CalculatorResult[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
 
-  // Editable components (user can remove/add/change quantity)
-  const [editComps, setEditComps] = useState<KitComponent[]>([]);
+const saveCalculatorResult = (res: CalculatorResult) => {
+  const prev = getCalculatorResults();
+  const next = [res, ...prev.filter(r => r.id !== res.id)].slice(0, 50);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+};
 
-  // Catalog picker state
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerSearch, setPickerSearch] = useState('');
-  const [pickerCategory, setPickerCategory] = useState<string>('All');
+const deleteCalculatorResult = (id: string) => {
+  const prev = getCalculatorResults();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(prev.filter(r => r.id !== id)));
+};
 
-  const { addNotification } = useNotification();
-  const { addItem } = useCart();
-  const { t } = useLanguage();
-  const { products, isLoading: dbLoading } = useProducts();
-  const locName = useLocalizedName();
+const specValue = (p: Product, key: string): string => {
+  const specs = (p as any).specs;
+  if (!Array.isArray(specs)) return '';
+  const found = specs.find((s: any) => String(s?.label || '').toLowerCase() === key.toLowerCase());
+  return String(found?.value ?? '');
+};
 
-  const inverters = useMemo(() => products.filter(p => p.category === 'Invertere'    && p.is_active !== false), [products]);
-  const batteries = useMemo(() => products.filter(p => p.category === 'Batterier'    && p.is_active !== false), [products]);
-  const panels    = useMemo(() => products.filter(p => p.category === 'Solpaneler'   && p.is_active !== false), [products]);
-  const dbReady   = inverters.length > 0 || batteries.length > 0 || panels.length > 0;
+const parsePower = (str: string): number => {
+  if (!str) return 0;
+  const lower = str.toLowerCase();
+  const value = parseFloat(lower);
+  if (!Number.isFinite(value)) return 0;
+  if (lower.includes('kw')) return value;
+  if (lower.includes('w')) return value / 1000;
+  return value;
+};
 
-  const catalogCategories = useMemo(() =>
-    ['All', ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))],
-    [products]);
+const parseCapacity = (str: string): number => {
+  if (!str) return 0;
+  const value = parseFloat(str);
+  return Number.isFinite(value) ? value : 0;
+};
 
-  const pickerProducts = useMemo(() => {
-    return products.filter(p => {
-      if (p.is_active === false) return false;
-      if (pickerCategory !== 'All' && p.category !== pickerCategory) return false;
-      const q = pickerSearch.toLowerCase();
-      if (!q) return true;
-      const name = locName(p).toLowerCase();
-      return name.includes(q) || (p.category || '').toLowerCase().includes(q);
-    });
-  }, [products, pickerCategory, pickerSearch, locName]);
+const getInverterKw = (p: Product): number => {
+  const direct = Number((p as any).NomPwrKw ?? (p as any).RatedPwrKw ?? (p as any).NomOutputKw);
+  if (Number.isFinite(direct) && direct > 0) return direct;
 
-  const derivedTotal = useMemo(
-    () => editComps.reduce((s, c) => s + c.price * c.quantity, 0),
-    [editComps]);
+  const keys = ['MaxSPwr_kVA', 'NomPwrKw', 'RatedPwrKw', 'Output Power', 'NomOutputKw'];
+  for (const k of keys) {
+    const raw = specValue(p, k);
+    const v = parseFloat(raw);
+    if (Number.isFinite(v) && v > 0) return k.toLowerCase().includes('kva') ? v * 0.95 : v;
+  }
+  return parsePower(specValue(p, 'Output Power'));
+};
 
-  const pickInverter = (powerKw: number, is3Phase: boolean): Product | null => {
-    const cands = inverters.filter(p => {
-      const ph = p.Phases || p.inverter_type || '';
-      return !(is3Phase && !ph.toLowerCase().includes('3'));
-    });
-    return cands.sort((a, b) => {
-      const aP = a.MaxPvInVoltV || a.price / 250;
-      const bP = b.MaxPvInVoltV || b.price / 250;
-      return Math.abs(aP - powerKw * 1000) - Math.abs(bP - powerKw * 1000);
-    })[0] || null;
+const getBatteryKwh = (p: Product): number => {
+  const direct = Number((p as any).CapKwh ?? (p as any).CapacityKwh ?? (p as any).BattCapKwh);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+
+  const keys = ['CapKwh', 'Capacity', 'CapacityKwh', 'BattCapKwh'];
+  for (const k of keys) {
+    const raw = specValue(p, k);
+    const v = parseFloat(raw);
+    if (Number.isFinite(v) && v > 0) return v;
+  }
+  return parseCapacity(specValue(p, 'Capacity'));
+};
+
+const COMPANY_NAME = 'GREEN LIGHT Scandinavia Group';
+const COMPANY_CONTACT = 'Katmosevej 16, Viborg 8800, Denmark';
+const COMPANY_TEL = '+45 61 48 52 19';
+const COMPANY_EMAIL = 'info@glsolargroup.dk';
+const COMPANY_WEB = 'www.greenlight.dk';
+
+const downloadTheoreticalPdf = (res: CalculatorResult, backupHours: number) => {
+  // Use HTML -> canvas -> PDF so Ukrainian text renders correctly (no embedded Cyrillic fonts needed).
+  const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+  const peakLoad = res.hourlyKwh * 3;
+  const invMinRounded = Math.max(0.3, Math.ceil(res.recommendedInverterPower * 10) / 10).toFixed(1);
+  const batMaxRounded = (Math.ceil(res.recommendedBatteryCapacity * 1.2 * 10) / 10).toFixed(1);
+  const solarRecommended = Math.max(res.recommendedSolarPanels, Math.ceil(res.recommendedSolarPanels * 1.3));
+
+  const esc = (s: any) =>
+    String(s ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('\n', '<br/>');
+
+  const makePage = (pageNum: number, totalPages: number, bodyHtml: string) => `
+    <div class="page">
+      <div class="topbar">
+        <div>
+          <div class="brand">GREEN LIGHT</div>
+          <div class="subtitle">Theoretical System Requirements</div>
+        </div>
+        <div class="company">
+          <div><b>${esc(COMPANY_NAME)}</b></div>
+          <div>Contact: ${esc(COMPANY_CONTACT)}</div>
+          <div class="date">${esc(dateStr)}</div>
+        </div>
+      </div>
+      ${bodyHtml}
+      <div class="footer">
+        <div>${esc(COMPANY_NAME)} — Professional Solar Equipment</div>
+        <div>Page ${pageNum} / ${totalPages}</div>
+      </div>
+    </div>
+  `;
+
+  const css = `
+    <style>
+      .wrap { position: fixed; left: -99999px; top: 0; width: 794px; }
+      .page { width: 794px; height: 1123px; box-sizing: border-box; padding: 56px 56px 52px 56px;
+              font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; color: #0f172a; background: #ffffff; position: relative; }
+      .topbar { display:flex; justify-content:space-between; align-items:flex-start; gap: 16px; padding: 18px 18px; border-radius: 18px; background: #10b981; color: #ffffff; }
+      .brand { font-weight: 1000; font-size: 30px; letter-spacing: -0.03em; color: #ffffff; }
+      .subtitle { margin-top: 4px; font-weight: 900; font-size: 15px; text-transform: uppercase; letter-spacing: 0.14em; color: rgba(255,255,255,0.92); }
+      .company { text-align:right; font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.95); line-height: 1.45; }
+      .date { margin-top: 6px; color: rgba(255,255,255,0.85); font-weight: 900; }
+      .section { margin-top: 16px; }
+      .section-title { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 8px; color: #111827; }
+      .kv .row { display:flex; justify-content:space-between; gap: 12px; font-size: 12px; padding: 2px 0; }
+      .kv .k { color:#334155; font-weight: 800; }
+      .kv .v { color:#0f172a; font-weight: 900; }
+      .cards { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .card { border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; }
+      .card .label { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; color:#334155; }
+      .card .big { margin-top: 8px; font-size: 28px; font-weight: 900; }
+      .card .muted { margin-top: 8px; font-size: 11px; color:#475569; font-weight: 700; white-space: pre-line; }
+      .box { border: 1px dashed #cbd5e1; border-radius: 14px; padding: 10px 12px; background:#f8fafc; font-size: 11px; color:#475569; font-weight: 700; line-height: 1.5; }
+      .method { font-size: 11px; color:#0f172a; font-weight: 800; line-height: 1.55; }
+      .method code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono','Courier New', monospace; font-size: 11px; }
+      .rec { border: 1px solid #f59e0b55; background:#fffbeb; border-radius: 14px; padding: 12px; }
+      .rec h3 { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; color:#92400e; margin:0; }
+      .rec .item { margin-top: 10px; font-size: 11px; color:#7c2d12; font-weight: 700; line-height: 1.5; }
+      .next { border: 1px solid #bbf7d0; background:#f0fdf4; border-radius: 14px; padding: 12px; }
+      .next h3 { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; color:#166534; margin:0; }
+      .checklist { margin-top: 10px; font-size: 11px; color:#14532d; font-weight: 700; line-height: 1.65; }
+      .contact { margin-top: 10px; font-size: 11px; color:#14532d; font-weight: 800; line-height: 1.65; }
+      .footer { position: absolute; left: 56px; right: 56px; bottom: 18px; display:flex; justify-content:space-between; color:#64748b; font-size: 10px; font-weight: 800; }
+    </style>
+  `;
+
+  const page1Body = `
+    <div class="section">
+      <div class="section-title">Input Parameters</div>
+      <div class="kv">
+        <div class="row"><div class="k">Monthly consumption</div><div class="v">${res.monthlyKwh} kWh/month</div></div>
+        <div class="row"><div class="k">Daily consumption</div><div class="v">${res.dailyKwh.toFixed(2)} kWh/day</div></div>
+        <div class="row"><div class="k">Average hourly load</div><div class="v">${res.hourlyKwh.toFixed(3)} kW</div></div>
+        <div class="row"><div class="k">Peak load (x3 factor)</div><div class="v">${peakLoad.toFixed(3)} kW</div></div>
+        <div class="row"><div class="k">Backup duration</div><div class="v">${backupHours} hours</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Recommended Component Parameters</div>
+      <div class="cards">
+        <div class="card">
+          <div class="label">Inverter Power</div>
+          <div class="big">${res.recommendedInverterPower.toFixed(2)} kW</div>
+          <div class="muted">Peak load: ${peakLoad.toFixed(3)} kW
++10% headroom applied
+Min required: ${res.recommendedInverterPower.toFixed(2)} kW</div>
+        </div>
+        <div class="card">
+          <div class="label">Battery Capacity</div>
+          <div class="big">${res.recommendedBatteryCapacity.toFixed(2)} kWh</div>
+          <div class="muted">Daily use: ${res.dailyKwh.toFixed(2)} kWh x ${backupHours}h
+80% DoD + 10% headroom
+Min required: ${res.recommendedBatteryCapacity.toFixed(2)} kWh</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Calculation Method</div>
+      <div class="method">
+        <div><b>Inverter:</b> <code>peak_load = avg_hourly x 3</code> -> <code>min_capacity = peak_load x 1.10</code> (+10% headroom)</div>
+        <div><b>Battery:</b> <code>need = daily_kWh x backup_hours / 24h / 0.80</code> -> <code>min = need x 1.10</code></div>
+        <div style="margin-top:8px;"><b>Solar:</b> ~${res.recommendedSolarPanels} x 450W panels estimated (not auto-selected - add manually)</div>
+        <div style="margin-top:6px;" class="box"><b>Basis:</b> 30-day month · 3x peak factor · 80% battery DoD · +10% component headroom</div>
+      </div>
+    </div>
+
+    <div class="section rec">
+      <h3>Practical Recommendations</h3>
+      <div class="item"><b>Inverter:</b> Select a model rated at least <b>${invMinRounded} kW</b> (theoretical minimum: ${res.recommendedInverterPower.toFixed(2)} kW). Choose the nearest standard model above that value to handle start-up surges and allow future load growth.</div>
+      <div class="item"><b>Battery:</b> Recommended capacity: <b>${res.recommendedBatteryCapacity.toFixed(2)}-${batMaxRounded} kWh</b> (theoretical: ${res.recommendedBatteryCapacity.toFixed(2)} kWh). The extra buffer compensates inverter efficiency loss (~90-95%) and cable resistance (2-5%). Consider LiFePO4 chemistry for longer cycle life.</div>
+      <div class="item"><b>Solar Panels (Poland / Netherlands):</b> A 450W panel generates ~1.2-1.8 kWh/day depending on season. For reliable battery charging recommend <b>${solarRecommended}</b> panels (+30% for winter/cloudy days). Total array: ~<b>${solarRecommended * 450} W</b>. Optimal tilt: 30-40° south-facing.</div>
+    </div>
+  `;
+
+  const page2Body = `
+    <div class="section rec" style="border-color:#94a3b8; background:#f8fafc;">
+      <h3 style="color:#0f172a;">Additional Considerations</h3>
+      <div class="item" style="color:#334155;">
+        <div><b>Cable losses:</b> 2-5% (use properly sized cross-section cables).</div>
+        <div><b>Protection:</b> install MCB, RCD, and surge protection (SPD).</div>
+        <div><b>Assumptions:</b> all values assume single-phase system. Consult a certified installer for final design.</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Note</div>
+      <div class="box">
+        This is a theoretical recommendation. Actual requirements depend on local conditions, shading, cable losses, and usage patterns. Consult a certified installer.
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Customer Notes</div>
+      <div class="box">${esc(res.notes || '—')}</div>
+    </div>
+
+    <div class="section next">
+      <h3>✅ NEXT STEPS</h3>
+      <div class="checklist">
+        □ 1. Confirm technical requirements<br/>
+        □ 2. Choose specific equipment models<br/>
+        □ 3. Receive final quotation<br/>
+        □ 4. Sign contract<br/>
+        □ 5. Schedule installation
+      </div>
+      <div class="contact">
+        📞 CONTACT US:<br/>
+        📧 Email: ${esc(COMPANY_EMAIL)}<br/>
+        📱 Tel: ${esc(COMPANY_TEL)}<br/>
+        🌐 Web: ${esc(COMPANY_WEB)}
+      </div>
+    </div>
+  `;
+
+  const container = document.createElement('div');
+  container.className = 'wrap';
+  container.innerHTML = `${css}${makePage(1, 2, page1Body)}${makePage(2, 2, page2Body)}`;
+  document.body.appendChild(container);
+
+  const render = async (el: HTMLElement) => {
+    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    return canvas;
   };
 
-  const pickBattery = (capKwh: number): Product | null =>
-    batteries.sort((a, b) => Math.abs((a.CapKwh || 5) - capKwh) - Math.abs((b.CapKwh || 5) - capKwh))[0] || null;
-
-  const pickPanel = (): Product | null => {
-    if (budget === 'premium') return panels.find(p => (p.RatedPwrWp || 0) >= 500) || panels[0] || null;
-    if (budget === 'eco')     return panels.sort((a, b) => a.price - b.price)[0] || null;
-    return panels[Math.floor(panels.length / 2)] || null;
-  };
-
-  const handleGenerate = () => {
-    setLoading(true);
-    setTimeout(() => {
-      const monthlyKwh = parseInt(consumption);
-      const is3Phase   = phase === '3';
-      let inverterPower = Math.max(is3Phase ? 5 : 3, Math.ceil((monthlyKwh / 30 / 4) * 1.5));
-      if (is3Phase && inverterPower < 5) inverterPower = 5;
-      let batteryCap = goal === 'savings' ? 5 : goal === 'backup' ? 10 : 20;
-      if (monthlyKwh > 800) batteryCap *= 1.5;
-      const panelCount  = Math.ceil((inverterPower * 1.2) / 0.45);
-      const multiplier  = budget === 'eco' ? 1 : budget === 'standard' ? 1.4 : 2.1;
-
-      const ri = dbReady ? pickInverter(inverterPower, is3Phase) : null;
-      const rb = dbReady ? pickBattery(batteryCap)               : null;
-      const rp = dbReady ? pickPanel()                           : null;
-
-      const invName   = ri ? locName(ri) : `Hybrid Inverter ${inverterPower}kW`;
-      const batName   = rb ? locName(rb) : `LiFePO4 Battery ${batteryCap}kWh`;
-      const panName   = rp ? locName(rp) : `Bifacial N-Type Panel 450W`;
-      const invPrice  = ri?.price || Math.round(inverterPower * 250 * multiplier);
-      const batPrice  = rb?.price || Math.round(batteryCap * 350 * multiplier);
-      const panPrice  = rp?.price || 110;
-      const extraPrice = Math.round(400 * multiplier);
-      const brand     = budget === 'eco' ? 'Eco' : budget === 'standard' ? 'Standard' : 'Premium';
-
-      const components: KitComponent[] = [
-        { product: ri,   name: String(invName), quantity: 1,          price: invPrice,   type: 'Inverter'     },
-        { product: rb,   name: String(batName), quantity: 1,          price: batPrice,   type: 'Battery'      },
-        { product: rp,   name: String(panName), quantity: panelCount, price: panPrice,   type: 'Panel'        },
-        { product: null, name: 'Mounting Kit & Smart Monitor', quantity: 1, price: extraPrice, type: 'Accessories' },
-      ];
-
-      const kit: CalculatedKit = {
-        title: `Green Light ${brand} ${inverterPower}kW Pro-Kit`,
-        description: `${phase}-phase solar configuration optimized for ${goal}. Designed for ${monthlyKwh}kWh/month.`,
-        totalPrice: Math.round(components.reduce((s, c) => s + c.price * c.quantity, 0)),
-        components,
-        benefits: [
-          `${goal.toUpperCase()} Optimization`,
-          `${phase}-Phase Balanced Load`,
-          `Smart App Monitoring Included`,
-          `Expandable Modular Design`
-        ]
-      };
-
-      setResult(kit);
-      setEditComps(components);
-      setStep(3);
-      setLoading(false);
-      addNotification(t('item_added'), 'success');
-    }, 1000);
-  };
-
-  // ── Kit editor helpers ─────────────────────────────────────────────────────
-  const removeComp = (i: number) =>
-    setEditComps(prev => prev.filter((_, idx) => idx !== i));
-
-  const changeQty = (i: number, delta: number) =>
-    setEditComps(prev => prev.map((c, idx) =>
-      idx === i ? { ...c, quantity: Math.max(1, c.quantity + delta) } : c));
-
-  const addFromCatalog = (p: Product) => {
-    setEditComps(prev => {
-      const existing = prev.findIndex(c => c.product?.id === p.id);
-      if (existing >= 0) {
-        return prev.map((c, i) => i === existing ? { ...c, quantity: c.quantity + 1 } : c);
+  (async () => {
+    try {
+      const pages = Array.from(container.querySelectorAll('.page')) as HTMLElement[];
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      for (let i = 0; i < pages.length; i++) {
+        const canvas = await render(pages[i]);
+        const imgData = canvas.toDataURL('image/png');
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        doc.addImage(imgData, 'PNG', 0, 0, pageW, pageH, undefined, 'FAST');
+        if (i < pages.length - 1) doc.addPage();
       }
-      const type: KitComponent['type'] =
-        p.category === 'Invertere'  ? 'Inverter' :
-        p.category === 'Batterier'  ? 'Battery'  :
-        p.category === 'Solpaneler' ? 'Panel'    : 'Accessories';
-      return [...prev, { product: p, name: locName(p), quantity: 1, price: p.price, type }];
+      const filename = `GREEN-LIGHT-Requirements-${new Date().toISOString().slice(0, 10)}.pdf`;
+      doc.save(filename);
+    } finally {
+      document.body.removeChild(container);
+    }
+  })();
+};
+
+export const Calculator: React.FC = () => {
+  const { products } = useProducts();
+  const { getLoc, t } = useLanguage();
+  const { addItem } = useCart();
+  const { addNotification } = useNotification();
+
+  const [monthlyKwh, setMonthlyKwh] = useState<string>('');
+  const [backupHours, setBackupHours] = useState<string>('8');
+  const [notes, setNotes] = useState<string>('');
+  const [result, setResult] = useState<CalculatorResult | null>(null);
+  const [savedResults, setSavedResults] = useState<CalculatorResult[]>([]);
+  const [recommendedKit, setRecommendedKit] = useState<RecommendedItem[]>([]);
+
+  useEffect(() => {
+    setSavedResults(getCalculatorResults());
+  }, []);
+
+  const activeCatalog = useMemo(() => (products || []).filter(p => p.is_active !== false), [products]);
+
+  const calculateNeeds = () => {
+    const monthly = parseFloat(monthlyKwh) || 0;
+    const backup = parseFloat(backupHours) || 8;
+    if (monthly <= 0) return;
+
+    const dailyKwh = monthly / 30;
+    const hourlyKwh = monthly / (30 * 24);
+    const peakLoad = hourlyKwh * 3;
+    const MARGIN = 1.1;
+
+    const neededInverterKw = peakLoad;
+    const neededBatteryKwh = (dailyKwh * backup) / 24 / 0.8;
+    const minInverterKw = neededInverterKw * MARGIN;
+    const minBatteryKwh = neededBatteryKwh * MARGIN;
+
+    const dailySolarNeeded = dailyKwh * 1.2;
+    const panelOutput = 0.45 * 4.5;
+    const recommendedSolarPanels = Math.ceil(dailySolarNeeded / panelOutput);
+
+    const recommendedInverterPower = parseFloat(minInverterKw.toFixed(2));
+    const recommendedBatteryCapacity = parseFloat(minBatteryKwh.toFixed(2));
+
+    const kitItems: RecommendedItem[] = [];
+
+    const invWithSpec = activeCatalog
+      .filter(p => p.category === 'Invertere' && p.price > 0 && getInverterKw(p) > 0)
+      .sort((a, b) => a.price - b.price);
+    const invCatalog =
+      invWithSpec.length > 0
+        ? invWithSpec
+        : activeCatalog
+            .filter(p => p.category === 'Invertere' && p.price > 0)
+            .sort((a, b) => a.price - b.price);
+    const bestInverter = invCatalog.find(inv => getInverterKw(inv) >= minInverterKw) ?? invCatalog[0];
+    if (bestInverter) kitItems.push({ product: bestInverter, quantity: 1 });
+
+    const batCatalog = activeCatalog
+      .filter(p => p.category === 'Batterier' && p.price > 0 && getBatteryKwh(p) > 0)
+      .sort((a, b) => a.price - b.price);
+    if (batCatalog.length > 0) {
+      const battery = batCatalog[0];
+      const capKwh = getBatteryKwh(battery);
+      const qty = Math.max(1, Math.ceil(minBatteryKwh / (capKwh || 1)));
+      kitItems.push({ product: battery, quantity: qty });
+    }
+
+    setRecommendedKit(kitItems);
+    const realCost = kitItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+
+    setResult({
+      id: `calc-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      monthlyKwh: monthly,
+      hourlyKwh: parseFloat(hourlyKwh.toFixed(3)),
+      dailyKwh: parseFloat(dailyKwh.toFixed(2)),
+      recommendedInverterPower,
+      recommendedBatteryCapacity,
+      recommendedSolarPanels,
+      estimatedCost: realCost,
+      notes,
     });
-    setPickerOpen(false);
-    setPickerSearch('');
   };
 
-  const handleAddToCart = () => {
-    if (!result) return;
+  const handleQtyChange = (productId: string, delta: number) => {
+    setRecommendedKit(prev =>
+      prev
+        .map(item =>
+          item.product.id === productId ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item,
+        )
+        .filter(item => item.quantity > 0),
+    );
+  };
+
+  const handleRemoveItem = (productId: string) => {
+    setRecommendedKit(prev => prev.filter(item => item.product.id !== productId));
+  };
+
+  const kitTotal = useMemo(
+    () => recommendedKit.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
+    [recommendedKit],
+  );
+
+  const handleAddKitToCart = () => {
+    if (recommendedKit.length === 0) return;
     const kitProduct: Product = {
       id: `KIT-CALC-${Date.now()}`,
-      name: { da: result.title, en: result.title },
-      description: { da: result.description, en: result.description },
-      price: derivedTotal,
-      category: 'Sæt',
+      name: {
+        en: `Custom Kit (${new Date().toLocaleDateString()})`,
+        da: `Custom Kit (${new Date().toLocaleDateString()})`,
+        no: `Custom Kit (${new Date().toLocaleDateString()})`,
+        se: `Custom Kit (${new Date().toLocaleDateString()})`,
+      } as any,
+      description: { en: notes || '', da: notes || '', no: notes || '', se: notes || '' } as any,
+      price: kitTotal,
+      category: 'Sæt' as any,
       image: 'https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?q=80&w=800&auto=format&fit=crop',
-      features: result.benefits,
       is_active: true,
-      stock: 1
-    };
-    addItem(kitProduct, editComps.map(c => ({
-      id: c.product?.id || `part-${Math.random().toString(36).substr(2, 9)}`,
-      name: c.name, price: c.price, quantity: c.quantity
-    })));
+      stock: 1,
+    } as any;
+
+    addItem(
+      kitProduct,
+      recommendedKit.map(i => ({
+        id: i.product.id,
+        name: getLoc(i.product.name),
+        price: i.product.price,
+        quantity: i.quantity,
+      })),
+    );
     addNotification(t('item_added'), 'success');
   };
 
-  const reset = () => { setStep(1); setResult(null); setEditComps([]); };
+  const handleSave = () => {
+    if (!result) return;
+    const updated: CalculatorResult = { ...result, estimatedCost: kitTotal, notes };
+    saveCalculatorResult(updated);
+    setSavedResults(getCalculatorResults());
+  };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const handleDeleteSaved = (id: string) => {
+    if (!window.confirm('Delete this calculation?')) return;
+    deleteCalculatorResult(id);
+    setSavedResults(getCalculatorResults());
+  };
+
+  const handleLoadResult = (saved: CalculatorResult) => {
+    setMonthlyKwh(String(saved.monthlyKwh));
+    setNotes(saved.notes || '');
+    setResult(saved);
+  };
+
+  const handleReset = () => {
+    setMonthlyKwh('');
+    setBackupHours('8');
+    setNotes('');
+    setResult(null);
+    setRecommendedKit([]);
+  };
+
   return (
-    <div className="max-w-5xl mx-auto py-10 px-4 text-left">
-
-      {/* DB badge */}
-      <div className="flex justify-end mb-4">
-        {dbLoading ? (
-          <span className="inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-full">
-            <Loader2 size={11} className="animate-spin" /> Loading catalogue…
-          </span>
-        ) : dbReady ? (
-          <span className="inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-full">
-            <Database size={11} /> Live catalogue — {products.length} products
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-amber-600 bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-full">
-            <AlertCircle size={11} /> Demo mode — connect DB for real products
-          </span>
-        )}
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 text-left">
+      <div>
+        <h1 className="text-3xl font-black uppercase tracking-tight flex items-center gap-3 text-slate-900">
+          <CalculatorIcon className="h-8 w-8" />
+          Energy Calculator
+        </h1>
+        <p className="text-slate-500 mt-1 font-mono text-sm">Calculate required components based on your energy consumption</p>
       </div>
 
-      {/* Step 1: Form */}
-      {step === 1 && (
-        <div className="animate-fade-in space-y-12">
-          <div className="text-center space-y-4">
-            <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-100">
-              <Sparkles size={14} /> {t('nav_architect')}
-            </div>
-            <h2 className="text-4xl md:text-5xl font-black text-slate-900 uppercase tracking-tighter leading-none" dangerouslySetInnerHTML={{ __html: t('calc_title') }} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1 h-fit bg-white border border-slate-100 rounded-[2rem] shadow-xl">
+          <div className="p-6 border-b border-slate-100">
+            <div className="text-sm font-black uppercase tracking-wide text-slate-900">Input Parameters</div>
           </div>
-
-          <div className="bg-white rounded-[3rem] p-8 md:p-12 border border-slate-100 shadow-2xl grid grid-cols-1 md:grid-cols-2 gap-10">
-            {/* Consumption */}
-            <div className="space-y-4">
-              <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">
-                <Activity size={14} className="text-emerald-500" /> {t('calc_consumption')}
-              </label>
-              <div className="relative">
-                <input type="range" min="50" max="2000" step="50" value={consumption}
-                  onChange={(e) => setConsumption(e.target.value)}
-                  className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-emerald-500" />
-                <div className="flex justify-between mt-2 text-[10px] font-black text-slate-900 uppercase">
-                  <span>50 kWh</span>
-                  <span className="text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100">{consumption} kWh</span>
-                  <span>2000 kWh</span>
-                </div>
-              </div>
+          <div className="p-6 space-y-4">
+            <div className="space-y-1">
+              <label className="block text-xs font-mono uppercase tracking-wider text-slate-500">Monthly Consumption (kWh)</label>
+              <input
+                label="Monthly Consumption (kWh)"
+                type="number"
+                min={0}
+                step={1}
+                value={monthlyKwh}
+                onChange={e => setMonthlyKwh(e.target.value)}
+                placeholder="e.g. 500"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono text-sm focus:outline-none focus:border-slate-900"
+              />
             </div>
 
-            {/* Phase */}
-            <div className="space-y-4">
-              <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">
-                <Zap size={14} className="text-emerald-500" /> {t('calc_phase')}
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                {(['1','3'] as const).map(p => (
-                  <button key={p} onClick={() => setPhase(p)}
-                    className={`p-4 rounded-2xl border-2 transition-all font-bold text-xs ${phase === p ? 'border-emerald-500 bg-emerald-50 shadow-md text-emerald-700' : 'border-slate-50 text-slate-400'}`}>
-                    {t(`calc_phase_${p}`)}
-                  </button>
-                ))}
-              </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-mono uppercase tracking-wider text-slate-500">Backup Hours Required</label>
+              <input
+                type="number"
+                min={1}
+                max={48}
+                value={backupHours}
+                onChange={e => setBackupHours(e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono text-sm focus:outline-none focus:border-slate-900"
+              />
             </div>
 
-            {/* Goal */}
-            <div className="space-y-4">
-              <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">
-                <Target size={14} className="text-emerald-500" /> {t('calc_goal')}
-              </label>
-              <div className="grid grid-cols-1 gap-2">
-                {['savings','backup','independence'].map(g => (
-                  <button key={g} onClick={() => setGoal(g as any)}
-                    className={`p-4 rounded-xl border-2 transition-all text-left text-[10px] font-black uppercase ${goal === g ? 'border-emerald-500 bg-emerald-50 shadow-sm text-emerald-700' : 'border-slate-50 text-slate-400'}`}>
-                    {t('calc_' + g)}
-                  </button>
-                ))}
-              </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-mono uppercase tracking-wider text-slate-500">Notes (Optional)</label>
+              <textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                rows={3}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono text-sm focus:outline-none focus:border-slate-900 resize-y"
+                placeholder="Project notes..."
+              />
             </div>
 
-            {/* Budget */}
-            <div className="space-y-4">
-              <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">
-                <Wallet size={14} className="text-emerald-500" /> {t('calc_budget')}
-              </label>
-              <div className="grid grid-cols-1 gap-2">
-                {['eco','standard','premium'].map(b => (
-                  <button key={b} onClick={() => setBudget(b as any)}
-                    className={`p-4 rounded-xl border-2 transition-all text-left text-[10px] font-black uppercase ${budget === b ? 'border-emerald-500 bg-emerald-50 shadow-sm text-emerald-700' : 'border-slate-50 text-slate-400'}`}>
-                    {t('calc_' + b)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="md:col-span-2 pt-6">
-              <button onClick={handleGenerate} disabled={loading}
-                className="w-full bg-slate-900 text-white hover:bg-emerald-600 py-6 rounded-3xl font-black uppercase tracking-widest text-xs transition-all shadow-2xl flex items-center justify-center gap-4 group active:scale-95 disabled:opacity-60">
-                {loading ? <Loader2 className="animate-spin" /> : <><Cpu size={20} /> {t('calc_generate')} <ArrowRight size={20} /></>}
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={calculateNeeds}
+                className="flex-1 px-4 py-2 rounded-xl bg-emerald-500 text-white font-black uppercase tracking-widest text-[10px] hover:bg-emerald-600 transition-all flex items-center justify-center gap-2"
+              >
+                <Zap className="h-4 w-4" />
+                Calculate
+              </button>
+              <button onClick={handleReset} className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all">
+                <RefreshCw className="h-4 w-4" />
               </button>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Step 3: Result + Kit Editor */}
-      {step === 3 && result && (
-        <div className="animate-fade-in space-y-10 pb-20">
-          <button onClick={reset} className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-black uppercase text-[10px] tracking-widest transition-all">
-            <RotateCcw size={16} /> {t('calc_recalculate')}
-          </button>
-
-          <div className="bg-white rounded-[4rem] border border-slate-100 shadow-3xl overflow-hidden">
-            {/* Header */}
-            <div className="bg-slate-900 p-10 md:p-16 text-white">
-              <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tighter leading-none">{result.title}</h1>
-              <p className="text-slate-400 text-sm max-w-2xl font-medium leading-relaxed mt-4">{result.description}</p>
-            </div>
-
-            <div className="p-10 md:p-16 grid grid-cols-1 lg:grid-cols-3 gap-16">
-              {/* Components list — editable */}
-              <div className="lg:col-span-2 space-y-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                    Kit Components — {editComps.length} items
-                  </span>
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white border border-slate-100 rounded-[2rem] shadow-xl">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between gap-3">
+              <div className="text-sm font-black uppercase tracking-wide flex items-center gap-2 text-slate-900">
+                <Zap className="h-4 w-4 text-amber-500" />
+                Section 1 — Theoretical Requirements
+              </div>
+              {result && (
+                <div className="flex items-center gap-2">
+                  <button
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all text-[10px] font-black uppercase tracking-widest"
+                    onClick={handleSave}
+                  >
+                    Save
+                  </button>
+                  <button
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all text-[10px] font-black uppercase tracking-widest flex items-center gap-2"
+                    onClick={() => downloadTheoreticalPdf(result, parseFloat(backupHours) || 8)}
+                  >
+                    <Printer className="h-4 w-4" />
+                    Download PDF
+                  </button>
                 </div>
-
-                {editComps.map((c, i) => (
-                  <div key={i} className="flex items-center gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100 group/comp">
-                    {/* Image */}
-                    <div className="w-12 h-12 rounded-xl bg-white border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
-                      {c.product?.image
-                        ? <img src={c.product.image} alt={c.name} className="w-full h-full object-contain p-1" onError={e => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }} />
-                        : <Package size={20} className="text-slate-300" />
-                      }
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-black text-slate-900 uppercase truncate">{c.name}</span>
-                        {c.product && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" title="Live from catalogue" />}
+              )}
+            </div>
+            <div className="p-6">
+              {result ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="border-l-4 border-l-amber-500 bg-amber-50 p-4 rounded-xl">
+                      <div className="flex items-center gap-2 text-slate-500 mb-2">
+                        <Zap className="h-4 w-4 text-amber-500" />
+                        <span className="text-xs font-mono uppercase font-bold">Inverter Power</span>
                       </div>
-                      <span className="text-[8px] font-bold text-slate-400 uppercase">{c.type}</span>
+                      <div className="text-3xl font-black font-mono text-amber-600">
+                        {result.recommendedInverterPower}
+                        <span className="text-base text-slate-500 ml-1">kW</span>
+                      </div>
+                      <div className="text-xs text-slate-500 mt-2 space-y-0.5 font-mono">
+                        <div>Avg hourly load: {result.hourlyKwh} kW</div>
+                        <div>Peak load (×3): {(result.hourlyKwh * 3).toFixed(3)} kW</div>
+                        <div>+10% headroom: {result.recommendedInverterPower} kW min</div>
+                      </div>
                     </div>
 
-                    {/* Quantity */}
-                    <div className="flex items-center gap-1 bg-white rounded-xl border border-slate-200 p-0.5 shrink-0">
-                      <button onClick={() => changeQty(i, -1)}
-                        className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-emerald-600 rounded-lg transition-colors">
-                        <ChevronDown size={12} />
+                    <div className="border-l-4 border-l-amber-500 bg-amber-50 p-4 rounded-xl">
+                      <div className="flex items-center gap-2 text-slate-500 mb-2">
+                        <Battery className="h-4 w-4 text-amber-500" />
+                        <span className="text-xs font-mono uppercase font-bold">Battery Capacity</span>
+                      </div>
+                      <div className="text-3xl font-black font-mono text-amber-600">
+                        {result.recommendedBatteryCapacity}
+                        <span className="text-base text-slate-500 ml-1">kWh</span>
+                      </div>
+                      <div className="text-xs text-slate-500 mt-2 space-y-0.5 font-mono">
+                        <div>Daily consumption: {result.dailyKwh} kWh</div>
+                        <div>Backup: {parseFloat(backupHours) || 8}h at 80% DoD</div>
+                        <div>+10% headroom: {result.recommendedBatteryCapacity} kWh min</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 border border-dashed border-slate-200 p-3 rounded-xl flex items-start gap-3">
+                    <Sun className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
+                    <div className="text-xs text-slate-500 font-mono">
+                      <span className="font-black text-slate-700">Solar panels:</span> theoretical estimate ~{result.recommendedSolarPanels} × 450W panels needed. Solar panels are{' '}
+                      <span className="font-black">not auto-selected</span>.
+                    </div>
+                  </div>
+
+                  {/* Calculation Method (explained with real numbers) */}
+                  {(() => {
+                    const avgKw = result.hourlyKwh;
+                    const peakKw = avgKw * 3;
+                    const invReserveKw = peakKw * 0.1;
+                    const invMinKw = peakKw * 1.1;
+                    const invRecommendedKw = Math.max(0.3, Math.ceil(invMinKw * 10) / 10);
+
+                    const dailyKwh = result.dailyKwh;
+                    const bh = parseFloat(backupHours) || 8;
+                    const reserveFactor = bh / 24;
+                    const neededEnergyKwh = dailyKwh * reserveFactor;
+                    const afterDodKwh = neededEnergyKwh / 0.8;
+                    const batMinKwh = afterDodKwh * 1.1;
+                    const batRecommendedKwh = Math.max(0.3, Math.ceil(batMinKwh * 10) / 10);
+
+                    return (
+                      <div className="border border-slate-200 bg-white rounded-xl p-4">
+                        <div className="text-xs font-black uppercase tracking-widest text-slate-900">
+                          {t('calc_how_we_calculate_title')}
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          <div className="bg-slate-50 rounded-xl border border-slate-100 p-4">
+                            <div className="text-[11px] font-black uppercase tracking-widest text-slate-900">
+                              {t('calc_how_we_calculate_inverter_title')}
+                            </div>
+                            <div className="mt-2 font-mono text-[11px] text-slate-700 whitespace-pre-line leading-relaxed">
+                              {`Average load: ${avgKw.toFixed(3)} kW
+x Peak factor: 3
+= Peak load: ${peakKw.toFixed(3)} kW
++ 10% reserve: ${invReserveKw.toFixed(3)} kW
+─────────────────────────
+MINIMUM: ${invMinKw.toFixed(2)} kW
+RECOMMENDED: ${invRecommendedKw.toFixed(1)} kW (motor start surges)`}
+                            </div>
+                          </div>
+
+                          <div className="bg-slate-50 rounded-xl border border-slate-100 p-4">
+                            <div className="text-[11px] font-black uppercase tracking-widest text-slate-900">
+                              {t('calc_how_we_calculate_battery_title')}
+                            </div>
+                            <div className="mt-2 font-mono text-[11px] text-slate-700 whitespace-pre-line leading-relaxed">
+                              {`Daily consumption: ${dailyKwh.toFixed(2)} kWh
+x Backup time: ${bh.toFixed(0)}/24 = ${reserveFactor.toFixed(2)}
+= Energy needed: ${neededEnergyKwh.toFixed(2)} kWh
+/ Depth of discharge (80%): 0.80
+x 10% reserve: 1.10
+─────────────────────────
+MINIMUM: ${batMinKwh.toFixed(2)} kWh
+RECOMMENDED: ${batRecommendedKwh.toFixed(1)} kWh (real-world losses)`}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Practical recommendations */}
+                  <div className="border border-amber-200 bg-amber-50 p-4 rounded-xl space-y-3">
+                    <div className="text-xs font-black uppercase tracking-widest text-amber-800">
+                      Practical Recommendations
+                    </div>
+                    <div className="text-xs text-amber-900 leading-relaxed">
+                      <span className="font-black">Inverter:</span>{' '}
+                      Select a model rated at least{' '}
+                      <span className="font-black font-mono">
+                        {Math.max(0.3, Math.ceil(result.recommendedInverterPower * 10) / 10).toFixed(1)} kW
+                      </span>{' '}
+                      (theoretical minimum: <span className="font-mono">{result.recommendedInverterPower} kW</span>). Choose the nearest standard model above that value
+                      to handle start-up surges and allow future load growth.
+                    </div>
+                    <div className="text-xs text-amber-900 leading-relaxed">
+                      <span className="font-black">Battery:</span>{' '}
+                      Recommended capacity{' '}
+                      <span className="font-black font-mono">
+                        {result.recommendedBatteryCapacity}–{(Math.ceil(result.recommendedBatteryCapacity * 1.2 * 10) / 10).toFixed(1)} kWh
+                      </span>{' '}
+                      to compensate real-world losses (inverter efficiency ~90–95% and cable resistance 2–5%). Consider LiFePO4 chemistry for longer cycle life.
+                    </div>
+                    <div className="text-xs text-amber-900 leading-relaxed">
+                      <span className="font-black">Solar panels (Poland / Netherlands):</span>{' '}
+                      A 450W panel generates ~1.2–1.8 kWh/day depending on season. For reliable battery charging recommend{' '}
+                      <span className="font-black font-mono">
+                        {Math.max(result.recommendedSolarPanels, Math.ceil(result.recommendedSolarPanels * 1.3))}
+                      </span>{' '}
+                      panels (+30% for winter/cloudy days). Total array: ~
+                      <span className="font-black font-mono">
+                        {Math.max(result.recommendedSolarPanels, Math.ceil(result.recommendedSolarPanels * 1.3)) * 450} W
+                      </span>.
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-slate-400">
+                  <CalculatorIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="font-mono text-sm uppercase">Enter your monthly consumption to calculate</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {savedResults.length > 0 && (
+            <div className="bg-white border border-slate-100 rounded-[2rem] shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-slate-100">
+                <div className="text-sm font-black uppercase tracking-wide text-slate-900">Saved Calculations</div>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {savedResults.map(saved => (
+                  <div key={saved.id} className="p-6 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="font-mono text-xs text-slate-500">{new Date(saved.createdAt).toLocaleDateString()}</div>
+                      <div className="font-black text-slate-900">{saved.monthlyKwh} kWh/month</div>
+                      <div className="text-xs text-slate-500 font-mono truncate">{saved.notes || '—'}</div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-[10px] font-black uppercase tracking-widest"
+                        onClick={() => handleLoadResult(saved)}
+                      >
+                        Load
                       </button>
-                      <span className="w-6 text-center text-[10px] font-black text-slate-900">{c.quantity}</span>
-                      <button onClick={() => changeQty(i, 1)}
-                        className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-emerald-600 rounded-lg transition-colors">
-                        <ChevronUp size={12} />
+                      <button
+                        className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-100 flex items-center justify-center"
+                        onClick={() => handleDeleteSaved(saved.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-
-                    {/* Price */}
-                    <div className="shrink-0 text-right">
-                      <DualPrice priceExVat={c.price * c.quantity} align="right" />
-                    </div>
-
-                    {/* Remove */}
-                    <button onClick={() => removeComp(i)}
-                      className="p-1.5 text-slate-200 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all shrink-0 opacity-0 group-hover/comp:opacity-100">
-                      <Trash2 size={14} />
-                    </button>
                   </div>
                 ))}
-
-                {/* Add component button */}
-                <button onClick={() => setPickerOpen(true)}
-                  className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 hover:border-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all text-[10px] font-black uppercase tracking-widest">
-                  <Plus size={16} /> Add Component from Catalogue
-                </button>
-
-                {/* Legend */}
-                <div className="flex items-center gap-3 pt-1 text-[8px] text-slate-400 font-bold uppercase">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" /> Live product
-                  <span className="w-2 h-2 rounded-full bg-slate-200 inline-block ml-3" /> Estimated
-                </div>
-              </div>
-
-              {/* Summary panel */}
-              <div className="lg:col-span-1">
-                <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 sticky top-32 space-y-8 text-center">
-                  <div className="space-y-2">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase">{t('calc_investment')}</h4>
-                    <DualPrice priceExVat={derivedTotal} align="center" className="text-3xl" />
-                    {derivedTotal !== result.totalPrice && (
-                      <p className="text-[8px] text-slate-400 font-bold uppercase">
-                        Original: <span className="line-through">{result.totalPrice.toLocaleString('da-DK')} €</span>
-                      </p>
-                    )}
-                  </div>
-                  <button onClick={handleAddToCart}
-                    className="w-full bg-emerald-500 text-white hover:bg-emerald-600 py-6 rounded-[2rem] font-black uppercase text-[10px] tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 active:scale-95">
-                    <Layers size={18} /> {t('calc_add_kit')}
-                  </button>
-                  <DocExportButton
-                    mode="kit"
-                    kit={{
-                      title: result.title,
-                      description: result.description,
-                      totalPrice: derivedTotal,
-                      components: editComps.map(c => ({ name: c.name, quantity: c.quantity, price: c.price, type: c.type })),
-                      benefits: result.benefits,
-                      params: { consumption, phase, goal, budget },
-                    }}
-                    className="w-full flex justify-center"
-                  />
-                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
-      )}
-
-      {/* Catalog Picker Modal */}
-      {pickerOpen && (
-        <div className="fixed inset-0 z-[99999] flex items-end sm:items-center justify-center p-4"
-          style={{ backgroundColor: 'rgba(15,23,42,0.7)' }}
-          onClick={() => setPickerOpen(false)}>
-          <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl"
-            onClick={e => e.stopPropagation()}>
-
-            {/* Modal header */}
-            <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <div>
-                <h3 className="text-base font-black text-slate-900 uppercase tracking-tight">Add Component</h3>
-                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Choose from catalogue</p>
-              </div>
-              <button onClick={() => setPickerOpen(false)}
-                className="p-2 text-slate-300 hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-all">
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Filters */}
-            <div className="flex gap-2 p-4 border-b border-slate-50">
-              <div className="relative flex-1">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
-                <input
-                  type="text"
-                  placeholder="Search products…"
-                  value={pickerSearch}
-                  onChange={e => setPickerSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 text-[11px] font-bold bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:border-emerald-400"
-                  autoFocus
-                />
-              </div>
-              <select
-                value={pickerCategory}
-                onChange={e => setPickerCategory(e.target.value)}
-                className="px-3 py-2.5 text-[11px] font-bold bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:border-emerald-400 text-slate-700 shrink-0">
-                {catalogCategories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-
-            {/* Product list */}
-            <div className="overflow-y-auto flex-1 p-4 space-y-2">
-              {pickerProducts.length === 0 ? (
-                <p className="text-center text-[10px] text-slate-400 font-bold uppercase py-8">No products found</p>
-              ) : pickerProducts.map(p => (
-                <button key={p.id} onClick={() => addFromCatalog(p)}
-                  className="w-full flex items-center gap-4 p-4 rounded-2xl border border-slate-100 bg-white hover:border-emerald-400 hover:bg-emerald-50 transition-all text-left group/pick">
-                  <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 shrink-0 flex items-center justify-center overflow-hidden">
-                    {p.image
-                      ? <img src={p.image} alt={locName(p)} className="w-full h-full object-contain p-1" onError={e => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }} />
-                      : <Package size={18} className="text-slate-300" />
-                    }
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[11px] font-black text-slate-900 uppercase truncate">{locName(p)}</div>
-                    <div className="text-[8px] font-bold text-emerald-600 uppercase tracking-widest mt-0.5">{p.category}</div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <DualPrice priceExVat={p.price} align="right" />
-                  </div>
-                  <div className="shrink-0 w-8 h-8 bg-emerald-50 group-hover/pick:bg-emerald-500 rounded-xl flex items-center justify-center transition-colors">
-                    <Plus size={14} className="text-emerald-500 group-hover/pick:text-white transition-colors" />
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 };
+

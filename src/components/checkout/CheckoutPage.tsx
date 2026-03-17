@@ -399,8 +399,8 @@ export const CheckoutPage: React.FC<{ onBackToCart: () => void; onOrderSuccess: 
                 <span className="text-emerald-400">{formatPrice(finalPrice)}</span>
               </div>
               <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-widest pt-1">
-                <span>{t('checkout_total_incl_vat_21')}</span>
-                <span className="text-emerald-400/90">{formatPrice(finalPrice * 1.21)}</span>
+                <span>{t('checkout_total_incl_vat_25')}</span>
+                <span className="text-emerald-400/90">{formatPrice(finalPrice * 1.25)}</span>
               </div>
             </div>
             <button type="submit" disabled={isProcessing} 

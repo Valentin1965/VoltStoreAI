@@ -121,6 +121,64 @@ const safeJsonParse = (data: any, type: 'specs' | 'docs' | 'kit' = 'specs'): any
   return [];
 };
 
+type LocText = Record<string, string>;
+
+const safeLocParse = (data: any, fallback: string = ''): LocText => {
+  const ensure = (obj: any) => {
+    const out: LocText = {};
+    if (obj && typeof obj === 'object') {
+      for (const [k, v] of Object.entries(obj)) {
+        if (typeof v === 'string') {
+          const trimmed = v.trim();
+          if (trimmed) out[k] = trimmed;
+        }
+      }
+    }
+    // guarantee da/en/no/se so getLoc always has current language
+    const seed = out.da ?? out.en ?? out.no ?? out.se ?? Object.values(out)[0] ?? fallback;
+    out.da = out.da ?? seed;
+    out.en = out.en ?? seed;
+    out.no = out.no ?? seed;
+    out.se = out.se ?? seed;
+    return out;
+  };
+
+  if (!data) return ensure({});
+  if (typeof data === 'string') {
+    const trimmed = data.trim();
+    if (!trimmed) return ensure({});
+    // JSON object stored as string
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return ensure(parsed);
+      } catch {}
+    }
+    return ensure({ da: trimmed, en: trimmed, no: trimmed, se: trimmed });
+  }
+  if (typeof data === 'object' && !Array.isArray(data)) return ensure(data);
+  return ensure({});
+};
+
+const safeStringArrayParse = (data: any): string[] => {
+  if (!data) return [];
+  if (Array.isArray(data)) return data.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim());
+  if (typeof data !== 'string') return [];
+  const trimmed = data.trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim());
+      }
+    } catch {}
+  }
+  // single URL
+  if (trimmed.startsWith('http')) return [trimmed];
+  return [];
+};
+
 export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const categoriesList: Category[] = ['Power Station', 'Invertere', 'Batterier', 'Solpaneler', 'Sæt', 'Varmepumper', 'Monteringssystemer'];
   const allCategoriesList = ['All', ...categoriesList];
@@ -234,25 +292,77 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
 
 
+      const normalizeKitComponents = (raw: any[]): any[] => {
+        if (!Array.isArray(raw) || raw.length === 0) return [];
+        return raw.map((c: any) => {
+          const isBase =
+            c.is_base !== undefined
+              ? c.is_base !== false
+              : (c.isBase !== undefined ? c.isBase !== false : true);
+
+          return ({
+            id: c.component_id ?? c.id,
+            name: c.name ?? '',
+            price: Number(c.price) || 0,
+            quantity: Number(c.quantity) || 1,
+            typeComplect: c.type_complect ?? c.typeComplect ?? '',
+            market: !!c.market,
+            // keep both keys to be compatible with CatalogSection/Admin
+            is_base: isBase,
+            isBase: isBase,
+          });
+        });
+      };
+
       const mapProduct = (p: any, category: Category): Product => {
-        const effectiveCategory = (p.category as Category) || category;
-        const isKit = effectiveCategory === 'Sæt' || effectiveCategory === 'Kits';
-        const name = p.name || (p.BrandProd && p.ModelName ? `${p.BrandProd} ${p.ModelName}` : p.ModelName || p.BrandProd || 'Unnamed Asset');
+        const rawCategory = (p.category as Category) || category;
+        const isKit = rawCategory === 'Sæt' || rawCategory === 'Kits' || category === 'Sæt';
+        const effectiveCategory = (rawCategory === 'Kits' || rawCategory === 'Sæt') ? 'Sæt' : rawCategory;
+        const fallbackName = (p.BrandProd && p.ModelName)
+          ? `${p.BrandProd} ${p.ModelName}`
+          : (p.ModelName || p.BrandProd || 'Unnamed Asset');
+        // kits table schemas vary (name vs Name vs kit_name/title), so be defensive
+        const rawName =
+          p.name ??
+          p.Name ??
+          p.kit_name ??
+          p.kitName ??
+          p.title ??
+          p.Title ??
+          fallbackName;
+        const rawDescription =
+          p.description ??
+          p.Description ??
+          p.kit_description ??
+          p.kitDescription ??
+          p.long_description ??
+          p.LongDescription ??
+          '';
+
+        const nameLoc = safeLocParse(rawName, fallbackName);
+        const descLoc = safeLocParse(rawDescription, '');
+        const imagesArr = safeStringArrayParse(p.images);
+        const imageStr = (typeof p.image === 'string' && p.image.trim())
+          ? p.image.trim()
+          : (imagesArr[0] || '');
+        const rawKitComponents = isKit
+          ? (Array.isArray(p.components) ? p.components : safeJsonParse(p.components, 'kit'))
+          : safeJsonParse(p.kit_components, 'kit');
         return {
           ...p,
           id: `${effectiveCategory}-${p.id}`,
-          name: typeof name === 'string' ? { da: name, en: name } : name,
-          description: p.description || { da: '', en: '' },
-          price: isKit ? (p.total_price || p.price || 0) : (p.PriceEurExVat || p.price || 0),
+          name: nameLoc,
+          description: descLoc,
+          price: isKit ? (p.total_price ?? p.price ?? 0) : (p.PriceEurExVat ?? p.price ?? 0),
+          // kits: show base price separately in UI (CatalogSection expects base_price)
+          base_price: isKit ? (typeof p.base_price === 'number' ? p.base_price : (p.base_price ? Number(p.base_price) : 0)) : undefined,
           category: effectiveCategory,
-          image: p.image || (p.images?.[0] || ''),
-          images: p.images || (p.image ? [p.image] : []),
+          image: imageStr,
+          images: imagesArr.length ? imagesArr : (imageStr ? [imageStr] : []),
           stock: p.StockLvl ?? p.stock ?? 0,
           specs: safeJsonParse(p.specs, 'specs'),
           docs: safeJsonParse(p.docs, 'docs'),
-          kitComponents: isKit
-            ? (Array.isArray(p.components) ? p.components : safeJsonParse(p.components, 'kit'))
-            : safeJsonParse(p.kit_components, 'kit'),
+          kitComponents: isKit ? normalizeKitComponents(rawKitComponents) : rawKitComponents,
           is_active: p.is_active ?? true,   // default true if column missing
           is_leader: p.is_leader ?? false,
         };
@@ -285,6 +395,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       case 'Solpaneler': return 'solar_panels';
       case 'Power Station': return 'ev_chargers';
       case 'Varmepumper': return 'heat_pumps';
+      case 'Sæt': return 'kits';
       default: return 'products';
     }
   };

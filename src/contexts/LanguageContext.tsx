@@ -125,8 +125,10 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const getLoc = useCallback((text: LocalizedText | null | undefined): string => {
     if (!text) return "";
-    if (typeof text === 'string') return text;
-    return (text as any)[language] || (text as any)['da'] || (text as any)['en'] || Object.values(text as any)[0] || "";
+    let s: string;
+    if (typeof text === 'string') s = text;
+    else s = (text as any)[language] || (text as any)['da'] || (text as any)['en'] || Object.values(text as any)[0] || "";
+    return s.trim().replace(/,+$/, "");
   }, [language]);
 
   const currencySymbol = useMemo(() => {

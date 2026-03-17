@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
-import { X, Package, Download, Users, MapPin, Activity, Save, Loader2 } from 'lucide-react';
+import { X, Package, Download, Mail, Phone, MapPin, Truck, Users, MessageSquare,
+  Building2, Activity, Save, Loader2 } from 'lucide-react';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+  AlignmentType, BorderStyle, WidthType, ShadingType, HeadingLevel, VerticalAlign } from 'docx';
+import { saveAs } from 'file-saver';
 import { supabase } from '../../services/supabase';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -14,160 +18,271 @@ interface AdminOrderModalProps {
 
 export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onClose, onUpdated }) => {
   const { addNotification } = useNotification();
-  const { language } = useLanguage();
+  const { t, language } = useLanguage();
   const localeStr = language === 'da' ? 'da-DK' : language === 'no' ? 'nb-NO' : language === 'se' ? 'sv-SE' : 'en-GB';
-  
   const [isSaving, setIsSaving] = useState(false);
   const [statusEdit, setStatusEdit] = useState<OrderStatusEdit>({
-    status: o.order_status, // ✅ Без || 'accepted' - показує реальний статус
+    status: o.order_status || 'accepted',
     shipping_date: o.shipping_date?.slice(0, 10) || '',
     arrival_date: o.arrival_date?.slice(0, 10) || '',
   });
 
-  // ✅ Якщо немає замовлення / товарів – нічого не показуємо
   const items: any[] = Array.isArray(o.items) ? o.items : [];
-  if (!items || items.length === 0) {
-    return null;
-  }
-
-  const addr = [o.street, o.house_number].filter(Boolean).join(' ');
-  const city = [o.postal_code, o.city, o.country].filter(Boolean).join(', ');
+  const addr     = [o.street, o.house_number].filter(Boolean).join(' ');
+  const city     = [o.postal_code, o.city, o.country].filter(Boolean).join(', ');
+  const delAddr  = o.delivery_same_as_billing ? addr : [o.delivery_street, o.delivery_house_number].filter(Boolean).join(' ');
+  const delCity  = o.delivery_same_as_billing ? city : [o.delivery_postal_code, o.delivery_city, o.delivery_country].filter(Boolean).join(', ');
   const orderDate = o.created_at ? new Date(o.created_at).toLocaleDateString(localeStr) : '-';
-  const orderNo = o.order_number || ('GLS-' + String(o.id || '').slice(0, 8).toUpperCase());
+  const orderNo   = o.order_number || ('GLS-' + String(o.id || '').slice(0, 8).toUpperCase());
 
   const saveStatus = async () => {
     setIsSaving(true);
     try {
       const adminKey = import.meta.env.VITE_ADMIN_PASSWORD;
       const { error } = await supabase.rpc('admin_update_order_status', {
-        p_key: adminKey,
-        p_order_id: o.id,
-        p_status: statusEdit.status,
+        p_key:           adminKey,
+        p_order_id:      o.id,
+        p_status:        statusEdit.status,
         p_shipping_date: statusEdit.shipping_date || null,
-        p_arrival_date: statusEdit.arrival_date || null,
+        p_arrival_date:  statusEdit.arrival_date  || null,
       });
-
-      if (error) throw error;
-      
-      onUpdated({ 
-        ...o,
-        order_status: statusEdit.status,
+      if (error) { addNotification(`Fejl: ${error.message}`, 'error'); return; }
+      onUpdated({ ...o,
+        order_status:  statusEdit.status,
         shipping_date: statusEdit.shipping_date || o.shipping_date,
-        arrival_date: statusEdit.arrival_date || o.arrival_date,
+        arrival_date:  statusEdit.arrival_date  || o.arrival_date,
+      });
+      await sendStatusChangeEmail({
+        customerName:  `${o.first_name || ''} ${o.last_name || ''}`.trim() || o.customer_name || '',
+        customerEmail: o.customer_email,
+        orderNo,
+        newStatus:     statusEdit.status as OrderStatus,
+        shippingDate:  statusEdit.shipping_date || undefined,
+        arrivalDate:   statusEdit.arrival_date  || undefined,
+        lang:          o.lang || 'da',
       });
 
-      try {
-        await sendStatusChangeEmail({
-          customerName: `${o.first_name || ''} ${o.last_name || ''}`.trim() || o.customer_name || '',
-          customerEmail: o.customer_email,
-          orderNo,
-          newStatus: statusEdit.status as OrderStatus,
-          shippingDate: statusEdit.shipping_date || undefined,
-          arrivalDate: statusEdit.arrival_date || undefined,
-          lang: o.lang || 'da',
-        });
-      } catch (e) {
-        console.warn('Email notify failed', e);
+      // ── Push notification to client ────────────────────────────────────────
+      if (o.client_id) {
+        try {
+          await fetch('https://xvduslroirsujnglcnos.supabase.co/functions/v1/send-push', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2ZHVzbHJvaXJzdWpuZ2xjbm9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg3ODQzMDQsImV4cCI6MjA4NDM2MDMwNH0.MpS-NS6Blgpu4o3QxoSUGhn-cs5HJhWcqMf2XxtnsMY`,
+            },
+            body: JSON.stringify({
+              type:      'status_update',
+              clientId:  o.client_id,
+              orderNo,
+              newStatus: statusEdit.status,
+            }),
+          });
+        } catch { /* push not critical */ }
       }
 
       addNotification('Status updated ✓', 'success');
-    } catch (err: any) {
-      console.error('RPC Error:', err);
-      addNotification(err.message || 'Error updating status', 'error');
-    } finally { 
-      setIsSaving(false); 
-    }
+    } finally { setIsSaving(false); }
   };
 
   const exportWord = async () => {
-    addNotification('Generating Word document...', 'info');
+    const border  = { style: BorderStyle.SINGLE, size: 1, color: 'DDDDDD' };
+    const borders = { top: border, bottom: border, left: border, right: border };
+    const cell = (text: string, bold = false, shade = false, w = 4680) =>
+      new TableCell({
+        borders, width: { size: w, type: WidthType.DXA },
+        shading: shade ? { fill: 'F0FDF4', type: ShadingType.CLEAR } : { fill: 'FFFFFF', type: ShadingType.CLEAR },
+        margins: { top: 80, bottom: 80, left: 160, right: 160 },
+        children: [new Paragraph({ children: [new TextRun({ text, bold, font: 'Arial', size: 20 })] })],
+      });
+    const row = (label: string, value: string) =>
+      new TableRow({ children: [cell(label, true, true, 3000), cell(value || '—', false, false, 6360)] });
+
+    const doc = new Document({
+      styles: { default: { document: { run: { font: 'Arial', size: 20 } } } },
+      sections: [{
+        properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 } } },
+        children: [
+          new Paragraph({ alignment: AlignmentType.LEFT, spacing: { after: 0 }, children: [new TextRun({ text: 'GREEN LIGHT SCANDINAVIA', bold: true, size: 32, color: '10b981', font: 'Arial' })] }),
+          new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: 'Katmosevej 16, Viborg 8800, Denmark', size: 16, color: '6B7280', font: 'Arial' })] }),
+          new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: 'sales@glsolargroup.dk  |  +45 61 48 52 19', size: 16, color: '6B7280', font: 'Arial' })] }),
+          new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '10b981', space: 1 } }, spacing: { after: 360 }, children: [] }),
+          new Paragraph({ spacing: { before: 200, after: 100 }, children: [new TextRun({ text: `ORDER  #${orderNo}`, bold: true, size: 36, font: 'Arial' })] }),
+          new Paragraph({ spacing: { after: 400 }, children: [new TextRun({ text: `Date: ${orderDate}  |  Status: ${o.status || 'processing'}  |  Currency: ${o.currency || 'EUR'}`, size: 18, color: '6B7280', font: 'Arial' })] }),
+          new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 200, after: 120 }, children: [new TextRun({ text: 'CLIENT INFORMATION', bold: true, size: 24, font: 'Arial', color: '111827' })] }),
+          new Table({
+            width: { size: 9360, type: WidthType.DXA }, columnWidths: [3000, 6360],
+            rows: [
+              row('Type', o.client_type === 'business' ? 'Business' : 'Private'),
+              ...(o.company_name ? [row('Company', o.company_name)] : []),
+              ...(o.vat_number   ? [row('VAT / CVR', o.vat_number)] : []),
+              row('Name',             `${o.first_name || ''} ${o.last_name || ''}`.trim() || o.customer_name || ''),
+              row('Email',            o.customer_email || ''),
+              row('Phone',            o.customer_phone || ''),
+              row('Billing address',  [addr, city].filter(Boolean).join('\n') || o.department || ''),
+              row('Delivery address', [delAddr, delCity].filter(Boolean).join('\n')),
+            ],
+          }),
+          new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 480, after: 120 }, children: [new TextRun({ text: 'ORDER ITEMS', bold: true, size: 24, font: 'Arial', color: '111827' })] }),
+          new Table({
+            width: { size: 9360, type: WidthType.DXA }, columnWidths: [4800, 1600, 1480, 1480],
+            rows: [
+              new TableRow({ tableHeader: true, children: [
+                new TableCell({ borders, width: { size: 4800, type: WidthType.DXA }, shading: { fill: '111827', type: ShadingType.CLEAR }, margins: { top: 100, bottom: 100, left: 160, right: 160 }, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: 'Product',  bold: true, color: 'FFFFFF', font: 'Arial', size: 20 })] })] }),
+                new TableCell({ borders, width: { size: 1600, type: WidthType.DXA }, shading: { fill: '111827', type: ShadingType.CLEAR }, margins: { top: 100, bottom: 100, left: 160, right: 160 }, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Category', bold: true, color: 'FFFFFF', font: 'Arial', size: 20 })] })] }),
+                new TableCell({ borders, width: { size: 1480, type: WidthType.DXA }, shading: { fill: '111827', type: ShadingType.CLEAR }, margins: { top: 100, bottom: 100, left: 160, right: 160 }, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Qty',      bold: true, color: 'FFFFFF', font: 'Arial', size: 20 })] })] }),
+                new TableCell({ borders, width: { size: 1480, type: WidthType.DXA }, shading: { fill: '111827', type: ShadingType.CLEAR }, margins: { top: 100, bottom: 100, left: 160, right: 160 }, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: 'Price',    bold: true, color: 'FFFFFF', font: 'Arial', size: 20 })] })] }),
+              ]}),
+              ...items.map((it, i) => new TableRow({ children: [
+                new TableCell({ borders, width: { size: 4800, type: WidthType.DXA }, shading: { fill: i % 2 ? 'F9FAFB' : 'FFFFFF', type: ShadingType.CLEAR }, margins: { top: 80, bottom: 80, left: 160, right: 160 }, children: [new Paragraph({ children: [new TextRun({ text: String(it.name || ''),         font: 'Arial', size: 20 })] })] }),
+                new TableCell({ borders, width: { size: 1600, type: WidthType.DXA }, shading: { fill: i % 2 ? 'F9FAFB' : 'FFFFFF', type: ShadingType.CLEAR }, margins: { top: 80, bottom: 80, left: 160, right: 160 }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(it.category || ''), font: 'Arial', size: 18, color: '6B7280' })] })] }),
+                new TableCell({ borders, width: { size: 1480, type: WidthType.DXA }, shading: { fill: i % 2 ? 'F9FAFB' : 'FFFFFF', type: ShadingType.CLEAR }, margins: { top: 80, bottom: 80, left: 160, right: 160 }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(it.quantity || 1), bold: true, font: 'Arial', size: 20 })] })] }),
+                new TableCell({ borders, width: { size: 1480, type: WidthType.DXA }, shading: { fill: i % 2 ? 'F9FAFB' : 'FFFFFF', type: ShadingType.CLEAR }, margins: { top: 80, bottom: 80, left: 160, right: 160 }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: `${((it.price || 0) * (it.quantity || 1)).toFixed(2)} ${o.currency || 'EUR'}`, font: 'Arial', size: 20 })] })] }),
+              ]})),
+              new TableRow({ children: [
+                new TableCell({ borders, width: { size: 7880, type: WidthType.DXA }, columnSpan: 3, shading: { fill: 'F0FDF4', type: ShadingType.CLEAR }, margins: { top: 120, bottom: 120, left: 160, right: 160 }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: 'TOTAL (incl. 25% VAT)', bold: true, font: 'Arial', size: 22 })] })] }),
+                new TableCell({ borders, width: { size: 1480, type: WidthType.DXA }, shading: { fill: 'F0FDF4', type: ShadingType.CLEAR }, margins: { top: 120, bottom: 120, left: 160, right: 160 }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: `${(o.total_price || 0).toFixed(2)} ${o.currency || 'EUR'}`, bold: true, color: '10b981', font: 'Arial', size: 24 })] })] }),
+              ]}),
+            ],
+          }),
+          ...(o.customer_message ? [
+            new Paragraph({ spacing: { before: 480, after: 120 }, children: [new TextRun({ text: 'CLIENT MESSAGE', bold: true, size: 22, font: 'Arial', color: '6B7280' })] }),
+            new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: o.customer_message, font: 'Arial', size: 20, italics: true, color: '374151' })] }),
+          ] : []),
+          new Paragraph({ border: { top: { style: BorderStyle.SINGLE, size: 4, color: 'E5E7EB', space: 1 } }, spacing: { before: 600, after: 80 }, children: [new TextRun({ text: 'Green Light Scandinavia  ·  Katmosevej 16, 8800 Viborg  ·  sales@glsolargroup.dk  ·  +45 61 48 52 19', size: 16, color: '9CA3AF', font: 'Arial' })] }),
+        ],
+      }],
+    });
+    const blob = await Packer.toBlob(doc);
+    saveAs(blob, `GLS-Order-${orderNo}.docx`);
   };
 
   return (
-    <div className="fixed inset-0 z-[10002] flex items-end md:items-center justify-center p-0 md:p-4 bg-slate-900/95 backdrop-blur-md text-left overflow-y-auto">
-      <div className="bg-white w-full md:max-w-3xl rounded-t-[2rem] md:rounded-[2.5rem] shadow-3xl relative border border-slate-100 flex flex-col max-h-[95vh] overflow-hidden min-h-0 flex-1 md:flex-initial">
+    <div className="fixed inset-0 z-[10002] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-md animate-fade-in text-left">
+      <div className="bg-white w-full max-w-3xl rounded-[2.5rem] shadow-3xl relative border border-slate-100 flex flex-col max-h-[90vh] overflow-hidden">
+
         {/* Header */}
-        <div className="px-4 md:px-8 py-4 md:py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-          <div className="flex items-center gap-3 md:gap-4 min-w-0">
-            <div className="bg-emerald-500 p-2.5 rounded-2xl text-white shadow-lg shrink-0">
-              <Package size={20} />
-            </div>
-            <div className="min-w-0">
-              <div className="text-sm md:text-xs font-black uppercase tracking-widest text-slate-900">Ordre #{orderNo}</div>
-              <div className="text-xs md:text-[9px] text-slate-500 md:text-slate-400 font-bold uppercase tracking-widest mt-0.5">{orderDate}</div>
+        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+          <div className="flex items-center gap-4">
+            <div className="bg-emerald-500 p-2.5 rounded-2xl text-white shadow-lg"><Package size={20} /></div>
+            <div>
+              <div className="text-xs font-black uppercase tracking-widest text-slate-900">Ordre #{orderNo}</div>
+              <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{orderDate} · {o.status}</div>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button onClick={exportWord} className="flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 bg-emerald-500 text-white rounded-xl text-xs md:text-[9px] font-black uppercase tracking-widest transition-all">
+          <div className="flex items-center gap-2">
+            <button onClick={exportWord}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg">
               <Download size={14} /> Word
             </button>
-            <button onClick={onClose} className="p-2.5 hover:bg-slate-200 rounded-xl transition-all text-slate-400">
-              <X size={20} />
-            </button>
+            <button onClick={onClose} className="p-2.5 hover:bg-slate-200 rounded-xl transition-all text-slate-400"><X size={20} /></button>
           </div>
         </div>
 
-        {/* Body — scrollable, readable on mobile */}
-        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-6">
+        {/* Body */}
+        <div className="overflow-y-auto p-8 space-y-6">
+
+          {/* Client info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 md:p-6 bg-slate-50 rounded-2xl border border-slate-100">
-              <div className="text-xs md:text-[9px] font-black uppercase tracking-widest text-slate-500 md:text-slate-400 mb-2 md:mb-3 flex items-center gap-2">
-                <Users size={14} className="md:w-[11px] md:h-[11px]" /> Kontakt
+            <div className="space-y-3 p-6 bg-slate-50 rounded-2xl border border-slate-100">
+              <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">
+                <Users size={11} /> Kontaktperson
               </div>
-              <div className="text-base md:text-sm font-black text-slate-900">{o.customer_name}</div>
-              <div className="text-sm md:text-[10px] text-slate-500 mt-1">{o.customer_email}</div>
+              {o.company_name && <div className="flex items-center gap-2"><Building2 size={13} className="text-emerald-500 shrink-0" /><span className="text-[11px] font-black text-slate-900">{o.company_name}</span>{o.vat_number && <span className="text-[9px] text-slate-400">({o.vat_number})</span>}</div>}
+              <div className="text-sm font-black text-slate-900">{`${o.first_name || ''} ${o.last_name || ''}`.trim() || o.customer_name}</div>
+              <div className="flex items-center gap-2 text-[10px] text-slate-500"><Mail size={12} className="text-emerald-500" />{o.customer_email}</div>
+              <div className="flex items-center gap-2 text-[10px] text-slate-500"><Phone size={12} className="text-emerald-500" />{o.customer_phone}</div>
+              <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[8px] font-black uppercase ${o.client_type === 'business' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                {o.client_type === 'business' ? 'Virksomhed' : 'Privat'}
+              </div>
             </div>
-            <div className="p-4 md:p-6 bg-slate-50 rounded-2xl border border-slate-100">
-              <div className="text-xs md:text-[9px] font-black uppercase tracking-widest text-slate-500 md:text-slate-400 mb-2 md:mb-3 flex items-center gap-2">
-                <MapPin size={14} className="md:w-[11px] md:h-[11px]" /> Adresse
+            <div className="space-y-3 p-6 bg-slate-50 rounded-2xl border border-slate-100">
+              <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">
+                <MapPin size={11} /> Adresser
               </div>
-              <div className="text-sm md:text-[10px] text-slate-700 leading-relaxed">
-                {addr}<br/>{city}
+              <div>
+                <div className="text-[8px] font-black text-emerald-600 uppercase tracking-widest mb-1">{t('admin_order_billing')}</div>
+                <div className="text-[10px] text-slate-700 leading-relaxed">{addr || o.department || '—'}<br />{city}</div>
+              </div>
+              <div className="pt-2 border-t border-slate-200">
+                <div className="flex items-center gap-1 text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1"><Truck size={10} /> Levering</div>
+                {o.delivery_same_as_billing
+                  ? <div className="text-[9px] text-slate-400 italic">{t('admin_order_delivery_same')}</div>
+                  : <div className="text-[10px] text-slate-700 leading-relaxed">{delAddr}<br />{delCity}</div>}
               </div>
             </div>
           </div>
 
-          {/* Status Selection */}
-          <div className="p-4 md:p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
-            <div className="text-sm md:text-[13.5px] font-black uppercase tracking-widest text-slate-500 md:text-slate-400 flex items-center gap-2">
-              <Activity size={14} className="md:w-[11px] md:h-[11px]" /> Стан замовлення
+          {/* Items */}
+          <div>
+            <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2"><Package size={11} /> Ordrevarer</div>
+            <div className="rounded-2xl border border-slate-100 overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-slate-900 text-white">
+                  <tr>
+                    <th className="px-4 py-3 text-[8px] font-black uppercase tracking-widest">{t('admin_order_col_product')}</th>
+                    <th className="px-4 py-3 text-[8px] font-black uppercase tracking-widest text-center">{t('admin_order_col_category')}</th>
+                    <th className="px-4 py-3 text-[8px] font-black uppercase tracking-widest text-center">{t('admin_order_col_qty')}</th>
+                    <th className="px-4 py-3 text-[8px] font-black uppercase tracking-widest text-right">{t('admin_order_col_price')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {items.map((it: any, i: number) => (
+                    <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                      <td className="px-4 py-3 text-[10px] font-bold text-slate-900">{it.name}</td>
+                      <td className="px-4 py-3 text-[9px] text-slate-400 text-center">{it.category}</td>
+                      <td className="px-4 py-3 text-[10px] font-black text-center">{it.quantity}</td>
+                      <td className="px-4 py-3 text-[10px] font-black text-right">{((it.price || 0) * (it.quantity || 1)).toFixed(2)} {o.currency || 'EUR'}</td>
+                    </tr>
+                  ))}
+                  <tr className="bg-emerald-50 border-t-2 border-emerald-100">
+                    <td colSpan={3} className="px-4 py-3 text-[10px] font-black uppercase text-right text-slate-700">{t('admin_order_total_vat')}</td>
+                    <td className="px-4 py-3 text-sm font-black text-emerald-600 text-right">{(o.total_price || 0).toFixed(2)} {o.currency || 'EUR'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Message */}
+          {o.customer_message && (
+            <div className="p-5 bg-amber-50 rounded-2xl border border-amber-100">
+              <div className="text-[8px] font-black uppercase tracking-widest text-amber-600 mb-2 flex items-center gap-1"><MessageSquare size={10} /> Besked fra kunde</div>
+              <div className="text-[10px] text-slate-700 italic leading-relaxed">"{o.customer_message}"</div>
+            </div>
+          )}
+
+          {/* Status panel */}
+          <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+            <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+              <Activity size={11} /> Ordrestatus
             </div>
             <div className="grid grid-cols-2 gap-2">
               {ORDER_STATUSES.map(s => (
-                <button
-                  key={s.key}
-                  type="button"
+                <button key={s.key} type="button"
                   onClick={() => setStatusEdit(prev => ({ ...prev, status: s.key }))}
-                  className={`flex items-center gap-2 px-3 md:px-4 py-3 rounded-xl border-2 text-left transition-all ${
-                    statusEdit.status === s.key
-                      ? `${s.color} border-current font-black`
-                      : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
-                  }`}
-                >
+                  className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 text-left transition-all ${statusEdit.status === s.key ? s.color + ' border-current font-black' : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'}`}>
                   <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusEdit.status === s.key ? s.dot : 'bg-slate-200'}`} />
-                  <span className="text-xs md:text-[10px] font-bold uppercase tracking-wider">{s.label}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider leading-tight">{({accepted: t('admin_status_accepted'), in_progress: t('admin_status_in_progress'), awaiting_transport: t('admin_status_awaiting'), in_transit: t('admin_status_in_transit')} as Record<string,string>)[s.key] || s.label}</span>
                 </button>
               ))}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                type="date"
-                value={statusEdit.shipping_date}
-                onChange={e => setStatusEdit(prev => ({ ...prev, shipping_date: e.target.value }))}
-                className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 md:py-2 text-sm md:text-[11px] font-bold"
-              />
-              <input
-                type="date"
-                value={statusEdit.arrival_date}
-                onChange={e => setStatusEdit(prev => ({ ...prev, arrival_date: e.target.value }))}
-                className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 md:py-2 text-sm md:text-[11px] font-bold"
-              />
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><Truck size={9} /> Dato afsendelse</label>
+                <input type="date" value={statusEdit.shipping_date}
+                  onChange={e => setStatusEdit(prev => ({ ...prev, shipping_date: e.target.value }))}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-[11px] font-bold outline-none focus:border-emerald-400 transition-all" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><MapPin size={9} /> Dato ankomst</label>
+                <input type="date" value={statusEdit.arrival_date}
+                  onChange={e => setStatusEdit(prev => ({ ...prev, arrival_date: e.target.value }))}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-[11px] font-bold outline-none focus:border-emerald-400 transition-all" />
+              </div>
             </div>
-            <button
-              onClick={saveStatus}
-              disabled={isSaving}
-              className="w-full py-3.5 md:py-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl text-xs md:text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
-            >
+            <button onClick={saveStatus} disabled={isSaving}
+              className="w-full py-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50">
               {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               Gem status
             </button>
