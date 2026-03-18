@@ -61,13 +61,17 @@ export const DbStatus: React.FC = () => {
   const allOk = tables.length > 0 && tables.every(t => t.ok);
   const anyOk = tables.some(t => t.ok);
 
-  const StatusIcon = () => {
-    if (!envOk) return <WifiOff size={14} className="text-rose-500" />;
-    if (checking) return <Loader2 size={14} className="animate-spin text-slate-400" />;
-    if (allOk) return <Wifi size={14} className="text-emerald-500" />;
-    if (anyOk) return <AlertTriangle size={14} className="text-amber-500" />;
-    return <WifiOff size={14} className="text-rose-500" />;
-  };
+  const statusIcon = !envOk ? (
+    <WifiOff size={14} className="text-rose-500" />
+  ) : checking ? (
+    <Loader2 size={14} className="animate-spin text-slate-400" />
+  ) : allOk ? (
+    <Wifi size={14} className="text-emerald-500" />
+  ) : anyOk ? (
+    <AlertTriangle size={14} className="text-amber-500" />
+  ) : (
+    <WifiOff size={14} className="text-rose-500" />
+  );
 
   return (
     <div className="fixed bottom-4 left-4 z-[9999] text-left">
@@ -77,7 +81,7 @@ export const DbStatus: React.FC = () => {
         className="flex items-center gap-2 bg-slate-900/90 backdrop-blur text-white text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl border border-white/10 shadow-xl hover:bg-slate-800 transition-all"
       >
         <Database size={13} />
-        <StatusIcon />
+        {statusIcon}
         DB Status
         {open ? <ChevronDown size={11} /> : <ChevronUp size={11} />}
       </button>
