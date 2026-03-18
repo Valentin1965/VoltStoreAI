@@ -1,11 +1,10 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Plus, Edit, Trash2, Crown, RefreshCcw, LogOut,
-  Package, TrendingUp, Layers, Search, Filter,
+  Package, TrendingUp, Layers, Search,
   Activity, UserCheck, MessageSquare, Eye,
   Building2, Cpu, Loader2, ChevronLeft, ChevronRight
 } from 'lucide-react';
-import { Marker } from '../MarkerComponent.tsx';
 import { DualPrice } from '../PriceDisplay';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -22,7 +21,7 @@ import { AdminRatesModal }            from './AdminRatesModal';
 import { AdminDashboard }            from './AdminDashboard';
 
 // ── ProductRow ──────────────────────────────────────────────────────────
-const ProductRow = React.memo(({ product, onEdit, onDelete, formatPrice, getLoc }: any) => (
+const ProductRow = React.memo(({ product, onEdit, onDelete, formatPrice: _formatPrice, getLoc }: any) => (
   <tr className="hover:bg-slate-50/50 transition-colors group">
     <td className="p-6 flex items-center gap-4 text-left">
       <img src={product.image || IMAGE_FALLBACK} className="w-12 h-12 rounded-2xl object-cover border border-slate-100 shadow-sm" loading="lazy" alt="" />
@@ -65,7 +64,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
 
   const { categories, products, fetchProducts } = useProducts();
   const { addNotification }      = useNotification();
-  const { formatPrice, getLoc, t, language } = useLanguage();
+  const { getLoc, t, language } = useLanguage();
   const localeStr = language === 'da' ? 'da-DK' : language === 'no' ? 'nb-NO' : language === 'se' ? 'sv-SE' : 'en-GB';
 
   // Data
@@ -254,7 +253,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     saveAs(blob, `GLS-orders-${new Date().toISOString().slice(0, 10)}.csv`);
     addNotification(`Eksporterede ${filteredOrders.length} ordrer til CSV`, 'success');
-  }, [filteredOrders, addNotification]);
+  }, [filteredOrders, addNotification, localeStr]);
 
   const updateBookingStatus = async (id: string, status: string) => {
     try {

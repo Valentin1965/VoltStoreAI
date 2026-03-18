@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   TrendingUp, ShoppingCart, Users, Package,
   ArrowUpRight, ArrowDownRight, Bell, BellOff,
-  Loader2, BarChart3, CheckCircle2, Send
+  Loader2, CheckCircle2, Send
 } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
@@ -24,7 +24,7 @@ function fmt(n: number, decimals = 0) {
   return n.toLocaleString(undefined, { maximumFractionDigits: decimals });
 }
 
-export const AdminDashboard: React.FC<Props> = ({ orders, dbClients, isLoadingOrders }) => {
+export const AdminDashboard: React.FC<Props> = ({ orders, dbClients, isLoadingOrders: _isLoadingOrders }) => {
   const { formatPrice, t, language } = useLanguage();
   const push = usePushNotifications('admin');
   const [isTesting, setIsTesting] = useState(false);
@@ -55,22 +55,21 @@ export const AdminDashboard: React.FC<Props> = ({ orders, dbClients, isLoadingOr
   const localeStr = language === 'da' ? 'da-DK' : language === 'no' ? 'nb-NO' : language === 'se' ? 'sv-SE' : 'en-GB';
 
   // ── Derived stats ─────────────────────────────────────────────────────────
-  const now    = new Date();
   const last30 = daysAgo(30);
   const last7  = daysAgo(7);
   const prev30Start = daysAgo(60);
 
   const ordersLast30 = useMemo(() =>
-    orders.filter(o => new Date(o.created_at!) >= last30), [orders]);
+    orders.filter(o => new Date(o.created_at!) >= last30), [orders, last30]);
 
   const ordersPrev30 = useMemo(() =>
     orders.filter(o => {
       const d = new Date(o.created_at!);
       return d >= prev30Start && d < last30;
-    }), [orders]);
+    }), [orders, prev30Start, last30]);
 
   const ordersLast7 = useMemo(() =>
-    orders.filter(o => new Date(o.created_at!) >= last7), [orders]);
+    orders.filter(o => new Date(o.created_at!) >= last7), [orders, last7]);
 
   const revenue30    = ordersLast30.reduce((s, o) => s + (o.total_price || 0), 0);
   const revenuePrev  = ordersPrev30.reduce((s, o) => s + (o.total_price || 0), 0);
