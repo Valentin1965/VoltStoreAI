@@ -64,7 +64,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
 
   const { categories, products, fetchProducts } = useProducts();
   const { addNotification }      = useNotification();
-  const { getLoc, t, language } = useLanguage();
+  const { getLoc, t, language, formatPrice } = useLanguage();
   const localeStr = language === 'da' ? 'da-DK' : language === 'no' ? 'nb-NO' : language === 'se' ? 'sv-SE' : 'en-GB';
 
   // Data
