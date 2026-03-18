@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "noImplicitAny": false,
+    "lib": ["ES2021", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"]
+  },
+  "include": [
+    "src/types/**/*.ts",
+    "src/utils/**/*.ts"
+  ],
+  "exclude": ["**/*.v2.tsx", "**/*.v2.ts"]
+}
+

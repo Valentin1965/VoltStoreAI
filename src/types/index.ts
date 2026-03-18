@@ -12,7 +12,17 @@ export enum AppView {
   SUCCESS = 'success' 
 }
 
-export type Category = 'Invertere' | 'Batterier' | 'Solpaneler' | 'Sæt' | 'Varmepumper' | 'Monteringssystemer' | 'Power Station';
+// NOTE: Category values come from DB/localization and have drift over time.
+// Keep this union permissive enough to match runtime values.
+export type Category =
+  | 'Invertere'
+  | 'Batterier'
+  | 'Solpaneler'
+  | 'Sæt'
+  | 'Kits'
+  | 'Varmepumper'
+  | 'Monteringssystemer'
+  | 'Power Station';
 
 export type LocalizedText = string | { [key: string]: string };
 
@@ -32,6 +42,12 @@ export interface KitComponent {
   price: number;
   quantity: number;
   alternatives?: any[];
+  // Legacy / DB fields (optional to avoid breaking existing runtime data)
+  isBase?: boolean;
+  is_base?: boolean;
+  typeComplect?: string;
+  type_complect?: string;
+  market?: boolean;
 }
 
 export interface KitPart {
@@ -44,7 +60,7 @@ export interface KitPart {
 export interface Product {
   id: string;
   name: LocalizedText;
-  description: LocalizedText;
+  description?: LocalizedText;
   price: number;
   old_price?: number;
   category: Category;
@@ -169,6 +185,11 @@ export interface Order {
   mollie_id?: string;    
   user_id?: string;      
   created_at: string;
+
+  // Admin dashboard / legacy DB columns
+  order_status?: string;
+  client_email?: string;
+  client_name?: string;
 }
 
 export interface UserCard {

@@ -34,7 +34,7 @@ export function usePushNotifications(clientId?: string | null) {
         return;
       }
       const sw = navigator.serviceWorker;
-      if (!sw || typeof sw.ready !== 'function') {
+      if (!sw || !sw.ready) {
         setStatus('unsupported');
         return;
       }

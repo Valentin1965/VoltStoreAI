@@ -622,7 +622,6 @@ export const Calculator: React.FC = () => {
             <div className="space-y-1">
               <label className="block text-xs font-mono uppercase tracking-wider text-slate-500">Monthly Consumption (kWh)</label>
               <input
-                label="Monthly Consumption (kWh)"
                 type="number"
                 min={0}
                 step={1}

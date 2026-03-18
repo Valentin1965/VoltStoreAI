@@ -43,9 +43,19 @@ export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
   const exportHistoryWord = async () => {
     const border  = { style: BorderStyle.SINGLE, size: 1, color: 'DDDDDD' };
     const borders = { top: border, bottom: border, left: border, right: border };
-    const cell = (text: string, bold = false, shade = false, w = 2340, align = AlignmentType.LEFT) =>
+    const cell = (
+      text: string,
+      bold = false,
+      shade = false,
+      w = 2340,
+      align: (typeof AlignmentType)[keyof typeof AlignmentType] = AlignmentType.LEFT,
+    ) =>
       new TableCell({ borders, width: { size: w, type: WidthType.DXA }, shading: { fill: shade ? 'F0FDF4' : 'FFFFFF', type: ShadingType.CLEAR }, margins: { top: 80, bottom: 80, left: 140, right: 140 }, children: [new Paragraph({ alignment: align, children: [new TextRun({ text: String(text || '—'), bold, font: 'Arial', size: 19 })] })] });
-    const hdrCell = (text: string, w: number, align = AlignmentType.LEFT) =>
+    const hdrCell = (
+      text: string,
+      w: number,
+      align: (typeof AlignmentType)[keyof typeof AlignmentType] = AlignmentType.LEFT,
+    ) =>
       new TableCell({ borders, width: { size: w, type: WidthType.DXA }, shading: { fill: '0f172a', type: ShadingType.CLEAR }, margins: { top: 100, bottom: 100, left: 140, right: 140 }, children: [new Paragraph({ alignment: align, children: [new TextRun({ text, bold: true, color: 'FFFFFF', font: 'Arial', size: 18 })] })] });
     const infoRow = (label: string, value: string) => new TableRow({ children: [
       new TableCell({ borders, width: { size: 2800, type: WidthType.DXA }, shading: { fill: 'F8FAFC', type: ShadingType.CLEAR }, margins: { top: 80, bottom: 80, left: 140, right: 140 }, children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, font: 'Arial', size: 19, color: '374151' })] })] }),
