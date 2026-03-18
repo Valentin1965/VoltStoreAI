@@ -3,7 +3,6 @@ import { useProducts } from '../../contexts/ProductsContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useCart } from '../../contexts/CartContext';
 import { useNotification } from '../../contexts/NotificationContext';
-import { DualPrice } from '../PriceDisplay';
 import { Product } from '../../types';
 import { Calculator as CalculatorIcon, Zap, Battery, Sun, RefreshCw, Printer, Trash2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
@@ -109,7 +108,6 @@ const downloadTheoreticalPdf = (res: CalculatorResult, backupHours: number) => {
   const peakLoad = res.hourlyKwh * 3 * 1.1;
   const invMinRounded = Math.max(0.3, Math.ceil(res.recommendedInverterPower * 10) / 10).toFixed(1);
   const batMaxRounded = (Math.ceil(res.recommendedBatteryCapacity * 1.2 * 10) / 10).toFixed(1);
-  const solarRecommended = Math.max(res.recommendedSolarPanels, Math.ceil(res.recommendedSolarPanels * 1.3));
 
   const esc = (s: any) =>
     String(s ?? '')
@@ -439,9 +437,9 @@ Min required: ${res.recommendedBatteryCapacity.toFixed(2)} kWh</div>
 
 export const Calculator: React.FC = () => {
   const { products } = useProducts();
-  const { getLoc, t } = useLanguage();
-  const { addItem } = useCart();
-  const { addNotification } = useNotification();
+  const { getLoc: _getLoc, t } = useLanguage();
+  const { addItem: _addItem } = useCart();
+  const { addNotification: _addNotification } = useNotification();
 
   const [monthlyKwh, setMonthlyKwh] = useState<string>('');
   const [backupHours, setBackupHours] = useState<string>('8');
@@ -527,54 +525,10 @@ export const Calculator: React.FC = () => {
     });
   };
 
-  const handleQtyChange = (productId: string, delta: number) => {
-    setRecommendedKit(prev =>
-      prev
-        .map(item =>
-          item.product.id === productId ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item,
-        )
-        .filter(item => item.quantity > 0),
-    );
-  };
-
-  const handleRemoveItem = (productId: string) => {
-    setRecommendedKit(prev => prev.filter(item => item.product.id !== productId));
-  };
-
   const kitTotal = useMemo(
     () => recommendedKit.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
     [recommendedKit],
   );
-
-  const handleAddKitToCart = () => {
-    if (recommendedKit.length === 0) return;
-    const kitProduct: Product = {
-      id: `KIT-CALC-${Date.now()}`,
-      name: {
-        en: `Custom Kit (${new Date().toLocaleDateString()})`,
-        da: `Custom Kit (${new Date().toLocaleDateString()})`,
-        no: `Custom Kit (${new Date().toLocaleDateString()})`,
-        se: `Custom Kit (${new Date().toLocaleDateString()})`,
-      } as any,
-      description: { en: notes || '', da: notes || '', no: notes || '', se: notes || '' } as any,
-      price: kitTotal,
-      category: 'Sæt' as any,
-      image: 'https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?q=80&w=800&auto=format&fit=crop',
-      is_active: true,
-      stock: 1,
-    } as any;
-
-    addItem(
-      kitProduct,
-      recommendedKit.map(i => ({
-        id: i.product.id,
-        name: getLoc(i.product.name),
-        price: i.product.price,
-        quantity: i.quantity,
-      })),
-    );
-    addNotification(t('item_added'), 'success');
-  };
 
   const handleSave = () => {
     if (!result) return;

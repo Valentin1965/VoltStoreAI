@@ -9,10 +9,10 @@ import { useUser } from '../../contexts/UserContext';
 import { IMAGE_FALLBACK } from '../../utils/constants';
 import { 
   ShoppingCart, X, Loader2, Zap, Download, FileText, Info, 
-  ShoppingBag, CheckCircle2, PlayCircle, Heart, Percent,
-  Layers, Package, ArrowRight, ShieldCheck, Star, Factory, Activity, Crown,
-  Filter, RotateCcw, ChevronDown, Search, SlidersHorizontal, Check, Eye, ExternalLink,
-  Link2, Copy, CheckCheck
+  ShoppingBag, PlayCircle, Heart, Percent,
+  Layers, Package, Star, Factory, Activity, Crown,
+  Filter, RotateCcw, Search, SlidersHorizontal, Check, ExternalLink,
+  Link2, CheckCheck
 } from 'lucide-react';
 import { Product, Category, KitComponent } from '../../types';
 import { Marker } from '../MarkerComponent.tsx';
@@ -22,7 +22,7 @@ import { DocExportButton } from '../DocExportButton';
 export const ProductCard: React.FC<{ 
   product: Product; onSelect: (p: Product) => void; onAddToCart: (e: React.MouseEvent, p: Product) => void; 
 }> = React.memo(({ product, onSelect, onAddToCart }) => {
-  const { formatPrice, t, getLoc } = useLanguage();
+  const { t, getLoc } = useLanguage();
   const { getDiscountedPrice, currentUser } = useUser();
   
   const discountedPrice = getDiscountedPrice(product.price);
@@ -197,17 +197,16 @@ const CategorySpecs: React.FC<{ product: Product }> = ({ product }) => {
 };
 
 export const CatalogSection: React.FC = () => {
-  const { t, formatPrice, getLoc } = useLanguage();
+  const { t, getLoc } = useLanguage();
   const productsContext = useProducts();
 
   // Safe context extraction
   const { 
     filteredProducts = [], categories = [], selectedCategory = 'All' as (Category | 'All'), setSelectedCategory, isLoading = false,
-    searchQuery = '', setSearchQuery, priceRange = [0, 100000], setPriceRange,
-    selectedManufacturers = [], setSelectedManufacturers, selectedSubcategories = [], setSelectedSubcategories,
-    selectedPowerMarkers = [], setSelectedPowerMarkers, showOnlyLeaders = false, setShowOnlyLeaders,
+    searchQuery = '', setSearchQuery, priceRange = [0, 100000],
+    selectedPowerMarkers: _selectedPowerMarkers = [], setSelectedPowerMarkers: _setSelectedPowerMarkers, showOnlyLeaders = false, setShowOnlyLeaders,
     sortBy = 'newest' as SortOption, setSortBy,
-    availableManufacturers = [], availableModels = [], availableSubcategories = [], availablePowerMarkers = [], maxPossiblePrice = 100000, resetFilters,
+    availableManufacturers = [], availableModels = [], availableSubcategories: _availableSubcategories = [], availablePowerMarkers: _availablePowerMarkers = [], maxPossiblePrice = 100000, resetFilters,
     applyFilters,
     filterBrand, setFilterBrand,
     filterModel, setFilterModel,
@@ -324,11 +323,6 @@ export const CatalogSection: React.FC = () => {
     if (filterRatedPwrWp) count++;
     return count;
   }, [searchQuery, priceRange, showOnlyLeaders, maxPossiblePrice, filterBrand, filterModel, filterBattType, filterCapKwh, filterChgPwrKw, filterHpType, filterPhases1, filterRefrType, filterHeatCapKw, filterInvType, filterPhases, filterNumMppts, filterSolarPanelType, filterRatedPwrWp]);
-
-  const toggleArray = (arr: string[], val: string, setter: (v: string[]) => void) => {
-    const currentArr = Array.isArray(arr) ? arr : [];
-    setter(currentArr.includes(val) ? currentArr.filter(x => x !== val) : [...currentArr, val]);
-  };
 
   const currentTotal = useMemo(() => {
     if (!selectedProduct) return 0;
