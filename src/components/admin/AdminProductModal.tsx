@@ -1,16 +1,15 @@
 import React from 'react';
-import {Plus, Edit, Trash2, X, Save, Layers, Search, Settings, Database, Image as ImageIconLucide,
-  FileText, ExternalLink, ListPlus, Minus, Package, ShieldCheck,
+import {Plus, Trash2, X, Save, Layers, Settings, Database, Image as ImageIconLucide,
+  FileText, ExternalLink, Minus, ShieldCheck,
   LayoutGrid,} from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { Marker } from '../MarkerComponent.tsx';
 import { DualPrice } from '../PriceDisplay';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useLanguage, Language } from '../../contexts/LanguageContext';
 import { supabase } from '../../services/supabase';
 import { ProductSpec, ProductDoc, KitComponent, Category } from '../../types';
-import { categoryToTable, emptyLoc, IMAGE_FALLBACK, ModalTab } from './adminTypes';
+import { categoryToTable, emptyLoc, ModalTab } from './adminTypes';
 
 
 interface AdminProductModalProps {
@@ -89,47 +88,47 @@ interface AdminProductModalProps {
   setLocalKitComponentsAdditional,
   selectedImageFiles = [],
   setSelectedImageFiles,
-  allProducts = [],
+  allProducts: _allProducts = [],
   editLang = 'en',
   setEditLang,
-  compSearch,
-  setCompSearch,
-  compCategoryFilter,
-  setCompCategoryFilter,
-  compBrandFilter,
-  setCompBrandFilter,
-  compModelFilter,
-  setCompModelFilter,
-  compBattTypeFilter,
-  setCompBattTypeFilter,
-  compCapKwhFilter,
-  setCompCapKwhFilter,
-  compInvTypeFilter,
-  setCompInvTypeFilter,
-  compPhasesFilter,
-  setCompPhasesFilter,
-  compNumMpptsFilter,
-  setCompNumMpptsFilter,
-  compHpTypeFilter,
-  setCompHpTypeFilter,
-  compPhases1Filter,
-  setCompPhases1Filter,
-  compRefrTypeFilter,
-  setCompRefrTypeFilter,
-  compHeatCapKwFilter,
-  setCompHeatCapKwFilter,
-  compSolarPanelTypeFilter,
-  setCompSolarPanelTypeFilter,
-  compRatedPwrWpFilter,
-  setCompRatedPwrWpFilter,
-  compChgPwrKwFilter,
-  setCompChgPwrKwFilter,
+  compSearch: _compSearch,
+  setCompSearch: _setCompSearch,
+  compCategoryFilter: _compCategoryFilter,
+  setCompCategoryFilter: _setCompCategoryFilter,
+  compBrandFilter: _compBrandFilter,
+  setCompBrandFilter: _setCompBrandFilter,
+  compModelFilter: _compModelFilter,
+  setCompModelFilter: _setCompModelFilter,
+  compBattTypeFilter: _compBattTypeFilter,
+  setCompBattTypeFilter: _setCompBattTypeFilter,
+  compCapKwhFilter: _compCapKwhFilter,
+  setCompCapKwhFilter: _setCompCapKwhFilter,
+  compInvTypeFilter: _compInvTypeFilter,
+  setCompInvTypeFilter: _setCompInvTypeFilter,
+  compPhasesFilter: _compPhasesFilter,
+  setCompPhasesFilter: _setCompPhasesFilter,
+  compNumMpptsFilter: _compNumMpptsFilter,
+  setCompNumMpptsFilter: _setCompNumMpptsFilter,
+  compHpTypeFilter: _compHpTypeFilter,
+  setCompHpTypeFilter: _setCompHpTypeFilter,
+  compPhases1Filter: _compPhases1Filter,
+  setCompPhases1Filter: _setCompPhases1Filter,
+  compRefrTypeFilter: _compRefrTypeFilter,
+  setCompRefrTypeFilter: _setCompRefrTypeFilter,
+  compHeatCapKwFilter: _compHeatCapKwFilter,
+  setCompHeatCapKwFilter: _setCompHeatCapKwFilter,
+  compSolarPanelTypeFilter: _compSolarPanelTypeFilter,
+  setCompSolarPanelTypeFilter: _setCompSolarPanelTypeFilter,
+  compRatedPwrWpFilter: _compRatedPwrWpFilter,
+  setCompRatedPwrWpFilter: _setCompRatedPwrWpFilter,
+  compChgPwrKwFilter: _compChgPwrKwFilter,
+  setCompChgPwrKwFilter: _setCompChgPwrKwFilter,
   onClose,
   onSaved,
 }) => {
   const { addNotification } = useNotification();
-  const { getLoc, t } = useLanguage();
-  const { categories } = useProducts();
+  const { getLoc: _getLoc, t } = useLanguage();
+  const { categories: _categories } = useProducts();
 
 
   // Upload helper

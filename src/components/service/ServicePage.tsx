@@ -4,8 +4,8 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { 
   Wrench, ShieldCheck, Mail, Phone, User, 
-  Building2, ArrowRight, Loader2, Hammer, 
-  Target, Zap, Clock
+  Building2, Loader2,
+  Target, Zap
 } from 'lucide-react';
 
 export const ServicePage: React.FC = () => {

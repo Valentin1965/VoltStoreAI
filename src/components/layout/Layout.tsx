@@ -1,13 +1,12 @@
 
 import React, { useState } from 'react';
 import { 
-  ShoppingCart, LayoutGrid, Calculator, Heart, User, Search, Wrench, 
-  X, Info, Phone, Mail, Menu, MapPin, Globe, Lock, ShieldCheck,
-  ShieldAlert, TrendingUp, ScrollText, ChevronRight, Gavel, FileText, ChevronLeft
+  ShoppingCart, LayoutGrid, Calculator, Heart, User, Wrench, 
+  X, Info, Phone, Mail, Menu, MapPin, Globe, ShieldCheck,
+  ShieldAlert, ScrollText, ChevronRight, Gavel, FileText, ChevronLeft
 } from 'lucide-react';
 import { AppView } from '../../types';
 import { useCart } from '../../contexts/CartContext';
-import { useProducts } from '../../contexts/ProductsContext';
 import { useLanguage, Language, CurrencyCode } from '../../contexts/LanguageContext';
 
 interface LayoutProps {
@@ -35,7 +34,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
   const { 
     t, language, setLanguage, 
     currency, setCurrency, 
-    rates
+    rates: _rates
   } = useLanguage();
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
