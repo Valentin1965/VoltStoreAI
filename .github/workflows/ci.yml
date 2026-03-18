@@ -39,8 +39,11 @@ jobs:
       - name: Typecheck (full app report)
         run: npm run typecheck:app
 
+      - name: Format check (Prettier)
+        run: npm run format:ci
+
       - name: Lint
-        run: npm run lint
+        run: npm run lint:ci
 
       - name: Build project
         run: npm run build
