@@ -7,11 +7,11 @@ import { useWishlist } from '../../contexts/WishlistContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { 
   Zap, X, Info, ShoppingBag, ShieldCheck, 
-  FileText, Download, Activity, PlayCircle, ExternalLink, Crown,
-  Cpu, Battery, Sun, Layers, ThermometerSun, Hammer, Award, Target, Globe, Heart, ArrowRight,
+  FileText, Download, Activity, PlayCircle, ExternalLink,
+  Cpu, Battery, Sun, Layers, ThermometerSun, Hammer, Globe, Heart, ArrowRight,
   CheckCircle2, Star, Package
 } from 'lucide-react';
-import { AppView, Product, KitComponent, Category } from '../../types';
+import { AppView, Product, KitComponent } from '../../types';
 import { ProductCard } from '../catalog/CatalogSection';
 
 interface AboutPageProps {
@@ -20,7 +20,6 @@ interface AboutPageProps {
 
 const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?q=80&w=600&auto=format&fit=crop';
 const HERO_FULLSCREEN = 'https://images.unsplash.com/photo-1542332213-31f87348057f?q=90&w=2560&auto=format&fit=crop';
-const ABOUT_BG = 'https://images.unsplash.com/photo-1497435334941-8c899ee9e8e9?q=80&w=1500&auto=format&fit=crop';
 
 const getYoutubeEmbedUrl = (url?: string) => {
   if (!url) return null;
@@ -49,7 +48,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
   const safeParse = (input: any) => {
     if (!input) return [];
     if (Array.isArray(input)) return input;
-    try { return typeof input === 'string' ? JSON.parse(input) : input; } catch (e) { return []; }
+    try { return typeof input === 'string' ? JSON.parse(input) : input; } catch { return []; }
   };
 
   const currentTotal = useMemo(() => {

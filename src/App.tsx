@@ -38,7 +38,7 @@ try {
   if (GA_MEASUREMENT_ID && !GA_MEASUREMENT_ID.includes('YOUR_ID')) {
     ReactGA.initialize(GA_MEASUREMENT_ID);
   }
-} catch (e) {
+} catch {
   console.warn('[GA] Initialization skipped or failed');
 }
 

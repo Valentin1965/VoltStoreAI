@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FileText, Download, Mail, MessageCircle, X, Loader2, ChevronDown } from 'lucide-react';
+import { FileText, Download, Mail, MessageCircle, Loader2, ChevronDown } from 'lucide-react';
 import {
   exportProductDocx, exportKitDocx, exportCartDocx,
   ProductExportData, KitExportData, CartExportItem
