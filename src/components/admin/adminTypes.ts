@@ -19,6 +19,7 @@ export const ORDER_STATUSES = [
   { key: 'in_progress',        label: 'I arbejde',          color: 'bg-amber-50 border-amber-200 text-amber-700',    dot: 'bg-amber-500' },
   { key: 'awaiting_transport', label: 'Afventer transport', color: 'bg-purple-50 border-purple-200 text-purple-700', dot: 'bg-purple-500' },
   { key: 'in_transit',         label: 'I transit',          color: 'bg-emerald-50 border-emerald-200 text-emerald-700', dot: 'bg-emerald-500' },
+  { key: 'cancelled',          label: 'Annulleret',         color: 'bg-rose-50 border-rose-200 text-rose-700',        dot: 'bg-rose-500' },
 ] as const;
 
 export type AdminTab = 'dashboard' | 'orders' | 'kits' | 'products' | 'clients' | 'bookings';

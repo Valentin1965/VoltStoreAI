@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Package, Download, Mail, Phone, MapPin, Truck, Users, MessageSquare,
-  Building2, Activity, Save, Loader2 } from 'lucide-react';
+  Building2, Activity, Save, Loader2, Trash2 } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   AlignmentType, BorderStyle, WidthType, ShadingType, HeadingLevel, VerticalAlign } from 'docx';
 import { saveAs } from 'file-saver';
@@ -38,15 +38,18 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
   const saveStatus = async () => {
     setIsSaving(true);
     try {
-      const adminKey = import.meta.env.VITE_ADMIN_PASSWORD;
-      const { error } = await supabase.rpc('admin_update_order_status', {
-        p_key:           adminKey,
-        p_order_id:      o.id,
-        p_status:        statusEdit.status,
-        p_shipping_date: statusEdit.shipping_date || null,
-        p_arrival_date:  statusEdit.arrival_date  || null,
-      });
-      if (error) { addNotification(`Fejl: ${error.message}`, 'error'); return; }
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          order_status: statusEdit.status,
+          shipping_date: statusEdit.shipping_date || null,
+          arrival_date: statusEdit.arrival_date || null,
+        })
+        .eq('id', o.id);
+      if (error) {
+        addNotification(`Fejl: ${error.message}`, 'error');
+        return;
+      }
       onUpdated({ ...o,
         order_status:  statusEdit.status,
         shipping_date: statusEdit.shipping_date || o.shipping_date,
@@ -82,6 +85,58 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
       }
 
       addNotification('Status updated ✓', 'success');
+    } finally { setIsSaving(false); }
+  };
+
+  const cancelOrder = async () => {
+    if (statusEdit.status === 'cancelled') return;
+    const ok = window.confirm(t('admin_order_cancel_confirm'));
+    if (!ok) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          order_status: 'cancelled',
+          shipping_date: null,
+          arrival_date: null,
+        })
+        .eq('id', o.id);
+      if (error) {
+        addNotification(`Fejl: ${error.message}`, 'error');
+        return;
+      }
+
+      setStatusEdit(prev => ({ ...prev, status: 'cancelled' }));
+      onUpdated({ ...o, order_status: 'cancelled' });
+
+      await sendStatusChangeEmail({
+        customerName:  `${o.first_name || ''} ${o.last_name || ''}`.trim() || o.customer_name || '',
+        customerEmail: o.customer_email,
+        orderNo,
+        newStatus:     'cancelled' as OrderStatus,
+        lang:          o.lang || 'da',
+      });
+
+      if (o.client_id) {
+        try {
+          await fetch('https://xvduslroirsujnglcnos.supabase.co/functions/v1/send-push', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2ZHVzbHJvaXJzdWpuZ2xjbm9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg3ODQzMDQsImV4cCI6MjA4NDM2MDMwNH0.MpS-NS6Blgpu4o3QxoSUGhn-cs5HJhWcqMf2XxtnsMY`,
+            },
+            body: JSON.stringify({
+              type:      'status_update',
+              clientId:  o.client_id,
+              orderNo,
+              newStatus: 'cancelled',
+            }),
+          });
+        } catch { /* push not critical */ }
+      }
+
+      addNotification(t('admin_order_cancelled_toast'), 'success');
     } finally { setIsSaving(false); }
   };
 
@@ -171,6 +226,14 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={cancelOrder}
+              disabled={isSaving || statusEdit.status === 'cancelled'}
+              className="flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg disabled:opacity-40 disabled:pointer-events-none"
+              title={t('admin_order_cancel_button')}
+            >
+              <Trash2 size={14} /> {t('admin_order_cancel_button')}
+            </button>
             <button onClick={exportWord}
               className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg">
               <Download size={14} /> Word
@@ -263,7 +326,7 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
                   onClick={() => setStatusEdit(prev => ({ ...prev, status: s.key }))}
                   className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 text-left transition-all ${statusEdit.status === s.key ? s.color + ' border-current font-black' : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'}`}>
                   <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusEdit.status === s.key ? s.dot : 'bg-slate-200'}`} />
-                  <span className="text-[10px] font-bold uppercase tracking-wider leading-tight">{({accepted: t('admin_status_accepted'), in_progress: t('admin_status_in_progress'), awaiting_transport: t('admin_status_awaiting'), in_transit: t('admin_status_in_transit')} as Record<string,string>)[s.key] || s.label}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider leading-tight">{({accepted: t('admin_status_accepted'), in_progress: t('admin_status_in_progress'), awaiting_transport: t('admin_status_awaiting'), in_transit: t('admin_status_in_transit'), cancelled: t('admin_status_cancelled')} as Record<string,string>)[s.key] || s.label}</span>
                 </button>
               ))}
             </div>

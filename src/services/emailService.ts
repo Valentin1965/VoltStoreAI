@@ -67,7 +67,7 @@ export async function sendOrderEmails(data: OrderEmailData): Promise<void> {
 // STATUS CHANGE EMAIL
 // ─────────────────────────────────────────────
 
-export type OrderStatus = 'accepted' | 'in_progress' | 'awaiting_transport' | 'in_transit';
+export type OrderStatus = 'accepted' | 'in_progress' | 'awaiting_transport' | 'in_transit' | 'cancelled';
 
 export interface StatusChangeEmailData {
   customerName: string;

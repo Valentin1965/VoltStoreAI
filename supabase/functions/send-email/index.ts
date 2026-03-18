@@ -5,9 +5,17 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
-const COMPANY_EMAIL  = 'sales@glsolargroup.dk';
+// Business rules:
+// - General inquiries: info@
+// - Cart/orders: sales@
+const SALES_EMAIL    = 'sales@glsolargroup.dk';
+const INFO_EMAIL     = 'info@glsolargroup.dk';
 const COMPANY_NAME   = 'Green Light Scandinavia';
-const FROM           = `${COMPANY_NAME} <noreply@glsolargroup.dk>`;
+// Resend blocks unverified sender domains. Configure RESEND_FROM after verifying domain in Resend.
+// Fallback to a Resend-provided sender so the function still works in the meantime.
+const FROM           = Deno.env.get('RESEND_FROM') ?? `${COMPANY_NAME} <onboarding@resend.dev>`;
+// Optional global override (kept for backwards compatibility). For per-email reply-to we set it below.
+const DEFAULT_REPLY_TO = Deno.env.get('RESEND_REPLY_TO') ?? '';
 
 const ALLOWED_ORIGINS = ['https://glsolargroup.dk', 'https://www.glsolargroup.dk'];
 
@@ -118,7 +126,7 @@ function getLang(raw: unknown): Lang {
 
 // ── Status metadata ───────────────────────────────────────────────────────────
 
-type SK = 'accepted' | 'in_progress' | 'awaiting_transport' | 'in_transit';
+type SK = 'accepted' | 'in_progress' | 'awaiting_transport' | 'in_transit' | 'cancelled';
 
 const SM: Record<SK, { icon: string; color: string; bg: string; label: Record<Lang,string>; msg: Record<Lang,string> }> = {
   accepted: {
@@ -152,6 +160,16 @@ const SM: Record<SK, { icon: string; color: string; bg: string; label: Record<La
              en:'Your order has been shipped and is on its way to the delivery address.',
              no:'Din ordre er sendt og er nå på vei til leveringsadressen.',
              se:'Din order har skickats och är nu på väg till leveransadressen.' },
+  },
+  cancelled: {
+    icon:'❌', color:'#e11d48', bg:'#fff1f2',
+    label: { da:'Ordre annulleret', en:'Order cancelled', no:'Ordre kansellert', se:'Order annullerad' },
+    msg:   {
+      da:'Din ordre er blevet annulleret. Hvis dette er en fejl, så kontakt os — vi hjælper gerne.',
+      en:'Your order has been cancelled. If this is a mistake, please contact us — we will help.',
+      no:'Din ordre er kansellert. Hvis dette er en feil, kontakt oss — vi hjelper gjerne.',
+      se:'Din order har annullerats. Om detta är ett misstag, kontakta oss — vi hjälper gärna.',
+    },
   },
 };
 
@@ -237,7 +255,7 @@ function buildStatusHTML(data: any): string {
   const lang = getLang(data.lang);
   const sk   = (data.newStatus ?? 'accepted') as SK;
   const meta = SM[sk] ?? SM.accepted;
-  const steps: SK[] = ['accepted','in_progress','awaiting_transport','in_transit'];
+  const steps: SK[] = ['accepted','in_progress','awaiting_transport','in_transit','cancelled'];
   const idx  = steps.indexOf(sk);
 
   const dateBlock = (data.shippingDate||data.arrivalDate) ? `
@@ -302,28 +320,42 @@ serve(async (req: Request) => {
     const { type, ...data } = body;
     const lang = getLang(data.lang);
 
-    const send = async (to: string, subject: string, html: string) => {
+    const send = async (to: string, subject: string, html: string, replyTo?: string) => {
       const r = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${RESEND_API_KEY}` },
-        body: JSON.stringify({ from: FROM, to, subject, html }),
+        body: JSON.stringify({
+          from: FROM,
+          to,
+          subject,
+          html,
+          ...(replyTo ? { reply_to: replyTo } : (DEFAULT_REPLY_TO ? { reply_to: DEFAULT_REPLY_TO } : {})),
+        }),
       });
       if (!r.ok) throw new Error(`Resend ${r.status}: ${await r.text()}`);
     };
 
     if (type === 'order') {
       await Promise.all([
-        send(COMPANY_EMAIL,      `Ny ordre #${data.orderNo} — ${data.customerName}`,
-             buildOrderHTML(data, true)),
+        // Admin notification about new order → SALES
+        send(
+          SALES_EMAIL,
+          `Ny ordre #${data.orderNo} — ${data.customerName}`,
+          buildOrderHTML(data, true),
+          SALES_EMAIL,
+        ),
+        // Customer confirmation → reply to SALES (cart/orders flow)
         send(data.customerEmail, tr('subj_order', lang, { no: data.orderNo, co: COMPANY_NAME }),
-             buildOrderHTML(data, false)),
+             buildOrderHTML(data, false),
+             SALES_EMAIL),
       ]);
     } else if (type === 'status') {
       const meta = SM[(data.newStatus??'accepted') as SK] ?? SM.accepted;
       await send(
         data.customerEmail,
         `${meta.icon} ${tr('label_order',lang)} #${data.orderNo} — ${meta.label[lang]}`,
-        buildStatusHTML(data)
+        buildStatusHTML(data),
+        SALES_EMAIL
       );
     } else {
       return new Response(JSON.stringify({ error: `Unknown type: ${type}` }),

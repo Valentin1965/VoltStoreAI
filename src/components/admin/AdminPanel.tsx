@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   Plus, Edit, Trash2, Crown, RefreshCcw, LogOut,
   Package, TrendingUp, Layers, Search,
@@ -187,37 +187,50 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
     if (activeTab === 'clients' || activeTab === 'dashboard')  fetchDbClients();
   }, [activeTab, isMounted, fetchOrders, fetchDbClients, fetchBookings]);
 
-  // ── Supabase Realtime — new orders ────────────────────────────────────
+  // ── New orders badge (polling, no WebSocket) ─────────────────────────
   const [newOrdersCount, setNewOrdersCount] = useState(0);
+  const lastSeenOrderIdRef = useRef<string | number | null>(null);
+  const activeTabRef = useRef(activeTab);
+
+  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
 
   useEffect(() => {
-    // Subscribe globally (not only when orders tab is open) so the badge
-    // appears on all tabs when a new order arrives
-    const channel = supabase
-      .channel('admin-orders-realtime')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'orders' },
-        (payload) => {
-          const newOrder = payload.new as Order;
-          setOrders(prev => {
-            // Only prepend if not already in list
-            if (prev.find(o => o.id === newOrder.id)) return prev;
-            return [newOrder, ...prev];
-          });
-          if (activeTab !== 'orders') {
-            setNewOrdersCount(c => c + 1);
-          }
-          addNotification(
-            `🛍 Ny ordre — ${(newOrder as any).customer_name || newOrder.customer_email}`,
-            'success'
-          );
-        }
-      )
-      .subscribe();
+    if (!isMounted) return;
+    let cancelled = false;
 
-    return () => { supabase.removeChannel(channel); };
-  }, [addNotification, activeTab]);
+    const tick = async () => {
+      try {
+        const adminKey = import.meta.env.VITE_ADMIN_PASSWORD;
+        const { data, error } = await supabase.rpc('admin_get_orders', { p_key: adminKey });
+        if (error) throw error;
+        if (cancelled) return;
+
+        const list = Array.isArray(data) ? (data as any[]) : [];
+        if (list.length > 0) {
+          const topId = list[0]?.id ?? null;
+          const lastSeen = lastSeenOrderIdRef.current;
+          if (lastSeen != null && activeTabRef.current !== 'orders') {
+            const idx = list.findIndex(o => o?.id === lastSeen);
+            const delta = idx === -1 ? list.length : idx;
+            if (delta > 0) setNewOrdersCount(c => c + delta);
+          }
+          lastSeenOrderIdRef.current = topId;
+        }
+
+        setOrders(list as any);
+      } catch {
+        // Silent: polling is best-effort; avoid noisy console/errors for end users
+      }
+    };
+
+    // Prime immediately, then poll
+    tick();
+    const id = window.setInterval(tick, 45_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [isMounted]);
 
   // ── CSV export ────────────────────────────────────────────────────────
   const exportOrdersCSV = useCallback(() => {
@@ -592,7 +605,13 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                           <span className={`status-badge ${order.status === 'paid' ? 'status-paid' : 'status-pending'}`}>{order.status}</span>
                           {(order as any).order_status && (order as any).order_status !== 'accepted' && (
                             <div className="mt-1 text-[8px] font-black uppercase text-slate-400">
-                              {(order as any).order_status === 'in_progress' ? 'I arbejde' : (order as any).order_status === 'awaiting_transport' ? 'Afventer' : 'I transit'}
+                              {(order as any).order_status === 'in_progress'
+                                ? 'I arbejde'
+                                : (order as any).order_status === 'awaiting_transport'
+                                  ? 'Afventer'
+                                  : (order as any).order_status === 'cancelled'
+                                    ? 'Annulleret'
+                                    : 'I transit'}
                             </div>
                           )}
                         </td>
@@ -602,9 +621,20 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                       </tr>
                     ))
                   )}
-                  {(activeTab === 'products' ? filteredAdminProducts : filteredAdminProducts.filter(p => p.category === 'Sæt')).map(p => (
-                    <ProductRow key={p.id} product={p} onEdit={handleOpenModal} onDelete={handleDelete} formatPrice={formatPrice} getLoc={getLoc} />
-                  ))}
+                  {(activeTab === 'products' || activeTab === 'kits') &&
+                    (activeTab === 'products'
+                      ? filteredAdminProducts
+                      : filteredAdminProducts.filter(p => p.category === 'Sæt')
+                    ).map(p => (
+                      <ProductRow
+                        key={p.id}
+                        product={p}
+                        onEdit={handleOpenModal}
+                        onDelete={handleDelete}
+                        formatPrice={formatPrice}
+                        getLoc={getLoc}
+                      />
+                    ))}
                 </tbody>
               </table>
             )}
