@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {Plus, Trash2, X, Save, Layers, Settings, Database, Image as ImageIconLucide,
   FileText, ExternalLink, Minus, ShieldCheck,
   LayoutGrid,} from 'lucide-react';
@@ -130,6 +130,32 @@ interface AdminProductModalProps {
   const { getLoc: _getLoc, t } = useLanguage();
   const { categories: _categories } = useProducts();
 
+  const [mainImageFile, setMainImageFile] = useState<File | null>(null);
+
+  const mergeFiles = (prev: File[], next: File[]) => {
+    const key = (f: File) => `${f.name}__${f.size}__${f.lastModified}`;
+    const seen = new Set(prev.map(key));
+    const merged = [...prev];
+    for (const f of next) {
+      const k = key(f);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      merged.push(f);
+    }
+    return merged;
+  };
+
+  const mainImagePreviewUrl = useMemo(() => {
+    if (!mainImageFile) return null;
+    const url = URL.createObjectURL(mainImageFile);
+    return url;
+  }, [mainImageFile]);
+
+  const galleryPreviewUrls = useMemo(() => {
+    if (!selectedImageFiles.length) return [];
+    return selectedImageFiles.map(f => URL.createObjectURL(f));
+  }, [selectedImageFiles]);
+
 
   // Upload helper
   const uploadFileToSupabase = async (file: File, folder: string): Promise<string | null> => {
@@ -158,15 +184,30 @@ interface AdminProductModalProps {
     const category = formData.category;
     const targetTable = categoryToTable[category] || 'products';
 
+    const existingImageUrls = localImages.filter(u => u && u.trim() !== '');
+    const uploadQueue: File[] = [
+      ...(mainImageFile ? [mainImageFile] : []),
+      ...selectedImageFiles,
+    ];
+
+    const uploadedUrls =
+      uploadQueue.length > 0
+        ? ((await Promise.all(uploadQueue.map(f => uploadFileToSupabase(f, 'images')))).filter(Boolean) as string[])
+        : [];
+
+    const uploadedMainUrl = mainImageFile ? uploadedUrls[0] : null;
+    const uploadedGalleryUrls = mainImageFile ? uploadedUrls.slice(1) : uploadedUrls;
+
+    // Merge: keep existing URLs, append newly uploaded ones.
+    // If a new main image was uploaded, it becomes first.
     let finalImageUrls: string[] = [];
-    if (selectedImageFiles.length > 0) {
-      const uploads = await Promise.all(
-        selectedImageFiles.map((f) => uploadFileToSupabase(f, 'images')),
-      );
-      finalImageUrls = uploads.filter(Boolean) as string[];
+    if (uploadedMainUrl) {
+      finalImageUrls = [uploadedMainUrl, ...existingImageUrls, ...uploadedGalleryUrls];
     } else {
-      finalImageUrls = localImages.filter((u) => u && u.trim() !== '');
+      finalImageUrls = [...existingImageUrls, ...uploadedGalleryUrls];
     }
+    // De-dupe (just in case)
+    finalImageUrls = Array.from(new Set(finalImageUrls));
 
     let finalDocObjects: ProductDoc[] = [];
     for (const doc of localDocs) {
@@ -355,6 +396,8 @@ interface AdminProductModalProps {
 
     payload.name = fixUndefinedLocKey(formData.name) || { en: formData.ModelName || '' };
     payload.description = fixUndefinedLocKey(formData.description) || emptyLoc();
+    // Some tables store `images` as text (JSON string) and some as json/jsonb arrays.
+    // We'll try array first, and if DB rejects it we retry with JSON string.
     payload.image = finalImageUrls[0] || null;
     payload.images = finalImageUrls;
     payload.docs = finalDocObjects;
@@ -383,16 +426,23 @@ interface AdminProductModalProps {
           ? formData.total_price
           : autoTotal;
     }
-    try {
+    const persist = async (p: any) => {
       if (editingProduct) {
         const rawId = editingProduct.realId || editingProduct.id;
         const realId =
           typeof rawId === 'string' && rawId.includes('-') ? rawId.split('-')[1] : rawId;
-        const { error } = await supabase.from(targetTable).update(payload).eq('id', realId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from(targetTable).insert([payload]);
-        if (error) throw error;
+        return await supabase.from(targetTable).update(p).eq('id', realId);
+      }
+      return await supabase.from(targetTable).insert([p]);
+    };
+
+    try {
+      const { error } = await persist(payload);
+      if (error) {
+        // Retry if `images` column expects a text JSON string
+        const retryPayload = { ...payload, images: JSON.stringify(finalImageUrls) };
+        const { error: retryError } = await persist(retryPayload);
+        if (retryError) throw retryError;
       }
       addNotification('Registry Updated', 'success');
       onClose();
@@ -545,17 +595,17 @@ interface AdminProductModalProps {
                               <input
                                 type="file"
                                 accept="image/*"
-                                onChange={e => setSelectedImageFiles(e.target.files ? [e.target.files[0]] : [])}
+                                onChange={e => setMainImageFile(e.target.files?.[0] || null)}
                                 className="input-premium file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                               />
-                              {selectedImageFiles[0] && (
+                              {mainImagePreviewUrl && (
                                 <img
-                                  src={URL.createObjectURL(selectedImageFiles[0])}
+                                  src={mainImagePreviewUrl}
                                   alt="Preview"
                                   className="mt-2 w-24 h-24 object-cover rounded-xl"
                                 />
                               )}
-                              {formData.image && !selectedImageFiles[0] && (
+                              {formData.image && !mainImagePreviewUrl && (
                                 <img src={formData.image} alt="Current" className="mt-2 w-24 h-24 object-cover rounded-xl" />
                               )}
                             </div>
@@ -565,18 +615,17 @@ interface AdminProductModalProps {
                                 type="file"
                                 accept="image/*"
                                 multiple
-                                onChange={e => setSelectedImageFiles(Array.from(e.target.files || []))}
+                                onChange={e => setSelectedImageFiles(prev => mergeFiles(prev, Array.from(e.target.files || [])))}
                                 className="input-premium file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                               />
                               <div className="mt-2 flex flex-wrap gap-2">
-                                {selectedImageFiles.map((file, i) => (
-                                  <img key={i} src={URL.createObjectURL(file)} alt="Preview" className="w-16 h-16 object-cover rounded-xl" />
-                                ))}
-                                {formData.images &&
-                                  !selectedImageFiles.length &&
+                                {Array.isArray(formData.images) &&
                                   formData.images.map((img: string, i: number) => (
-                                    <img key={i} src={img} alt="Current" className="w-16 h-16 object-cover rounded-xl" />
+                                    <img key={`current-${i}`} src={img} alt="Current" className="w-16 h-16 object-cover rounded-xl" />
                                   ))}
+                                {galleryPreviewUrls.map((url, i) => (
+                                  <img key={`new-${i}`} src={url} alt="Preview" className="w-16 h-16 object-cover rounded-xl" />
+                                ))}
                               </div>
                             </div>
                           </div>
@@ -676,8 +725,35 @@ interface AdminProductModalProps {
             {modalTab === 'media' && (
               <div className="space-y-10 animate-fade-in">
                 <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner space-y-6">
-                  <h4 className="text-xs md:text-[10px] font-black uppercase text-slate-400 tracking-widest px-2">Image Gallery (URLs)</h4>
+                  <h4 className="text-xs md:text-[10px] font-black uppercase text-slate-400 tracking-widest px-2">
+                    Image Gallery (URLs / Upload)
+                  </h4>
                   <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">
+                        Upload images (files)
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={e => setSelectedImageFiles(prev => mergeFiles(prev, Array.from(e.target.files || [])))}
+                        className="input-premium file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      {selectedImageFiles.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {galleryPreviewUrls.map((url, i) => (
+                            <img
+                              key={i}
+                              src={url}
+                              alt={`Preview ${i + 1}`}
+                              className="w-16 h-16 object-cover rounded-xl"
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     {localImages.map((url, idx) => (
                       <div key={idx} className="flex gap-4 group">
                         <div className="flex-1 relative">

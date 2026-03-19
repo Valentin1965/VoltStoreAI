@@ -753,16 +753,31 @@ export const CatalogSection: React.FC = () => {
                       <div className="bg-slate-50 rounded-[3rem] p-12 flex items-center justify-center border border-slate-100 h-[350px] md:h-[450px] shadow-inner relative group overflow-hidden">
                         <img src={selectedProduct.image || IMAGE_FALLBACK} className="max-w-full max-h-full object-contain drop-shadow-2xl transition-transform duration-700 group-hover:scale-110" alt="" />
                       </div>
-                      {selectedProduct.images && selectedProduct.images.length > 0 && (
+                      {(() => {
+                        const raw = (selectedProduct as any).images;
+                        let extra: string[] = [];
+                        if (Array.isArray(raw)) extra = raw;
+                        else if (typeof raw === 'string') {
+                          try {
+                            const parsed = JSON.parse(raw);
+                            if (Array.isArray(parsed)) extra = parsed;
+                          } catch { /* ignore */ }
+                        }
+
+                        const all = [selectedProduct.image, ...extra].filter(Boolean) as string[];
+                        const unique = Array.from(new Set(all));
+                        if (unique.length <= 1) return null;
+                        return (
                         <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar snap-x">
-                          {[selectedProduct.image, ...selectedProduct.images].filter(Boolean).map((img, idx) => (
+                          {unique.map((img, idx) => (
                             <div key={idx} className="w-24 h-24 shrink-0 bg-slate-50 rounded-2xl border border-slate-100 p-2 flex items-center justify-center cursor-pointer hover:border-emerald-400 transition-all snap-start"
                               onClick={() => { const el = document.querySelector('.lg\\:col-span-5 img') as HTMLImageElement; if (el) el.src = img; }}>
                               <img src={img} className="max-w-full max-h-full object-contain" alt="" />
                             </div>
                           ))}
                         </div>
-                      )}
+                        );
+                      })()}
                     </div>
                     {selectedProduct.video_url && (
                       <div className="bg-slate-900 rounded-[2rem] p-6 flex items-center justify-between text-white group cursor-pointer hover:bg-emerald-600 transition-all">
