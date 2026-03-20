@@ -62,7 +62,6 @@ const ProductRow = React.memo(({ product, onEdit, onDelete, formatPrice: _format
 export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
   const [isMounted, setIsMounted]         = useState(false);
   const [activeTab, setActiveTab]         = useState<AdminTab>('dashboard');
-  const [adminBookings, setAdminBookings] = useState<any[]>([]);
   const [modalTab, setModalTab]           = useState<ModalTab>('main');
 
   const { categories, products, fetchProducts } = useProducts();
@@ -175,21 +174,12 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
     }
   }, [addNotification]);
 
-  const fetchBookings = useCallback(async () => {
-    try {
-      const { data, error } = await supabase.from('bookings').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      setAdminBookings(data || []);
-    } catch (e: any) { console.warn('[Admin] bookings fetch:', e.message); }
-  }, []);
-
   useEffect(() => { setIsMounted(true); }, []);
   useEffect(() => {
     if (!isMounted) return;
     if (activeTab === 'dashboard' || activeTab === 'orders') fetchOrders();
-    if (activeTab === 'bookings') fetchBookings();
     if (activeTab === 'clients' || activeTab === 'dashboard')  fetchDbClients();
-  }, [activeTab, isMounted, fetchOrders, fetchDbClients, fetchBookings]);
+  }, [activeTab, isMounted, fetchOrders, fetchDbClients]);
 
   // ── New orders badge (polling, no WebSocket) ─────────────────────────
   const [newOrdersCount, setNewOrdersCount] = useState(0);
@@ -271,19 +261,6 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
     saveAs(blob, `GLS-orders-${new Date().toISOString().slice(0, 10)}.csv`);
     addNotification(`Eksporterede ${filteredOrders.length} ordrer til CSV`, 'success');
   }, [filteredOrders, addNotification, localeStr]);
-
-  const updateBookingStatus = async (id: string, status: string) => {
-    try {
-      const adminKey = import.meta.env.VITE_ADMIN_PASSWORD;
-      const { error } = await supabase.rpc('admin_update_booking', {
-        p_key: adminKey, p_booking_id: id, p_status: status,
-      });
-      if (error) throw error;
-      setAdminBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
-    } catch (err: any) {
-      addNotification(`Booking update failed: ${err.message}`, 'error');
-    }
-  };
 
   const openClientHistory = useCallback(async (client: any) => {
     setSelectedClient(client);
@@ -371,7 +348,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 bg-white/5 p-2 rounded-[2rem]">
-          {(['dashboard', 'products', 'orders', 'bookings', 'kits', 'clients', 'calculator'] as const).map(tab => (
+          {(['dashboard', 'products', 'orders', 'kits', 'clients', 'calculator'] as const).map(tab => (
             <button key={tab} onClick={() => { setActiveTab(tab); if (tab === 'orders') setNewOrdersCount(0); }}
               className={`relative px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-400 hover:text-white'}`}>
               {tab === 'calculator' ? (
@@ -477,64 +454,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
           )}
         </div>
 
-        {/* ── Bookings tab ─────────────────────────────────────────── */}
-        {activeTab === 'bookings' && (
-          <div className="p-6 space-y-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{adminBookings.length} bookings total</span>
-              <button onClick={fetchBookings} className="text-[10px] font-black text-emerald-600 uppercase flex items-center gap-2"><RefreshCcw size={13} /> Refresh</button>
-            </div>
-            {adminBookings.length === 0 ? (
-              <p className="text-center py-12 text-slate-300 text-[10px] font-black uppercase">{t('admin_no_bookings')}</p>
-            ) : (
-              <div className="space-y-3">
-                {adminBookings.map((b: any) => {
-                  const isActive = b.status === 'pending' || b.status === 'confirmed';
-                  const expired  = new Date(b.expires_at) < new Date();
-                  const statusColors: Record<string, string> = { pending: 'bg-amber-50 text-amber-600 border-amber-200', confirmed: 'bg-emerald-50 text-emerald-600 border-emerald-200', expired: 'bg-slate-100 text-slate-400 border-slate-200', cancelled: 'bg-rose-50 text-rose-400 border-rose-100', converted: 'bg-blue-50 text-blue-500 border-blue-100' };
-                  return (
-                    <div key={b.id} className={`flex flex-col sm:flex-row items-start sm:items-center gap-4 p-5 rounded-2xl border ${isActive && !expired ? 'bg-white border-slate-100' : 'bg-slate-50 border-slate-50 opacity-70'}`}>
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <img src={b.product_image || 'https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?q=80&w=200'} alt="" className="w-12 h-12 rounded-xl object-contain bg-white border border-slate-100 p-1 shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-black text-slate-900 uppercase truncate">{b.product_name}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <a href={`mailto:${b.customer_email}`} className="text-[9px] font-black text-emerald-600 hover:text-emerald-800 underline underline-offset-2 transition-colors">{b.customer_email}</a>
-                            {b.customer_name && <span className="text-[9px] text-slate-400 font-bold">· {b.customer_name}</span>}
-                          </div>
-                          <button onClick={() => { const u = dbClients.find((c: any) => c.email?.toLowerCase() === b.customer_email?.toLowerCase()); if (u) setInspectUser(u); else addNotification(t('admin_no_profile'), 'info'); }}
-                            className="mt-1 text-[8px] font-black text-slate-300 hover:text-emerald-600 uppercase tracking-widest transition-colors flex items-center gap-1">
-                            <UserCheck size={10} /> View Client Profile
-                          </button>
-                          <p className="text-[9px] text-slate-300 font-bold mt-1">
-                            Booked: {new Date(b.created_at).toLocaleDateString(localeStr)} · Expires: {new Date(b.expires_at).toLocaleDateString(localeStr)}
-                            {expired && isActive && <span className="text-rose-400 ml-1">· EXPIRED</span>}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-[11px] font-black text-slate-700">€{b.product_price?.toLocaleString(localeStr)}</span>
-                        <span className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${statusColors[b.status] || statusColors.pending}`}>{b.status}</span>
-                        {isActive && (
-                          <select value={b.status} onChange={e => updateBookingStatus(b.id, e.target.value)}
-                            className="text-[9px] font-black bg-white border border-slate-200 rounded-xl px-2 py-1.5 focus:outline-none focus:border-emerald-400">
-                            <option value="pending">{t('admin_booking_pending')}</option>
-                            <option value="confirmed">{t('admin_booking_confirmed')}</option>
-                            <option value="cancelled">{t('admin_booking_cancel')}</option>
-                            <option value="expired">{t('admin_booking_expire')}</option>
-                          </select>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* ── Other tabs table ─────────────────────────────────────── */}
-        {activeTab !== 'bookings' && (
           <div className="overflow-x-auto">
             {activeTab === 'clients' ? (
               <table className="w-full text-left">
@@ -690,7 +610,6 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
             </div>
           )}
         </div>
-        )}
       </div>
 
       {/* ── Modals ───────────────────────────────────────────────────── */}
@@ -721,6 +640,12 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
           history={clientHistory}
           isLoading={isLoadingClientHistory}
           onClose={() => { setSelectedClient(null); setClientHistory([]); }}
+          onClientDeleted={(id) => {
+            setDbClients((prev) => prev.filter((c: any) => String(c.id) !== String(id)));
+            setSelectedClient(null);
+            setClientHistory([]);
+            setInspectUser((u) => (u && String(u.id) === String(id) ? null : u));
+          }}
         />
       )}
 
@@ -731,6 +656,12 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
           onDiscountSaved={(id, discount) => {
             setInspectUser((prev: any) => ({ ...prev, discount }));
             setDbClients(prev => prev.map((c: any) => c.id === id ? { ...c, discount } : c));
+          }}
+          onClientDeleted={(id) => {
+            setDbClients((prev) => prev.filter((c: any) => String(c.id) !== String(id)));
+            setInspectUser(null);
+            setSelectedClient((c) => (c && String(c.id) === String(id) ? null : c));
+            setClientHistory([]);
           }}
         />
       )}

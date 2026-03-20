@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { 
-  ShoppingCart, LayoutGrid, Calculator, Heart, User, Wrench, 
+  ShoppingCart, LayoutGrid, Calculator, User, Wrench, 
   X, Info, Phone, Mail, Menu, MapPin, Globe, ShieldCheck,
   ShieldAlert, ScrollText, ChevronRight, Gavel, FileText, ChevronLeft
 } from 'lucide-react';
@@ -45,7 +45,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
     { id: AppView.ABOUT, label: t('nav_about'), icon: Info },
     { id: AppView.CATALOG, label: t('nav_catalog'), icon: LayoutGrid },
     { id: AppView.CALCULATOR, label: t('nav_architect'), icon: Calculator },
-    { id: AppView.WISHLIST, label: t('nav_wishlist'), icon: Heart },
     { id: AppView.SERVICE, label: t('nav_service'), icon: Wrench },
   ];
 

@@ -8,7 +8,6 @@ import { ProductsProvider } from './contexts/ProductsContext';
 import { safeStorage } from './utils/storage';
 import { CartProvider } from './contexts/CartContext';
 import { NotificationProvider } from './contexts/NotificationContext';
-import { WishlistProvider } from './contexts/WishlistContext';
 import { CompareProvider } from './contexts/CompareContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { UserProvider } from './contexts/UserContext';
@@ -22,7 +21,6 @@ const AdminPanel = lazy(() => import('./components/admin/AdminPanel').then(m => 
 const AdminPasswordPrompt = lazy(() => import('./components/admin/AdminPasswordPrompt').then(m => ({ default: m.AdminPasswordPrompt })));
 const LiveAssistant = lazy(() => import('./components/ai/LiveAssistant').then(m => ({ default: m.LiveAssistant })));
 const Calculator = lazy(() => import('./components/calculator/Calculator').then(m => ({ default: m.Calculator })));
-const WishlistPage = lazy(() => import('./components/wishlist/WishlistPage').then(m => ({ default: m.WishlistPage })));
 const ServicePage = lazy(() => import('./components/service/ServicePage').then(m => ({ default: m.ServicePage })));
 const ClientCabinet = lazy(() => import('./components/cabinet/ClientCabinet').then(m => ({ default: m.ClientCabinet })));
 
@@ -136,7 +134,6 @@ const AppContent: React.FC = () => {
       [AppView.CALCULATOR]: 'calculator',
       [AppView.ABOUT]: 'about',
       [AppView.SERVICE]: 'service',
-      [AppView.WISHLIST]: 'wishlist',
       [AppView.ADMIN]: 'admin',
       [AppView.CABINET]: 'cabinet',
       [AppView.CHECKOUT]: 'checkout',
@@ -181,7 +178,7 @@ const AppContent: React.FC = () => {
           calculator: AppView.CALCULATOR,
           about: AppView.ABOUT,
           service: AppView.SERVICE,
-          wishlist: AppView.WISHLIST,
+          wishlist: AppView.CATALOG,
           admin: AppView.ADMIN,
           cabinet: AppView.CABINET,
           checkout: AppView.CHECKOUT,
@@ -202,7 +199,7 @@ const AppContent: React.FC = () => {
         calculator: AppView.CALCULATOR,
         about: AppView.ABOUT,
         service: AppView.SERVICE,
-        wishlist: AppView.WISHLIST,
+        wishlist: AppView.CATALOG,
         admin: AppView.ADMIN,
         cabinet: AppView.CABINET,
         checkout: AppView.CHECKOUT,
@@ -210,6 +207,12 @@ const AppContent: React.FC = () => {
       };
       const v = viewMap[viewParam] ?? AppView.ABOUT;
       setCurrentView(v);
+      if (viewParam === 'wishlist') {
+        const p = new URLSearchParams(window.location.search);
+        p.set('view', 'catalog');
+        const qs = p.toString();
+        window.history.replaceState({}, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+      }
     };
     window.addEventListener('changeView', handleViewChange);
     window.addEventListener('popstate', handlePopState);
@@ -265,12 +268,6 @@ const AppContent: React.FC = () => {
             <Calculator />
           </Suspense>
         );
-      case AppView.WISHLIST:
-        return (
-          <Suspense fallback={<PageLoader />}>
-            <WishlistPage />
-          </Suspense>
-        );
       case AppView.SERVICE:
         return (
           <Suspense fallback={<PageLoader />}>
@@ -324,11 +321,9 @@ const App: React.FC = () => {
           <UserProvider>
             <ProductsProvider>
               <CartProvider>
-                <WishlistProvider>
-                  <CompareProvider>
-                    <AppContent />
-                  </CompareProvider>
-                </WishlistProvider>
+                <CompareProvider>
+                  <AppContent />
+                </CompareProvider>
               </CartProvider>
             </ProductsProvider>
           </UserProvider>

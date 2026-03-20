@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useProducts, SortOption } from '../../contexts/ProductsContext';
 import { useCart } from '../../contexts/CartContext';
-import { useWishlist } from '../../contexts/WishlistContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useUser } from '../../contexts/UserContext';
@@ -19,7 +18,7 @@ import { Marker } from '../MarkerComponent.tsx';
 import { DualPrice } from '../PriceDisplay';
 import { DocExportButton } from '../DocExportButton';
 
-/** Рядок «Мій вибір» у каталозі (локально, не booking) */
+/** Рядок «Мій вибір» у каталозі (локальний список перед кошиком) */
 export type CatalogSelectionLine = {
   key: string;
   product: Product;
@@ -28,16 +27,14 @@ export type CatalogSelectionLine = {
   parts?: KitPart[];
 };
 
-/** Картка як у секції Booking / Wishlist: квадратне фото, heart, категорія + назва, низ — ціна + дії */
+/** Картка каталогу: квадратне фото, категорія + назва, низ — ціна + дії */
 export const ProductCard: React.FC<{
   product: Product;
   onSelect: (p: Product) => void;
   /** Якщо задано — нижня кнопка «Додати до списку» замість кошика */
   onAddToList?: (e: React.MouseEvent, p: Product) => void;
   onAddToCart?: (e: React.MouseEvent, p: Product) => void;
-  isBooked: boolean;
-  onBookClick: (e: React.MouseEvent, p: Product) => void;
-}> = React.memo(({ product, onSelect, onAddToList, onAddToCart, isBooked, onBookClick }) => {
+}> = React.memo(({ product, onSelect, onAddToList, onAddToCart }) => {
   const { t, getLoc } = useLanguage();
   const { getDiscountedPrice, currentUser } = useUser();
 
@@ -46,9 +43,7 @@ export const ProductCard: React.FC<{
 
   return (
     <div
-      className={`group bg-white border-2 rounded-3xl p-4 hover:shadow-lg transition-all flex flex-col h-full notranslate cursor-pointer ${
-        isBooked ? 'border-rose-200 bg-rose-50' : 'border-slate-100 hover:border-emerald-300'
-      }`}
+      className="group bg-white border-2 border-slate-100 hover:border-emerald-300 rounded-3xl p-4 hover:shadow-lg transition-all flex flex-col h-full notranslate cursor-pointer"
       translate="no"
       onClick={() => onSelect(product)}
     >
@@ -58,15 +53,6 @@ export const ProductCard: React.FC<{
           alt=""
           className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500"
         />
-        <button
-          type="button"
-          onClick={(e) => onBookClick(e, product)}
-          className={`absolute top-2 right-2 p-2 rounded-xl shadow transition-all ${
-            isBooked ? 'bg-rose-500 text-white' : 'bg-white text-slate-300 hover:text-rose-500'
-          }`}
-        >
-          <Heart size={14} fill={isBooked ? 'white' : 'none'} />
-        </button>
       </div>
       <div className="flex-1 min-w-0 text-left">
         <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest mb-1">{t(`cat_${product.category}`)}</p>
@@ -106,19 +92,7 @@ export const ProductCard: React.FC<{
         )}
       </div>
       <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-2">
-          <DualPrice priceExVat={discountedPrice} />
-          <button
-            type="button"
-            onClick={(e) => onBookClick(e, product)}
-            className={`text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl transition-all flex items-center gap-1 whitespace-nowrap shrink-0 ${
-              isBooked ? 'bg-rose-500 text-white' : 'bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500'
-            }`}
-          >
-            <Heart size={10} fill={isBooked ? 'white' : 'none'} />
-            {isBooked ? t('booking_card_booked') : t('booking_card_book')}
-          </button>
-        </div>
+        <DualPrice priceExVat={discountedPrice} />
         <button
           type="button"
           onClick={(e) => {
@@ -295,15 +269,11 @@ export const CatalogSection: React.FC = () => {
   
   const { addItem } = useCart();
   const { getDiscountedPrice, currentUser } = useUser();
-  const { toggleWishlist, isInWishlist, setPendingEmail } = useWishlist();
   const { addNotification } = useNotification();
 
   const [showFilters, setShowFilters] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [bookingEmailModal, setBookingEmailModal] = useState<Product | null>(null);
-  const [bookingEmail, setBookingEmail] = useState('');
-  const [bookingName, setBookingName] = useState('');
   // Kit modal: selected optional add-on components (is_base=false)
   const [kitSelectedAddons, setKitSelectedAddons] = useState<Record<string, number>>({});
   const [catalogSelection, setCatalogSelection] = useState<CatalogSelectionLine[]>([]);
@@ -364,32 +334,6 @@ export const CatalogSection: React.FC = () => {
     () => catalogSelection.reduce((s, l) => s + l.unitPrice * l.quantity, 0),
     [catalogSelection]
   );
-
-  const handleBookingClick = async (product: Product) => {
-    if (isInWishlist(product.id)) {
-      // Cancel — no email needed
-      await toggleWishlist(product);
-      return;
-    }
-    const email = currentUser?.email || '';
-    if (email) {
-      await toggleWishlist(product, email, currentUser?.name || '');
-    } else {
-      setBookingEmailModal(product);
-      setBookingEmail('');
-      setBookingName('');
-    }
-  };
-
-  const handleBookingSubmit = async () => {
-    if (!bookingEmailModal || !bookingEmail.includes('@')) {
-      addNotification(t('err_email_invalid'), 'error');
-      return;
-    }
-    setPendingEmail(bookingEmail);
-    await toggleWishlist(bookingEmailModal, bookingEmail, bookingName);
-    setBookingEmailModal(null);
-  };
 
   // Open product from URL param ?product=ID
   useEffect(() => {
@@ -818,11 +762,6 @@ export const CatalogSection: React.FC = () => {
               <ProductCard
                 key={p.id}
                 product={p}
-                isBooked={isInWishlist(p.id)}
-                onBookClick={(e, prod) => {
-                  e.stopPropagation();
-                  void handleBookingClick(prod);
-                }}
                 onSelect={(prod) => {
                   setSelectedProduct(prod);
                   setKitSelectedAddons({});
@@ -880,9 +819,6 @@ export const CatalogSection: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <button onClick={() => handleBookingClick(selectedProduct)} className={`p-4 rounded-2xl transition-all border ${isInWishlist(selectedProduct.id) ? 'bg-rose-50 border-rose-100 text-rose-500 shadow-inner' : 'bg-slate-50 border-slate-100 text-slate-300'}`}>
-                  <Heart size={20} fill={isInWishlist(selectedProduct.id) ? "currentColor" : "none"} />
-                </button>
                 <button onClick={() => handleCopyProductLink(selectedProduct)} className={`p-4 rounded-2xl transition-all border flex items-center gap-2 text-[9px] font-black uppercase tracking-widest ${copiedLink ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-emerald-200 hover:text-emerald-500'}`}>
                   {copiedLink ? <><CheckCheck size={18} /> {t('product_copied')}</> : <><Link2 size={18} /> {t('product_share')}</>}
                 </button>
@@ -1101,63 +1037,6 @@ export const CatalogSection: React.FC = () => {
         );
       })()}
 
-      {/* Booking Email Modal */}
-      {bookingEmailModal && (
-        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4"
-          style={{ backgroundColor: 'rgba(15,23,42,0.75)' }}
-          onClick={() => setBookingEmailModal(null)}>
-          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl space-y-6"
-            onClick={e => e.stopPropagation()}>
-            <div className="space-y-2">
-              <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-500 mb-2">
-                <Heart size={24} fill="currentColor" />
-              </div>
-              <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">{t('booking_modal_title')}</h3>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{t('booking_modal_subtitle')}</p>
-            </div>
-
-            <div className="bg-slate-50 rounded-2xl p-4 flex items-center gap-3">
-              <img src={bookingEmailModal.image || IMAGE_FALLBACK} alt="" className="w-12 h-12 object-contain rounded-xl bg-white p-1" />
-              <div>
-                <div className="text-[10px] font-black text-slate-900 uppercase">
-                  {typeof bookingEmailModal.name === 'string' ? bookingEmailModal.name : (bookingEmailModal.name as any)?.en || ''}
-                </div>
-                <div className="text-[9px] text-emerald-600 font-bold uppercase">{bookingEmailModal.category}</div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <input
-                type="text"
-                placeholder={t('booking_name_placeholder')}
-                value={bookingName}
-                onChange={e => setBookingName(e.target.value)}
-                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-xs font-bold focus:outline-none focus:border-emerald-400 transition-all"
-              />
-              <input
-                type="email"
-                placeholder={t('booking_email_placeholder')}
-                value={bookingEmail}
-                onChange={e => setBookingEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleBookingSubmit()}
-                autoFocus
-                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-xs font-bold focus:outline-none focus:border-emerald-400 transition-all"
-              />
-            </div>
-
-            <div className="flex gap-3">
-              <button onClick={() => setBookingEmailModal(null)}
-                className="flex-1 py-4 rounded-2xl border-2 border-slate-100 text-slate-400 font-black text-[10px] uppercase tracking-widest hover:border-slate-300 transition-all">
-                {t('booking_cancel')}
-              </button>
-              <button onClick={handleBookingSubmit}
-                className="flex-1 py-4 rounded-2xl bg-rose-500 hover:bg-rose-400 text-white font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg">
-                <Heart size={14} fill="white" /> {t('booking_confirm')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };

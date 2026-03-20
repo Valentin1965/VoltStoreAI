@@ -5,7 +5,6 @@ export enum AppView {
   CHECKOUT = 'checkout',
   ADMIN = 'admin',
   CALCULATOR = 'calculator',
-  WISHLIST = 'wishlist',
   SERVICE = 'service',
   ABOUT = 'about',
   CABINET = 'cabinet',
@@ -148,25 +147,6 @@ export interface Product {
 export interface CartItem extends Product {
   quantity: number;
   parts?: KitPart[];
-}
-
-export type BookingStatus = 'pending' | 'confirmed' | 'expired' | 'cancelled' | 'converted';
-
-export interface Booking {
-  id: string;
-  product_id: string;
-  product_name: string;
-  product_image: string;
-  product_price: number;
-  product_category: string;
-  customer_email: string;
-  customer_name?: string;
-  customer_phone?: string;
-  status: BookingStatus;
-  expires_at: string;
-  created_at: string;
-  user_id?: string;
-  notes?: string;
 }
 
 export interface Order {

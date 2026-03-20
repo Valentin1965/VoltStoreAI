@@ -8,6 +8,7 @@ import { Calculator as CalculatorIcon, Zap, Battery, Sun, RefreshCw, Printer, Tr
 import { logCalculatorRequestToServer } from '../../services/calculatorLogService';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import { getGlsPdfBrandMarkSvg, GLS_PDF_TOPBAR_BRAND_CSS } from './calculatorPdfHeader';
 
 type CalculatorResult = {
   id: string;
@@ -103,9 +104,10 @@ const COMPANY_TEL = '+45 61 48 52 19';
 const COMPANY_EMAIL = 'info@glsolargroup.dk';
 const COMPANY_WEB = 'www.greenlight.dk';
 
-const downloadTheoreticalPdf = (res: CalculatorResult, backupHours: number) => {
+type CalculatorPdfLabels = { inputParametersTitle?: string };
+
+const downloadTheoreticalPdf = (res: CalculatorResult, backupHours: number, pdfLabels?: CalculatorPdfLabels) => {
   // Use HTML -> canvas -> PDF so Ukrainian text renders correctly (no embedded Cyrillic fonts needed).
-  const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
   const peakLoad = res.hourlyKwh * 3 * 1.1;
   const invMinRounded = Math.max(0.3, Math.ceil(res.recommendedInverterPower * 10) / 10).toFixed(1);
   const batMaxRounded = (Math.ceil(res.recommendedBatteryCapacity * 1.2 * 10) / 10).toFixed(1);
@@ -117,20 +119,21 @@ const downloadTheoreticalPdf = (res: CalculatorResult, backupHours: number) => {
       .replaceAll('>', '&gt;')
       .replaceAll('\n', '<br/>');
 
+  const inputParamsTitle = esc(pdfLabels?.inputParametersTitle ?? 'Input Parameters');
+
   const makePage = (pageNum: number, totalPages: number, bodyHtml: string) => `
-    <div class="page">
+    <div class="page page-${pageNum}">
       <div class="topbar">
-        <div>
-          <div class="brand">GREEN LIGHT</div>
-          <div class="subtitle">Theoretical System Requirements</div>
-        </div>
-        <div class="company">
-          <div><b>${esc(COMPANY_NAME)}</b></div>
-          <div>Contact: ${esc(COMPANY_CONTACT)}</div>
-          <div class="date">${esc(dateStr)}</div>
+        <div class="topbar-brand">
+          <div class="pdf-logo-mark">${getGlsPdfBrandMarkSvg(pageNum)}</div>
+          <div class="topbar-titles">
+            <div class="brand">GREEN LIGHT</div>
+            <div class="brand-logo-line">Scandinavia Group</div>
+            <div class="subtitle">Theoretical System Requirements</div>
+          </div>
         </div>
       </div>
-      ${bodyHtml}
+      <div class="page-body">${bodyHtml}</div>
       <div class="footer">
         <div>${esc(COMPANY_NAME)} — Professional Solar Equipment</div>
         <div>Page ${pageNum} / ${totalPages}</div>
@@ -141,13 +144,15 @@ const downloadTheoreticalPdf = (res: CalculatorResult, backupHours: number) => {
   const css = `
     <style>
       .wrap { position: fixed; left: -99999px; top: 0; width: 794px; }
-      .page { width: 794px; height: 1123px; box-sizing: border-box; padding: 56px 56px 52px 56px;
-              font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; color: #0f172a; background: #ffffff; position: relative; }
-      .topbar { display:flex; justify-content:space-between; align-items:flex-start; gap: 16px; padding: 18px 18px; border-radius: 18px; background: #10b981; color: #ffffff; }
-      .brand { font-weight: 1000; font-size: 30px; letter-spacing: -0.03em; color: #ffffff; }
-      .subtitle { margin-top: 4px; font-weight: 900; font-size: 15px; text-transform: uppercase; letter-spacing: 0.14em; color: rgba(255,255,255,0.92); }
-      .company { text-align:right; font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.95); line-height: 1.45; }
-      .date { margin-top: 6px; color: rgba(255,255,255,0.85); font-weight: 900; }
+      .page { width: 794px; min-height: 1123px; box-sizing: border-box; padding: 44px 56px 36px 56px;
+              font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; color: #0f172a; background: #ffffff;
+              display: flex; flex-direction: column; }
+      .topbar { flex-shrink: 0; display:flex; justify-content:flex-start; align-items:center; gap: 16px; padding: 0 0 14px 0;
+                margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; background: transparent; }
+      ${GLS_PDF_TOPBAR_BRAND_CSS}
+      .brand { font-weight: 1000; font-size: 28px; letter-spacing: -0.03em; color: #047857; }
+      .subtitle { margin-top: 4px; font-weight: 900; font-size: 13px; text-transform: uppercase; letter-spacing: 0.12em; color: #64748b; }
+      .page-body { flex: 1 1 auto; min-height: 0; }
       .section { margin-top: 16px; }
       .section-title { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 8px; color: #111827; }
       .kv .row { display:flex; justify-content:space-between; gap: 12px; font-size: 12px; padding: 2px 0; }
@@ -177,13 +182,28 @@ const downloadTheoreticalPdf = (res: CalculatorResult, backupHours: number) => {
       .next h3 { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; color:#166534; margin:0; }
       .checklist { margin-top: 10px; font-size: 11px; color:#14532d; font-weight: 700; line-height: 1.65; }
       .contact { margin-top: 10px; font-size: 11px; color:#14532d; font-weight: 800; line-height: 1.65; }
-      .footer { position: absolute; left: 56px; right: 56px; bottom: 18px; display:flex; justify-content:space-between; color:#64748b; font-size: 10px; font-weight: 800; }
+      .footer { flex-shrink: 0; margin-top: 20px; padding-top: 12px; border-top: 1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;
+                gap: 12px; color:#64748b; font-size: 10px; font-weight: 800; }
+      /* Page 3: tighter vertical rhythm so footer / last blocks do not collide */
+      .page-3 .section { margin-top: 10px; }
+      .page-3 .section:first-of-type { margin-top: 0; }
+      .page-3 .rec { padding: 9px 10px; }
+      .page-3 .rec h3 { font-size: 10px; }
+      .page-3 .subttl { margin-top: 8px; font-size: 9px; }
+      .page-3 .tblwrap { margin-top: 5px; }
+      .page-3 table.tbl { font-size: 9px; }
+      .page-3 table.tbl thead th, .page-3 table.tbl tbody td { padding: 5px 7px; }
+      .page-3 .note { margin-top: 5px; font-size: 9px; }
+      .page-3 .list { margin-top: 5px; font-size: 10px; }
+      .page-3 .next { padding: 10px; margin-top: 8px; }
+      .page-3 .checklist { margin-top: 6px; font-size: 10px; line-height: 1.5; }
+      .page-3 .contact { margin-top: 6px; font-size: 10px; line-height: 1.5; }
     </style>
   `;
 
   const page1Body = `
     <div class="section">
-      <div class="section-title">Input Parameters</div>
+      <div class="section-title">${inputParamsTitle}</div>
       <div class="kv">
         <div class="row"><div class="k">Monthly consumption</div><div class="v">${res.monthlyKwh} kWh/month</div></div>
         <div class="row"><div class="k">Daily consumption</div><div class="v">${res.dailyKwh.toFixed(2)} kWh/day</div></div>
@@ -579,15 +599,15 @@ export const Calculator: React.FC = () => {
       <div>
         <h1 className="text-3xl font-black uppercase tracking-tight flex items-center gap-3 text-slate-900">
           <CalculatorIcon className="h-8 w-8" />
-          Energy Calculator
+          {t('calc_energy_calculator_title')}
         </h1>
-        <p className="text-slate-500 mt-1 font-mono text-sm">Calculate required components based on your energy consumption</p>
+        <p className="text-slate-500 mt-1 font-mono text-sm">{t('calc_energy_calculator_subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 h-fit bg-white border border-slate-100 rounded-[2rem] shadow-xl">
           <div className="p-6 border-b border-slate-100">
-            <div className="text-sm font-black uppercase tracking-wide text-slate-900">Input Parameters</div>
+            <div className="text-sm font-black uppercase tracking-wide text-slate-900">{t('calc_input_parameters_title')}</div>
           </div>
           <div className="p-6 space-y-4">
             <div className="space-y-1">
@@ -646,7 +666,7 @@ export const Calculator: React.FC = () => {
             <div className="p-6 border-b border-slate-100 flex items-center justify-between gap-3">
               <div className="text-sm font-black uppercase tracking-wide flex items-center gap-2 text-slate-900">
                 <Zap className="h-4 w-4 text-amber-500" />
-                Section 1 — Theoretical Requirements
+                {t('calc_section1_theoretical')}
               </div>
               {result && (
                 <div className="flex items-center gap-2">
@@ -658,7 +678,11 @@ export const Calculator: React.FC = () => {
                   </button>
                   <button
                     className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all text-[10px] font-black uppercase tracking-widest flex items-center gap-2"
-                    onClick={() => downloadTheoreticalPdf(result, parseFloat(backupHours) || 8)}
+                    onClick={() =>
+                      downloadTheoreticalPdf(result, parseFloat(backupHours) || 8, {
+                        inputParametersTitle: t('calc_input_parameters_title'),
+                      })
+                    }
                   >
                     <Printer className="h-4 w-4" />
                     Download PDF

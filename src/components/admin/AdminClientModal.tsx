@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Download, MapPin, Truck, Phone, Building2, Package, MessageSquare,
-  Loader2, UserCheck, Percent, Hash, Shield, Mail, Calendar } from 'lucide-react';
+  Loader2, UserCheck, Percent, Hash, Shield, Mail, Calendar, Trash2 } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   AlignmentType, BorderStyle, WidthType, ShadingType } from 'docx';
 import { saveAs } from 'file-saver';
@@ -18,12 +18,15 @@ interface ClientHistoryModalProps {
   history: any[];
   isLoading: boolean;
   onClose: () => void;
+  /** After successful delete from registry — refresh list in parent */
+  onClientDeleted?: (clientId: string) => void;
 }
 
 export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
-  client: c, history: clientHistory, isLoading: isLoadingClientHistory, onClose,
+  client: c, history: clientHistory, isLoading: isLoadingClientHistory, onClose, onClientDeleted,
 }) => {
   const { t, language } = useLanguage();
+  const { addNotification } = useNotification();
   const localeStr = language === 'da' ? 'da-DK' : language === 'no' ? 'nb-NO' : language === 'se' ? 'sv-SE' : 'en-GB';
   const fullName    = `${c.first_name || ''} ${c.last_name || ''}`.trim();
   const billingAddr = [c.street, c.house_number, c.apartment].filter(Boolean).join(' ');
@@ -125,6 +128,32 @@ export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
     saveAs(blob, `GLS-Historie-${fullName.replace(/\s+/g, '-')}.docx`);
   };
 
+  const [deleting, setDeleting] = React.useState(false);
+  const adminKey = import.meta.env.VITE_ADMIN_PASSWORD as string | undefined;
+
+  const handleDeleteClient = async () => {
+    if (!window.confirm(t('admin_delete_client_confirm'))) return;
+    if (!adminKey) {
+      addNotification(t('admin_order_delete_no_key'), 'error');
+      return;
+    }
+    setDeleting(true);
+    try {
+      const { error } = await supabase.rpc('admin_delete_client', {
+        p_key: adminKey,
+        p_client_id: c.id,
+      });
+      if (error) throw error;
+      addNotification(t('admin_registry_deleted'), 'success');
+      onClientDeleted?.(String(c.id));
+      onClose();
+    } catch (err: any) {
+      addNotification(`${t('admin_registry_delete_fail')}: ${err.message}`, 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[10003] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-md animate-fade-in text-left">
       <div className="bg-white w-full max-w-3xl rounded-[2.5rem] shadow-3xl flex flex-col max-h-[90vh] overflow-hidden border border-slate-100">
@@ -139,7 +168,16 @@ export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
               <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{c.email}</div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <button
+              type="button"
+              onClick={() => void handleDeleteClient()}
+              disabled={deleting}
+              className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
+            >
+              {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+              {t('admin_delete_client_btn')}
+            </button>
             <button onClick={exportHistoryWord}
               className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg">
               <Download size={14} /> Word
@@ -267,15 +305,40 @@ interface InspectUserModalProps {
   client: any;
   onClose: () => void;
   onDiscountSaved: (clientId: string, discount: number) => void;
+  onClientDeleted?: (clientId: string) => void;
 }
 
-export const AdminInspectUserModal: React.FC<InspectUserModalProps> = ({ client, onClose, onDiscountSaved }) => {
+export const AdminInspectUserModal: React.FC<InspectUserModalProps> = ({ client, onClose, onDiscountSaved, onClientDeleted }) => {
   const { language, t } = useLanguage();
   const localeStr = language === 'da' ? 'da-DK' : language === 'no' ? 'nb-NO' : language === 'se' ? 'sv-SE' : 'en-GB';
   const { addNotification } = useNotification();
   const { updateUserDiscount } = useUser(); // kept for currentUser sync
   const adminKey = import.meta.env.VITE_ADMIN_PASSWORD;
   const fullName = [client.first_name, client.last_name].filter(Boolean).join(' ') || client.email;
+  const [deletingClient, setDeletingClient] = React.useState(false);
+
+  const handleDeleteClientInspect = async () => {
+    if (!window.confirm(t('admin_delete_client_confirm'))) return;
+    if (!adminKey) {
+      addNotification(t('admin_order_delete_no_key'), 'error');
+      return;
+    }
+    setDeletingClient(true);
+    try {
+      const { error } = await supabase.rpc('admin_delete_client', {
+        p_key: adminKey,
+        p_client_id: client.id,
+      });
+      if (error) throw error;
+      addNotification(t('admin_registry_deleted'), 'success');
+      onClientDeleted?.(String(client.id));
+      onClose();
+    } catch (err: any) {
+      addNotification(`${t('admin_registry_delete_fail')}: ${err.message}`, 'error');
+    } finally {
+      setDeletingClient(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-md animate-fade-in text-left">
@@ -355,7 +418,16 @@ export const AdminInspectUserModal: React.FC<InspectUserModalProps> = ({ client,
           </div>
         </div>
 
-        <div className="px-10 py-8 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+        <div className="px-10 py-8 border-t border-slate-100 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => void handleDeleteClientInspect()}
+            disabled={deletingClient}
+            className="inline-flex items-center gap-2 px-6 py-4 rounded-2xl text-[10px] font-black uppercase text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-all disabled:opacity-50"
+          >
+            {deletingClient ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+            {t('admin_delete_client_btn')}
+          </button>
           <button onClick={onClose} className="bg-slate-900 px-12 py-4 rounded-2xl text-[10px] font-black uppercase text-white shadow-xl hover:bg-slate-800 transition-all">{t('admin_close_audit')}</button>
         </div>
       </div>

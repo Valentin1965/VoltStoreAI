@@ -522,3 +522,55 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION admin_delete_order(text, text) TO anon, authenticated;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- Admin: delete calculator log row (admin panel)
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION admin_delete_calculator_request(p_key text, p_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM app_config WHERE key = 'admin_key' AND value = p_key
+  ) THEN
+    RAISE EXCEPTION 'admin_delete_calculator_request: Unauthorized';
+  END IF;
+  IF p_id IS NULL THEN
+    RAISE EXCEPTION 'admin_delete_calculator_request: empty id';
+  END IF;
+  DELETE FROM calculator_requests WHERE id = p_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION admin_delete_calculator_request(text, uuid) TO anon, authenticated;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- Admin: delete client (orders keep rows; client_id set NULL; push subs CASCADE)
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION admin_delete_client(p_key text, p_client_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM app_config WHERE key = 'admin_key' AND value = p_key
+  ) THEN
+    RAISE EXCEPTION 'admin_delete_client: Unauthorized';
+  END IF;
+  IF p_client_id IS NULL THEN
+    RAISE EXCEPTION 'admin_delete_client: empty id';
+  END IF;
+  DELETE FROM clients WHERE id = p_client_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION admin_delete_client(text, uuid) TO anon, authenticated;

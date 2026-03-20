@@ -43,6 +43,22 @@ export type CalculatorRequestRow = {
   lang: string | null;
 };
 
+export async function adminDeleteCalculatorRequest(
+  adminKey: string,
+  id: string,
+): Promise<{ error: string | null }> {
+  try {
+    const { error } = await supabase.rpc('admin_delete_calculator_request', {
+      p_key: adminKey,
+      p_id: id,
+    });
+    if (error) return { error: error.message };
+    return { error: null };
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export async function adminFetchCalculatorRequests(
   adminKey: string,
   limit = 500,
