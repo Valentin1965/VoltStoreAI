@@ -422,3 +422,103 @@ GRANT EXECUTE ON FUNCTION delete_push_subscription(text) TO anon, authenticated;
 -- supabase secrets set VAPID_PUBLIC_KEY=your_public_key
 -- 
 -- Генерація (Node.js): npx web-push generate-vapid-keys
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- MIGRATION: Calculator request log (CSV export in admin)
+-- Виконай у Supabase → SQL Editor після попередніх міграцій.
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS calculator_requests (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  input_json  jsonb NOT NULL,
+  lang        text
+);
+
+CREATE INDEX IF NOT EXISTS idx_calculator_requests_created_at
+  ON calculator_requests (created_at DESC);
+
+ALTER TABLE calculator_requests ENABLE ROW LEVEL SECURITY;
+-- Прямий SELECT/INSERT для anon закритий — лише через RPC нижче.
+
+-- Публічний лог (виклик з сайту; без admin_key)
+CREATE OR REPLACE FUNCTION log_calculator_request(p_input jsonb, p_lang text DEFAULT 'da')
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF p_input IS NULL OR p_input = 'null'::jsonb THEN
+    RAISE EXCEPTION 'log_calculator_request: p_input required';
+  END IF;
+  INSERT INTO calculator_requests (input_json, lang)
+  VALUES (p_input, NULLIF(trim(COALESCE(p_lang, '')), ''));
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION log_calculator_request(jsonb, text) TO anon, authenticated;
+
+-- Адмін: читання логів
+CREATE OR REPLACE FUNCTION admin_get_calculator_requests(p_key text, p_limit int DEFAULT 500)
+RETURNS TABLE (
+  id uuid,
+  created_at timestamptz,
+  input_json jsonb,
+  lang text
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM app_config WHERE key = 'admin_key' AND value = p_key
+  ) THEN
+    RAISE EXCEPTION 'admin_get_calculator_requests: Unauthorized';
+  END IF;
+  IF p_limit IS NULL OR p_limit < 1 THEN
+    p_limit := 500;
+  END IF;
+  IF p_limit > 2000 THEN
+    p_limit := 2000;
+  END IF;
+  RETURN QUERY
+  SELECT c.id, c.created_at, c.input_json, c.lang
+  FROM calculator_requests c
+  ORDER BY c.created_at DESC
+  LIMIT p_limit;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION admin_get_calculator_requests(text, int) TO anon, authenticated;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- Admin: permanent delete order (іконка кошика в модалці замовлення)
+-- p_order_id — текстове значення id (uuid або bigint у БД).
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION admin_delete_order(p_key text, p_order_id text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_id text := trim(COALESCE(p_order_id, ''));
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM app_config WHERE key = 'admin_key' AND value = p_key
+  ) THEN
+    RAISE EXCEPTION 'admin_delete_order: Unauthorized';
+  END IF;
+  IF v_id = '' THEN
+    RAISE EXCEPTION 'admin_delete_order: empty id';
+  END IF;
+  DELETE FROM orders WHERE id::text = v_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION admin_delete_order(text, text) TO anon, authenticated;

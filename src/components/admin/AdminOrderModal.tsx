@@ -9,14 +9,17 @@ import { useNotification } from '../../contexts/NotificationContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { sendStatusChangeEmail, OrderStatus } from '../../services/emailService';
 import { ORDER_STATUSES, OrderStatusEdit } from './adminTypes';
+import { AdminMarketingFunnelPanel } from './AdminMarketingFunnelPanel';
 
 interface AdminOrderModalProps {
   order: any;
   onClose: () => void;
   onUpdated: (updated: any) => void;
+  /** After permanent DB delete — remove from list and close modal */
+  onDeleted?: (orderId: string) => void;
 }
 
-export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onClose, onUpdated }) => {
+export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onClose, onUpdated, onDeleted }) => {
   const { addNotification } = useNotification();
   const { t, language } = useLanguage();
   const localeStr = language === 'da' ? 'da-DK' : language === 'no' ? 'nb-NO' : language === 'se' ? 'sv-SE' : 'en-GB';
@@ -34,6 +37,10 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
   const delCity  = o.delivery_same_as_billing ? city : [o.delivery_postal_code, o.delivery_city, o.delivery_country].filter(Boolean).join(', ');
   const orderDate = o.created_at ? new Date(o.created_at).toLocaleDateString(localeStr) : '-';
   const orderNo   = o.order_number || ('GLS-' + String(o.id || '').slice(0, 8).toUpperCase());
+  /** Cart/checkout stores line totals ex VAT; 25% moms for DK/EU display */
+  const VAT_RATE = 0.25;
+  const totalExVat = Number(o.total_price) || 0;
+  const totalIncVat = totalExVat * (1 + VAT_RATE);
 
   const saveStatus = async () => {
     setIsSaving(true);
@@ -68,18 +75,13 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
       // ── Push notification to client ────────────────────────────────────────
       if (o.client_id) {
         try {
-          await fetch('https://xvduslroirsujnglcnos.supabase.co/functions/v1/send-push', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2ZHVzbHJvaXJzdWpuZ2xjbm9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg3ODQzMDQsImV4cCI6MjA4NDM2MDMwNH0.MpS-NS6Blgpu4o3QxoSUGhn-cs5HJhWcqMf2XxtnsMY`,
-            },
-            body: JSON.stringify({
+          await supabase.functions.invoke('send-push', {
+            body: {
               type:      'status_update',
               clientId:  o.client_id,
               orderNo,
               newStatus: statusEdit.status,
-            }),
+            },
           });
         } catch { /* push not critical */ }
       }
@@ -120,24 +122,45 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
 
       if (o.client_id) {
         try {
-          await fetch('https://xvduslroirsujnglcnos.supabase.co/functions/v1/send-push', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2ZHVzbHJvaXJzdWpuZ2xjbm9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg3ODQzMDQsImV4cCI6MjA4NDM2MDMwNH0.MpS-NS6Blgpu4o3QxoSUGhn-cs5HJhWcqMf2XxtnsMY`,
-            },
-            body: JSON.stringify({
+          await supabase.functions.invoke('send-push', {
+            body: {
               type:      'status_update',
               clientId:  o.client_id,
               orderNo,
               newStatus: 'cancelled',
-            }),
+            },
           });
         } catch { /* push not critical */ }
       }
 
       addNotification(t('admin_order_cancelled_toast'), 'success');
     } finally { setIsSaving(false); }
+  };
+
+  /** Permanent remove from DB — icon-only, same style as product row trash */
+  const deleteOrderPermanently = async () => {
+    if (!window.confirm(t('admin_order_delete_confirm'))) return;
+    const adminKey = import.meta.env.VITE_ADMIN_PASSWORD as string | undefined;
+    if (!adminKey) {
+      addNotification(t('admin_order_delete_no_key'), 'error');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.rpc('admin_delete_order', {
+        p_key: adminKey,
+        p_order_id: String(o.id),
+      });
+      if (error) {
+        addNotification(`${t('admin_order_delete_fail')}: ${error.message}`, 'error');
+        return;
+      }
+      addNotification(t('admin_order_delete_toast'), 'success');
+      onDeleted?.(String(o.id));
+      onClose();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const exportWord = async () => {
@@ -213,8 +236,8 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
   };
 
   return (
-    <div className="fixed inset-0 z-[10002] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-md animate-fade-in text-left">
-      <div className="bg-white w-full max-w-3xl rounded-[2.5rem] shadow-3xl relative border border-slate-100 flex flex-col max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 z-[10002] flex items-center justify-center overflow-y-auto overscroll-contain px-4 py-6 sm:py-10 bg-slate-900/95 backdrop-blur-md animate-fade-in text-left">
+      <div className="bg-white w-full max-w-[min(100%,62.4rem)] rounded-[2.5rem] shadow-3xl relative border border-slate-100 flex flex-col max-h-[68.85vh] min-h-0 overflow-hidden">
 
         {/* Header */}
         <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
@@ -237,6 +260,15 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
             <button onClick={exportWord}
               className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg">
               <Download size={14} /> Word
+            </button>
+            <button
+              type="button"
+              onClick={() => void deleteOrderPermanently()}
+              disabled={isSaving}
+              title={t('admin_order_delete_button')}
+              className="p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all disabled:opacity-40 disabled:pointer-events-none"
+            >
+              <Trash2 size={14} />
             </button>
             <button onClick={onClose} className="p-2.5 hover:bg-slate-200 rounded-xl transition-all text-slate-400"><X size={20} /></button>
           </div>
@@ -298,9 +330,13 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
                       <td className="px-4 py-3 text-[10px] font-black text-right">{((it.price || 0) * (it.quantity || 1)).toFixed(2)} {o.currency || 'EUR'}</td>
                     </tr>
                   ))}
-                  <tr className="bg-emerald-50 border-t-2 border-emerald-100">
-                    <td colSpan={3} className="px-4 py-3 text-[10px] font-black uppercase text-right text-slate-700">{t('admin_order_total_vat')}</td>
-                    <td className="px-4 py-3 text-sm font-black text-emerald-600 text-right">{(o.total_price || 0).toFixed(2)} {o.currency || 'EUR'}</td>
+                  <tr className="bg-slate-50 border-t-2 border-slate-200">
+                    <td colSpan={3} className="px-4 py-3 text-[10px] font-black uppercase text-right text-slate-800">{t('admin_order_main_ex_vat')}</td>
+                    <td className="px-4 py-3 text-lg font-black text-slate-900 text-right tabular-nums">{totalExVat.toFixed(2)} {o.currency || 'EUR'}</td>
+                  </tr>
+                  <tr className="bg-emerald-50 border-t border-emerald-100">
+                    <td colSpan={3} className="px-4 py-3 text-[9px] font-bold uppercase text-right text-slate-500">{t('admin_order_sub_incl_vat')}</td>
+                    <td className="px-4 py-3 text-sm font-black text-emerald-600 text-right tabular-nums">{totalIncVat.toFixed(2)} {o.currency || 'EUR'}</td>
                   </tr>
                 </tbody>
               </table>
@@ -314,6 +350,12 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
               <div className="text-[10px] text-slate-700 italic leading-relaxed">"{o.customer_message}"</div>
             </div>
           )}
+
+          <AdminMarketingFunnelPanel
+            customerEmail={o.customer_email || ''}
+            customerName={`${o.first_name || ''} ${o.last_name || ''}`.trim() || o.customer_name || ''}
+            emailLang={o.lang || 'da'}
+          />
 
           {/* Status panel */}
           <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">

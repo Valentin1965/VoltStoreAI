@@ -7,6 +7,7 @@ import {
 import { useLanguage } from '../../contexts/LanguageContext';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { Order } from '../../types';
+import { supabase } from '../../services/supabase';
 
 interface Props {
   orders: Order[];
@@ -34,16 +35,14 @@ export const AdminDashboard: React.FC<Props> = ({ orders, dbClients, isLoadingOr
     setIsTesting(true);
     setTestResult(null);
     try {
-      const res = await fetch('https://xvduslroirsujnglcnos.supabase.co/functions/v1/send-push', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2ZHVzbHJvaXJzdWpuZ2xjbm9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg3ODQzMDQsImV4cCI6MjA4NDM2MDMwNH0.MpS-NS6Blgpu4o3QxoSUGhn-cs5HJhWcqMf2XxtnsMY`,
-        },
-        body: JSON.stringify({ type: 'test' }),
+      const { data, error } = await supabase.functions.invoke('send-push', {
+        body: { type: 'test' },
       });
-      const data = await res.json();
-      setTestResult(data.ok && data.sent > 0 ? 'ok' : 'error');
+      if (error) {
+        setTestResult('error');
+      } else {
+        setTestResult((data as any)?.ok && (data as any)?.sent > 0 ? 'ok' : 'error');
+      }
     } catch {
       setTestResult('error');
     } finally {

@@ -198,6 +198,29 @@ export const CheckoutPage: React.FC<{ onBackToCart: () => void; onOrderSuccess: 
         }
 
         if (!resp.ok || !payload?.checkoutUrl) {
+          // If payment endpoint is unavailable (e.g. 404 on non-Vercel env),
+          // keep the already-saved order and gracefully fall back to email flow.
+          if (resp.status === 404) {
+            await sendOrderEmails({
+              orderNo: data.order_number || data.id.slice(0, 8),
+              orderDate: new Date().toLocaleDateString(),
+              customerName: orderData.customer_name,
+              customerEmail: orderData.customer_email,
+              customerPhone: orderData.customer_phone,
+              clientType: orderData.client_type as any,
+              billingAddress: `${formData.street} ${formData.house_number}, ${formData.postal_code} ${formData.city}`,
+              deliveryAddress: formData.delivery_same ? 'Same as billing' : `${formData.delivery_street}, ${formData.delivery_city}`,
+              items: orderData.items as any,
+              totalPrice: totalPrice,
+              currency: orderData.currency,
+              lang: language,
+            });
+            addNotification('Card payment is unavailable right now. Order has been saved.', 'success');
+            clearCart();
+            onOrderSuccess();
+            return;
+          }
+
           const message =
             (payload && (payload.error || payload.message)) ||
             rawBody ||

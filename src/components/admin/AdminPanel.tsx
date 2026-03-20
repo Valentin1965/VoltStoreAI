@@ -3,7 +3,8 @@ import {
   Plus, Edit, Trash2, Crown, RefreshCcw, LogOut,
   Package, TrendingUp, Layers, Search,
   Activity, UserCheck, MessageSquare, Eye,
-  Building2, Cpu, Loader2, ChevronLeft, ChevronRight
+  Building2, Cpu, Loader2, ChevronLeft, ChevronRight, Calculator,
+  PackagePlus,
 } from 'lucide-react';
 import { DualPrice } from '../PriceDisplay';
 import { useProducts } from '../../contexts/ProductsContext';
@@ -19,6 +20,8 @@ import { AdminClientHistoryModal, AdminInspectUserModal } from './AdminClientMod
 import { AdminProductModal }          from './AdminProductModal';
 import { AdminRatesModal }            from './AdminRatesModal';
 import { AdminDashboard }            from './AdminDashboard';
+import { AdminCalculatorLogs }       from './AdminCalculatorLogs';
+import { AdminStockDemandModal }     from './AdminStockDemandModal';
 
 // ── ProductRow ──────────────────────────────────────────────────────────
 const ProductRow = React.memo(({ product, onEdit, onDelete, formatPrice: _formatPrice, getLoc }: any) => (
@@ -86,6 +89,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
   const [selectedClient, setSelectedClient]     = useState<any | null>(null);
   const [clientHistory, setClientHistory]       = useState<any[]>([]);
   const [isLoadingClientHistory, setIsLoadingClientHistory] = useState(false);
+  const [stockDemandOpen, setStockDemandOpen] = useState(false);
 
   // Product editing
   const [editingProduct, setEditingProduct]         = useState<any | null>(null);
@@ -367,10 +371,14 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 bg-white/5 p-2 rounded-[2rem]">
-          {(['dashboard', 'products', 'orders', 'bookings', 'kits', 'clients'] as const).map(tab => (
+          {(['dashboard', 'products', 'orders', 'bookings', 'kits', 'clients', 'calculator'] as const).map(tab => (
             <button key={tab} onClick={() => { setActiveTab(tab); if (tab === 'orders') setNewOrdersCount(0); }}
               className={`relative px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-400 hover:text-white'}`}>
-              {tab}
+              {tab === 'calculator' ? (
+                <span className="inline-flex items-center gap-1.5"><Calculator size={12} /> {t('admin_tab_calculator')}</span>
+              ) : (
+                tab
+              )}
               {tab === 'orders' && newOrdersCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center px-1 animate-pulse">
                   {newOrdersCount}
@@ -403,8 +411,10 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
         />
       )}
 
+      {activeTab === 'calculator' && <AdminCalculatorLogs />}
+
       {/* ── Registry table ───────────────────────────────────────────── */}
-      <div style={{display: activeTab === 'dashboard' ? 'none' : undefined}}>
+      <div style={{ display: activeTab === 'dashboard' || activeTab === 'calculator' ? 'none' : undefined }}>
         <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-slate-50/30">
           <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">
             <Activity size={18} className="text-emerald-500" /> {activeTab} Registry
@@ -449,6 +459,16 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
               <button onClick={exportOrdersCSV}
                 className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
                 <TrendingUp size={12} /> CSV
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await fetchProducts();
+                  setStockDemandOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-400 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-md shadow-amber-500/20"
+              >
+                <PackagePlus size={12} /> {t('admin_orders_reorder_btn')}
               </button>
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
                 {filteredOrders.length} / {orders.length}
@@ -679,6 +699,19 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
           onUpdated={updated => setSelectedOrder(updated)}
+          onDeleted={id => {
+            setSelectedOrder(null);
+            setOrders(prev => prev.filter((row: any) => String(row.id) !== String(id)));
+            void fetchOrders();
+          }}
+        />
+      )}
+
+      {stockDemandOpen && (
+        <AdminStockDemandModal
+          orders={orders}
+          products={allProducts}
+          onClose={() => setStockDemandOpen(false)}
         />
       )}
 

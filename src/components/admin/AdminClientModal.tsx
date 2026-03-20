@@ -8,6 +8,7 @@ import { supabase } from '../../services/supabase';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useUser } from '../../contexts/UserContext';
+import { AdminMarketingFunnelPanel } from './AdminMarketingFunnelPanel';
 
 /* ═══════════════════════════════════════════════
    CLIENT HISTORY MODAL
@@ -293,6 +294,12 @@ export const AdminInspectUserModal: React.FC<InspectUserModalProps> = ({ client,
         </div>
 
         <div className="p-10 space-y-8">
+          <AdminMarketingFunnelPanel
+            compact
+            customerEmail={client.email || ''}
+            customerName={fullName}
+            emailLang={language}
+          />
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-1.5 p-6 bg-slate-50 rounded-[2rem] border border-slate-100 shadow-inner">
               <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Mail size={10} className="text-emerald-500" /> Email Address</div>

@@ -94,8 +94,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon:   icon  || '/logo192.png',
-      badge:  '/logo192.png',
+      icon:   icon  || '/icon.svg',
+      badge:  '/icon.svg',
       tag:    tag   || 'gls-notification',
       data:   { url: url || '/' },
       vibrate: [200, 100, 200],

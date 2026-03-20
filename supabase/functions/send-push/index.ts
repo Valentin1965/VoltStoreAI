@@ -88,8 +88,8 @@ serve(async (req: Request) => {
       notification = {
         title: `🛍 Ny ordre — ${data.customerName || 'Ukendt kunde'}`,
         body:  `Total: ${data.total ?? ''} ${data.currency ?? 'EUR'}`,
-        icon:  '/logo192.png',
-        badge: '/logo192.png',
+        icon:  '/icon.svg',
+        badge: '/icon.svg',
         tag:   'new-order',
         url:   '/?view=admin',
       };
@@ -114,8 +114,8 @@ serve(async (req: Request) => {
       notification = {
         title: labels[data.newStatus] ?? '📋 Ordrestatus opdateret',
         body:  `Ordre #${data.orderNo ?? ''}`,
-        icon:  '/logo192.png',
-        badge: '/logo192.png',
+        icon:  '/icon.svg',
+        badge: '/icon.svg',
         tag:   `order-${data.orderNo ?? 'update'}`,
         url:   '/?view=cabinet',
       };
@@ -131,8 +131,8 @@ serve(async (req: Request) => {
       notification = {
         title: '✅ Push virker!',
         body:  'Green Light Scandinavia admin notifikation fungerer korrekt.',
-        icon:  '/logo192.png',
-        badge: '/logo192.png',
+        icon:  '/icon.svg',
+        badge: '/icon.svg',
         tag:   'test',
         url:   '/?view=admin',
       };

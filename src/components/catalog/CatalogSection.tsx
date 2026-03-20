@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useProducts, SortOption } from '../../contexts/ProductsContext';
 import { useCart } from '../../contexts/CartContext';
 import { useWishlist } from '../../contexts/WishlistContext';
@@ -12,66 +12,132 @@ import {
   ShoppingBag, PlayCircle, Heart, Percent,
   Layers, Package, Star, Factory, Activity, Crown,
   Filter, RotateCcw, Search, SlidersHorizontal, Check, ExternalLink,
-  Link2, CheckCheck
+  Link2, CheckCheck, ListPlus, Trash2, CheckCircle2
 } from 'lucide-react';
-import { Product, Category, KitComponent } from '../../types';
+import { Product, Category, KitComponent, KitPart } from '../../types';
 import { Marker } from '../MarkerComponent.tsx';
 import { DualPrice } from '../PriceDisplay';
 import { DocExportButton } from '../DocExportButton';
 
-export const ProductCard: React.FC<{ 
-  product: Product; onSelect: (p: Product) => void; onAddToCart: (e: React.MouseEvent, p: Product) => void; 
-}> = React.memo(({ product, onSelect, onAddToCart }) => {
+/** Рядок «Мій вибір» у каталозі (локально, не booking) */
+export type CatalogSelectionLine = {
+  key: string;
+  product: Product;
+  unitPrice: number;
+  quantity: number;
+  parts?: KitPart[];
+};
+
+/** Картка як у секції Booking / Wishlist: квадратне фото, heart, категорія + назва, низ — ціна + дії */
+export const ProductCard: React.FC<{
+  product: Product;
+  onSelect: (p: Product) => void;
+  /** Якщо задано — нижня кнопка «Додати до списку» замість кошика */
+  onAddToList?: (e: React.MouseEvent, p: Product) => void;
+  onAddToCart?: (e: React.MouseEvent, p: Product) => void;
+  isBooked: boolean;
+  onBookClick: (e: React.MouseEvent, p: Product) => void;
+}> = React.memo(({ product, onSelect, onAddToList, onAddToCart, isBooked, onBookClick }) => {
   const { t, getLoc } = useLanguage();
   const { getDiscountedPrice, currentUser } = useUser();
-  
+
   const discountedPrice = getDiscountedPrice(product.price);
   const hasDiscount = currentUser && currentUser.discount && currentUser.discount > 0;
 
   return (
-    <div onClick={() => onSelect(product)} className="group bg-white rounded-[2rem] overflow-hidden cursor-pointer border border-slate-100 hover:border-emerald-400 transition-all duration-500 shadow-sm hover:shadow-xl flex flex-col h-full notranslate relative" translate="no">
-      <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-        {hasDiscount && (
-          <div className="bg-rose-500 text-white px-2 py-1 rounded-lg text-[8px] font-black uppercase flex items-center gap-1 shadow-md">
-            <Percent size={8}/> {currentUser.discount}%
-          </div>
-        )}
-        {product.is_leader && (
-          <div className="bg-amber-500 text-white px-2 py-1 rounded-lg text-[8px] font-black uppercase flex items-center gap-1 shadow-md">
-            <Star size={8} fill="currentColor"/> {t('sales_leader')}
-          </div>
-        )}
-        {!product.is_active && (
-          <div className="bg-slate-400 text-white px-2 py-1 rounded-lg text-[8px] font-black uppercase flex items-center gap-1 shadow-md">
-            {t('inactive_status') || 'Inactive'}
-          </div>
-        )}
+    <div
+      className={`group bg-white border-2 rounded-3xl p-4 hover:shadow-lg transition-all flex flex-col h-full notranslate cursor-pointer ${
+        isBooked ? 'border-rose-200 bg-rose-50' : 'border-slate-100 hover:border-emerald-300'
+      }`}
+      translate="no"
+      onClick={() => onSelect(product)}
+    >
+      <div className="relative aspect-square rounded-2xl overflow-hidden mb-3 bg-slate-50 border border-slate-50">
+        <img
+          src={product.image || IMAGE_FALLBACK}
+          alt=""
+          className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500"
+        />
+        <button
+          type="button"
+          onClick={(e) => onBookClick(e, product)}
+          className={`absolute top-2 right-2 p-2 rounded-xl shadow transition-all ${
+            isBooked ? 'bg-rose-500 text-white' : 'bg-white text-slate-300 hover:text-rose-500'
+          }`}
+        >
+          <Heart size={14} fill={isBooked ? 'white' : 'none'} />
+        </button>
       </div>
-      <div className="relative h-48 w-full p-6 flex items-center justify-center bg-slate-50/50">
-        <img src={product.image || IMAGE_FALLBACK} className="max-w-full max-h-full object-contain transition-all duration-700 group-hover:scale-110" alt="" />
-        <div className="absolute top-4 right-4 bg-slate-900 text-white px-3 py-2 rounded-2xl shadow-lg">
-          <DualPrice priceExVat={discountedPrice} align="right" showLabels={false} className="text-white" secondaryClassName="text-white/70" />
+      <div className="flex-1 min-w-0 text-left">
+        <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest mb-1">{t(`cat_${product.category}`)}</p>
+        <h4 className="font-black text-slate-900 text-[11px] uppercase tracking-tight line-clamp-2 leading-snug">
+          {getLoc(product.name)}
+        </h4>
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {hasDiscount && (
+            <span className="bg-rose-500 text-white px-2 py-0.5 rounded-lg text-[7px] font-black uppercase inline-flex items-center gap-0.5">
+              <Percent size={8} /> {currentUser!.discount}%
+            </span>
+          )}
+          {product.is_leader && (
+            <span className="bg-amber-500 text-white px-2 py-0.5 rounded-lg text-[7px] font-black uppercase flex items-center gap-0.5">
+              <Star size={7} fill="currentColor" /> {t('sales_leader')}
+            </span>
+          )}
+          {!product.is_active && (
+            <span className="bg-slate-400 text-white px-2 py-0.5 rounded-lg text-[7px] font-black uppercase">
+              {t('inactive_status') || 'Inactive'}
+            </span>
+          )}
         </div>
-      </div>
-      <div className="p-5 flex flex-col flex-1 text-left text-slate-900">
-        <h3 className="text-[12px] font-black uppercase line-clamp-2 mb-4 leading-tight">{getLoc(product.name)}</h3>
-        <div className="mt-auto space-y-2">
-          <div className="flex flex-wrap gap-2 mb-3">
+        {(product.manufacturer || (product.category === 'Invertere' && product.inverter_type)) && (
+          <div className="flex flex-wrap gap-2 mt-2">
             {product.manufacturer && (
-              <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
                 <Factory size={10} /> {product.manufacturer}
-              </div>
+              </span>
             )}
             {product.category === 'Invertere' && product.inverter_type && (
-              <div className="text-[8px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-1">
+              <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-1">
                 <Activity size={10} /> {product.inverter_type}
-              </div>
+              </span>
             )}
           </div>
-          <button onClick={(e) => { e.stopPropagation(); onAddToCart(e, product); }} className="w-full py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2 hover:bg-emerald-500 transition-all active:scale-95 shadow-md">
-            <ShoppingCart size={14}/> {t('add_to_cart')}
+        )}
+      </div>
+      <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <DualPrice priceExVat={discountedPrice} />
+          <button
+            type="button"
+            onClick={(e) => onBookClick(e, product)}
+            className={`text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl transition-all flex items-center gap-1 whitespace-nowrap shrink-0 ${
+              isBooked ? 'bg-rose-500 text-white' : 'bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500'
+            }`}
+          >
+            <Heart size={10} fill={isBooked ? 'white' : 'none'} />
+            {isBooked ? t('booking_card_booked') : t('booking_card_book')}
           </button>
         </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onAddToList) onAddToList(e, product);
+            else onAddToCart?.(e, product);
+          }}
+          className="w-full py-2.5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 hover:bg-emerald-500 transition-all active:scale-[0.98]"
+        >
+          {onAddToList ? (
+            <>
+              <ListPlus size={14} /> {t('catalog_add_to_list')}
+            </>
+          ) : (
+            <>
+              <ShoppingCart size={14} /> {t('add_to_cart')}
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
@@ -240,6 +306,64 @@ export const CatalogSection: React.FC = () => {
   const [bookingName, setBookingName] = useState('');
   // Kit modal: selected optional add-on components (is_base=false)
   const [kitSelectedAddons, setKitSelectedAddons] = useState<Record<string, number>>({});
+  const [catalogSelection, setCatalogSelection] = useState<CatalogSelectionLine[]>([]);
+
+  const addLineToCatalogSelection = useCallback(
+    (product: Product, unitPrice: number, parts?: KitPart[]) => {
+      setCatalogSelection((prev) => {
+        if (!parts || parts.length === 0) {
+          const existing = prev.find(
+            (l) => l.product.id === product.id && (!l.parts || l.parts.length === 0)
+          );
+          if (existing) {
+            return prev.map((l) =>
+              l.key === existing.key ? { ...l, quantity: l.quantity + 1 } : l
+            );
+          }
+        }
+        const key = parts?.length ? `${product.id}-${Date.now()}` : product.id;
+        return [...prev, { key, product, unitPrice, quantity: 1, parts }];
+      });
+      addNotification(t('catalog_added_to_selection'), 'success');
+    },
+    [addNotification, t]
+  );
+
+  const removeCatalogSelectionLine = useCallback((key: string) => {
+    setCatalogSelection((prev) => prev.filter((l) => l.key !== key));
+  }, []);
+
+  const addSingleCatalogLineToCart = useCallback(
+    (line: CatalogSelectionLine) => {
+      const p = { ...line.product, price: line.unitPrice };
+      if (line.parts?.length) {
+        for (let i = 0; i < line.quantity; i++) addItem(p, line.parts);
+      } else {
+        for (let i = 0; i < line.quantity; i++) addItem(p);
+      }
+      setCatalogSelection((prev) => prev.filter((l) => l.key !== line.key));
+      addNotification(t('item_added'), 'success');
+    },
+    [addItem, addNotification, t]
+  );
+
+  const addAllCatalogSelectionToCart = useCallback(() => {
+    catalogSelection.forEach((line) => {
+      const p = { ...line.product, price: line.unitPrice };
+      if (line.parts?.length) {
+        for (let i = 0; i < line.quantity; i++) addItem(p, line.parts);
+      } else {
+        for (let i = 0; i < line.quantity; i++) addItem(p);
+      }
+    });
+    setCatalogSelection([]);
+    addNotification(t('catalog_selection_added_to_cart'), 'success');
+  }, [catalogSelection, addItem, addNotification, t]);
+
+  const catalogSelectionTotal = useMemo(
+    () => catalogSelection.reduce((s, l) => s + l.unitPrice * l.quantity, 0),
+    [catalogSelection]
+  );
 
   const handleBookingClick = async (product: Product) => {
     if (isInWishlist(product.id)) {
@@ -345,6 +469,26 @@ export const CatalogSection: React.FC = () => {
 
     return base + addonTotal;
   }, [selectedProduct, kitSelectedAddons, getDiscountedPrice]);
+
+  const buildKitPartsForCatalog = useCallback((sp: Product, addons: Record<string, number>): KitPart[] | undefined => {
+    const isKit = sp.category === 'Sæt' || (sp as any).category === 'Kits';
+    if (!isKit) return undefined;
+    const allComponents = sp.kitComponents || [];
+    const baseComponents = allComponents.filter((c) => c.is_base !== false);
+    const addonComponents = allComponents.filter((c) => c.is_base === false);
+    const parts: KitPart[] = [
+      ...baseComponents.map((c) => ({
+        id: c.id,
+        name: c.name,
+        price: c.price,
+        quantity: c.quantity ?? 1,
+      })),
+      ...addonComponents
+        .filter((c) => (addons[c.id] ?? 0) > 0)
+        .map((c) => ({ id: c.id, name: c.name, price: c.price, quantity: addons[c.id]! })),
+    ];
+    return parts.length ? parts : undefined;
+  }, []);
 
   const renderFilterField = (label: string, value: string, setter: (v: string) => void, options: string[], color: string = "emerald") => (
     <div className="space-y-2">
@@ -568,6 +712,99 @@ export const CatalogSection: React.FC = () => {
           );
         })()}
 
+        {catalogSelection.length > 0 && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-slate-900 p-8 rounded-[3rem] text-white shadow-2xl">
+              <div className="flex items-center gap-5">
+                <div className="bg-emerald-500 p-4 rounded-2xl shadow-xl">
+                  <ListPlus size={28} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black uppercase tracking-tighter">{t('catalog_my_selection')}</h2>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                    {catalogSelection.length} {t('catalog_selection_subtitle')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
+                <div className="text-left sm:text-right">
+                  <span className="text-[9px] font-black text-slate-500 uppercase block mb-1">{t('total')}</span>
+                  <DualPrice
+                    priceExVat={catalogSelectionTotal}
+                    className="text-emerald-400"
+                    secondaryClassName="text-emerald-400/70"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={addAllCatalogSelectionToCart}
+                  className="bg-emerald-500 hover:bg-emerald-400 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shadow-xl flex items-center justify-center gap-2 active:scale-95 whitespace-nowrap"
+                >
+                  <ShoppingBag size={16} /> {t('add_to_cart')}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 px-1">
+                <CheckCircle2 size={14} className="text-emerald-500" />
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  {t('catalog_selection_list_heading')} — {catalogSelection.length}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {catalogSelection.map((line) => (
+                  <div
+                    key={line.key}
+                    className="bg-white rounded-[2rem] border-2 border-slate-100 overflow-hidden transition-all hover:border-emerald-300 shadow-sm"
+                  >
+                    <div className="flex gap-4 p-5">
+                      <div className="w-20 h-20 rounded-2xl overflow-hidden shrink-0 bg-slate-50 border border-slate-100 flex items-center justify-center p-1.5">
+                        <img
+                          src={line.product.image || IMAGE_FALLBACK}
+                          alt=""
+                          className="max-w-full max-h-full object-contain"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">
+                          {t(`cat_${line.product.category}`)}
+                        </p>
+                        <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight leading-snug line-clamp-2">
+                          {getLoc(line.product.name)}
+                        </h3>
+                        {line.quantity > 1 && (
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                            ×{line.quantity}
+                          </span>
+                        )}
+                        <DualPrice priceExVat={line.unitPrice * line.quantity} />
+                      </div>
+                    </div>
+                    <div className="flex border-t border-slate-50">
+                      <button
+                        type="button"
+                        onClick={() => removeCatalogSelectionLine(line.key)}
+                        className="flex-1 py-3 flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all"
+                      >
+                        <Trash2 size={13} /> {t('catalog_selection_remove')}
+                      </button>
+                      <div className="w-px bg-slate-50" />
+                      <button
+                        type="button"
+                        onClick={() => addSingleCatalogLineToCart(line)}
+                        className="flex-1 py-3 flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all"
+                      >
+                        <ShoppingCart size={13} /> {t('add_to_cart')}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-between px-2 text-slate-900 border-b border-slate-100 pb-4">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
             {t('catalog_results_prefix')} <span className="text-emerald-500">{filteredProducts.length}</span> {t('catalog_results_suffix')} <span className="text-slate-900">{t(`cat_${selectedCategory}`)}</span>
@@ -576,17 +813,25 @@ export const CatalogSection: React.FC = () => {
 
         {/* Product Grid */}
         {(filteredProducts || []).length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 px-0 animate-fade-in">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-0 animate-fade-in">
             {filteredProducts.map((p) => (
-              <ProductCard 
-                key={p.id} 
-                product={p} 
-                onSelect={p => { setSelectedProduct(p); setKitSelectedAddons({}); setShowFilters(false); }}
-                onAddToCart={(e, prod) => {
+              <ProductCard
+                key={p.id}
+                product={p}
+                isBooked={isInWishlist(p.id)}
+                onBookClick={(e, prod) => {
                   e.stopPropagation();
-                  addItem({ ...prod, price: getDiscountedPrice(prod.price) });
-                  addNotification(t('item_added'), 'success');
-                }} 
+                  void handleBookingClick(prod);
+                }}
+                onSelect={(prod) => {
+                  setSelectedProduct(prod);
+                  setKitSelectedAddons({});
+                  setShowFilters(false);
+                }}
+                onAddToList={(e, prod) => {
+                  e.stopPropagation();
+                  addLineToCatalogSelection(prod, getDiscountedPrice(prod.price));
+                }}
               />
             ))}
           </div>
@@ -836,25 +1081,18 @@ export const CatalogSection: React.FC = () => {
                   className="shrink-0"
                 />
                 <button
+                  type="button"
                   onClick={() => {
-                    if (isKit) {
-                      // Build parts list: base components + selected addons
-                      const parts = [
-                        ...baseComponents.map(c => ({ id: c.id, name: c.name, price: c.price, quantity: c.quantity })),
-                        ...addonComponents
-                          .filter(c => (kitSelectedAddons[c.id] ?? 0) > 0)
-                          .map(c => ({ id: c.id, name: c.name, price: c.price, quantity: kitSelectedAddons[c.id] })),
-                      ];
-                      addItem({ ...selectedProduct, price: currentTotal }, parts.length ? parts : undefined);
-                    } else {
-                      addItem({ ...selectedProduct, price: currentTotal });
-                    }
-                    addNotification(t('item_added'), 'success');
+                    const parts = isKit
+                      ? buildKitPartsForCatalog(selectedProduct, kitSelectedAddons)
+                      : undefined;
+                    addLineToCatalogSelection(selectedProduct, currentTotal, parts);
+                    setKitSelectedAddons({});
                     setSelectedProduct(null);
                   }}
                   className="flex-1 sm:flex-none px-16 py-6 bg-emerald-500 text-white rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-4 active:scale-95 shadow-2xl transition-all"
                 >
-                  <ShoppingBag size={24} /> {t('add_to_cart')}
+                  <ListPlus size={24} /> {t('catalog_add_to_list')}
                 </button>
               </div>
             </div>

@@ -4,14 +4,14 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useCart } from '../../contexts/CartContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { Product } from '../../types';
-import { Calculator as CalculatorIcon, Zap, Battery, Sun, RefreshCw, Printer, Trash2 } from 'lucide-react';
-import { logCalculatorRequestToServer } from '../../services/calculatorLogService';
+import { Calculator as CalculatorIcon, Zap, Battery, Sun, RefreshCw, Printer, Trash2, MapPin } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
 type CalculatorResult = {
   id: string;
   createdAt: string;
+  country: string;
   monthlyKwh: number;
   hourlyKwh: number;
   dailyKwh: number;
@@ -24,7 +24,103 @@ type CalculatorResult = {
 
 type RecommendedItem = { product: Product; quantity: number };
 
-const STORAGE_KEY = 'gls_calculator_results_v1';
+// 🇸🇪 Scandinavian correction factors by country
+const SCANDINAVIA_CORRECTIONS = {
+  denmark: {
+    name: 'Denmark',
+    solarFactor: 0.85,
+    batteryBuffer: 1.25,
+    tiltBase: 40,
+    tiltOffset: 0,
+    panelOutputKwhPerDay: 1.2,
+    winterOutputPercent: 25,
+    label: '🇩🇰 Denmark',
+  },
+  sweden_south: {
+    name: 'Sweden (South)',
+    solarFactor: 0.80,
+    batteryBuffer: 1.25,
+    tiltBase: 45,
+    tiltOffset: 0,
+    panelOutputKwhPerDay: 1.1,
+    winterOutputPercent: 20,
+    label: '🇸🇪 Sweden (South)',
+  },
+  sweden_north: {
+    name: 'Sweden (North)',
+    solarFactor: 0.65,
+    batteryBuffer: 1.30,
+    tiltBase: 50,
+    tiltOffset: 10,
+    panelOutputKwhPerDay: 0.9,
+    winterOutputPercent: 15,
+    label: '🇸🇪 Sweden (North)',
+  },
+  norway_south: {
+    name: 'Norway (South)',
+    solarFactor: 0.75,
+    batteryBuffer: 1.25,
+    tiltBase: 45,
+    tiltOffset: 0,
+    panelOutputKwhPerDay: 1.0,
+    winterOutputPercent: 20,
+    label: '🇳🇴 Norway (South)',
+  },
+  norway_north: {
+    name: 'Norway (North)',
+    solarFactor: 0.55,
+    batteryBuffer: 1.35,
+    tiltBase: 55,
+    tiltOffset: 15,
+    panelOutputKwhPerDay: 0.7,
+    winterOutputPercent: 10,
+    label: '🇳🇴 Norway (North)',
+  },
+  finland: {
+    name: 'Finland',
+    solarFactor: 0.70,
+    batteryBuffer: 1.30,
+    tiltBase: 50,
+    tiltOffset: 10,
+    panelOutputKwhPerDay: 0.9,
+    winterOutputPercent: 15,
+    label: '🇫🇮 Finland',
+  },
+  iceland: {
+    name: 'Iceland',
+    solarFactor: 0.50,
+    batteryBuffer: 1.40,
+    tiltBase: 60,
+    tiltOffset: 15,
+    panelOutputKwhPerDay: 0.6,
+    winterOutputPercent: 5,
+    label: '🇮🇸 Iceland',
+  },
+  poland: {
+    name: 'Poland',
+    solarFactor: 1.0,
+    batteryBuffer: 1.10,
+    tiltBase: 35,
+    tiltOffset: 0,
+    panelOutputKwhPerDay: 1.5,
+    winterOutputPercent: 35,
+    label: '🇵🇱 Poland',
+  },
+  netherlands: {
+    name: 'Netherlands',
+    solarFactor: 1.0,
+    batteryBuffer: 1.10,
+    tiltBase: 35,
+    tiltOffset: 0,
+    panelOutputKwhPerDay: 1.5,
+    winterOutputPercent: 35,
+    label: '🇳🇱 Netherlands',
+  },
+};
+
+type CountryKey = keyof typeof SCANDINAVIA_CORRECTIONS;
+
+const STORAGE_KEY = 'gls_calculator_results_v2';
 
 const getCalculatorResults = (): CalculatorResult[] => {
   try {
@@ -74,7 +170,6 @@ const parseCapacity = (str: string): number => {
 const getInverterKw = (p: Product): number => {
   const direct = Number((p as any).NomPwrKw ?? (p as any).RatedPwrKw ?? (p as any).NomOutputKw);
   if (Number.isFinite(direct) && direct > 0) return direct;
-
   const keys = ['MaxSPwr_kVA', 'NomPwrKw', 'RatedPwrKw', 'Output Power', 'NomOutputKw'];
   for (const k of keys) {
     const raw = specValue(p, k);
@@ -87,7 +182,6 @@ const getInverterKw = (p: Product): number => {
 const getBatteryKwh = (p: Product): number => {
   const direct = Number((p as any).CapKwh ?? (p as any).CapacityKwh ?? (p as any).BattCapKwh);
   if (Number.isFinite(direct) && direct > 0) return direct;
-
   const keys = ['CapKwh', 'Capacity', 'CapacityKwh', 'BattCapKwh'];
   for (const k of keys) {
     const raw = specValue(p, k);
@@ -103,13 +197,13 @@ const COMPANY_TEL = '+45 61 48 52 19';
 const COMPANY_EMAIL = 'info@glsolargroup.dk';
 const COMPANY_WEB = 'www.greenlight.dk';
 
-const downloadTheoreticalPdf = (res: CalculatorResult, backupHours: number) => {
-  // Use HTML -> canvas -> PDF so Ukrainian text renders correctly (no embedded Cyrillic fonts needed).
+const downloadTheoreticalPdf = (res: CalculatorResult, backupHours: number, country: CountryKey) => {
+  const correction = SCANDINAVIA_CORRECTIONS[country] || SCANDINAVIA_CORRECTIONS.denmark;
   const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
   const peakLoad = res.hourlyKwh * 3 * 1.1;
   const invMinRounded = Math.max(0.3, Math.ceil(res.recommendedInverterPower * 10) / 10).toFixed(1);
   const batMaxRounded = (Math.ceil(res.recommendedBatteryCapacity * 1.2 * 10) / 10).toFixed(1);
-
+  
   const esc = (s: any) =>
     String(s ?? '')
       .replaceAll('&', '&amp;')
@@ -122,7 +216,7 @@ const downloadTheoreticalPdf = (res: CalculatorResult, backupHours: number) => {
       <div class="topbar">
         <div>
           <div class="brand">GREEN LIGHT</div>
-          <div class="subtitle">Theoretical System Requirements</div>
+          <div class="subtitle">Theoretical System Requirements — ${correction.label}</div>
         </div>
         <div class="company">
           <div><b>${esc(COMPANY_NAME)}</b></div>
@@ -138,58 +232,57 @@ const downloadTheoreticalPdf = (res: CalculatorResult, backupHours: number) => {
     </div>
   `;
 
-  const css = `
-    <style>
-      .wrap { position: fixed; left: -99999px; top: 0; width: 794px; }
-      .page { width: 794px; height: 1123px; box-sizing: border-box; padding: 56px 56px 52px 56px;
-              font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; color: #0f172a; background: #ffffff; position: relative; }
-      .topbar { display:flex; justify-content:space-between; align-items:flex-start; gap: 16px; padding: 18px 18px; border-radius: 18px; background: #10b981; color: #ffffff; }
-      .brand { font-weight: 1000; font-size: 30px; letter-spacing: -0.03em; color: #ffffff; }
-      .subtitle { margin-top: 4px; font-weight: 900; font-size: 15px; text-transform: uppercase; letter-spacing: 0.14em; color: rgba(255,255,255,0.92); }
-      .company { text-align:right; font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.95); line-height: 1.45; }
-      .date { margin-top: 6px; color: rgba(255,255,255,0.85); font-weight: 900; }
-      .section { margin-top: 16px; }
-      .section-title { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 8px; color: #111827; }
-      .kv .row { display:flex; justify-content:space-between; gap: 12px; font-size: 12px; padding: 2px 0; }
-      .kv .k { color:#334155; font-weight: 800; }
-      .kv .v { color:#0f172a; font-weight: 900; }
-      .cards { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-      .card { border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; }
-      .card .label { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; color:#334155; }
-      .card .big { margin-top: 8px; font-size: 28px; font-weight: 900; }
-      .card .muted { margin-top: 8px; font-size: 11px; color:#475569; font-weight: 700; white-space: pre-line; }
-      .box { border: 1px dashed #cbd5e1; border-radius: 14px; padding: 10px 12px; background:#f8fafc; font-size: 11px; color:#475569; font-weight: 700; line-height: 1.5; }
-      .method { font-size: 11px; color:#0f172a; font-weight: 800; line-height: 1.55; }
-      .method code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono','Courier New', monospace; font-size: 11px; }
-      .rec { border: 1px solid #f59e0b55; background:#fffbeb; border-radius: 14px; padding: 12px; }
-      .rec h3 { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; color:#92400e; margin:0; }
-      .rec .item { margin-top: 10px; font-size: 11px; color:#7c2d12; font-weight: 700; line-height: 1.5; }
-      .subttl { margin-top: 12px; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; color:#92400e; }
-      .tblwrap { margin-top: 8px; border: 1px solid #f59e0b55; border-radius: 12px; overflow:hidden; background:#ffffff; }
-      table.tbl { width:100%; border-collapse: collapse; font-size: 10px; }
-      table.tbl thead th { background:#fffbeb; color:#7c2d12; text-align:left; padding: 8px 10px; font-weight: 900; border-bottom:1px solid #fde68a; }
-      table.tbl tbody td { padding: 8px 10px; border-bottom:1px solid #fef3c7; color:#0f172a; font-weight: 700; }
-      table.tbl tbody tr:last-child td { border-bottom:none; }
-      .note { margin-top: 8px; font-size: 10px; color:#7c2d12; font-weight: 800; line-height: 1.5; }
-      .list { margin-top: 8px; font-size: 11px; color:#7c2d12; font-weight: 700; line-height: 1.55; }
-      .list div { margin-top: 4px; }
-      .next { border: 1px solid #bbf7d0; background:#f0fdf4; border-radius: 14px; padding: 12px; }
-      .next h3 { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; color:#166534; margin:0; }
-      .checklist { margin-top: 10px; font-size: 11px; color:#14532d; font-weight: 700; line-height: 1.65; }
-      .contact { margin-top: 10px; font-size: 11px; color:#14532d; font-weight: 800; line-height: 1.65; }
-      .footer { position: absolute; left: 56px; right: 56px; bottom: 18px; display:flex; justify-content:space-between; color:#64748b; font-size: 10px; font-weight: 800; }
-    </style>
-  `;
+  const css = `<style>
+    .wrap { position: fixed; left: -99999px; top: 0; width: 794px; }
+    .page { width: 794px; height: 1123px; box-sizing: border-box; padding: 56px 56px 52px 56px; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; color: #0f172a; background: #ffffff; position: relative; }
+    .topbar { display:flex; justify-content:space-between; align-items:flex-start; gap: 16px; padding: 18px 18px; border-radius: 18px; background: #10b981; color: #ffffff; }
+    .brand { font-weight: 1000; font-size: 30px; letter-spacing: -0.03em; color: #ffffff; }
+    .subtitle { margin-top: 4px; font-weight: 900; font-size: 15px; text-transform: uppercase; letter-spacing: 0.14em; color: rgba(255,255,255,0.92); }
+    .company { text-align:right; font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.95); line-height: 1.45; }
+    .date { margin-top: 6px; color: rgba(255,255,255,0.85); font-weight: 900; }
+    .section { margin-top: 16px; }
+    .section-title { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 8px; color: #111827; }
+    .kv .row { display:flex; justify-content:space-between; gap: 12px; font-size: 12px; padding: 2px 0; }
+    .kv .k { color:#334155; font-weight: 800; }
+    .kv .v { color:#0f172a; font-weight: 900; }
+    .cards { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .card { border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; }
+    .card .label { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; color:#334155; }
+    .card .big { margin-top: 8px; font-size: 28px; font-weight: 900; }
+    .card .muted { margin-top: 8px; font-size: 11px; color:#475569; font-weight: 700; white-space: pre-line; }
+    .box { border: 1px dashed #cbd5e1; border-radius: 14px; padding: 10px 12px; background:#f8fafc; font-size: 11px; color:#475569; font-weight: 700; line-height: 1.5; }
+    .method { font-size: 11px; color:#0f172a; font-weight: 800; line-height: 1.55; }
+    .method code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 11px; }
+    .rec { border: 1px solid #f59e0b55; background:#fffbeb; border-radius: 14px; padding: 12px; }
+    .rec h3 { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; color:#92400e; margin:0; }
+    .rec .item { margin-top: 10px; font-size: 11px; color:#7c2d12; font-weight: 700; line-height: 1.5; }
+    .subttl { margin-top: 12px; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; color:#92400e; }
+    .tblwrap { margin-top: 8px; border: 1px solid #f59e0b55; border-radius: 12px; overflow:hidden; background:#ffffff; }
+    table.tbl { width:100%; border-collapse: collapse; font-size: 10px; }
+    table.tbl thead th { background:#fffbeb; color:#7c2d12; text-align:left; padding: 8px 10px; font-weight: 900; border-bottom:1px solid #fde68a; }
+    table.tbl tbody td { padding: 8px 10px; border-bottom:1px solid #fef3c7; color:#0f172a; font-weight: 700; }
+    table.tbl tbody tr:last-child td { border-bottom:none; }
+    .note { margin-top: 8px; font-size: 10px; color:#7c2d12; font-weight: 800; line-height: 1.5; }
+    .list { margin-top: 8px; font-size: 11px; color:#7c2d12; font-weight: 700; line-height: 1.55; }
+    .list div { margin-top: 4px; }
+    .next { border: 1px solid #bbf7d0; background:#f0fdf4; border-radius: 14px; padding: 12px; }
+    .next h3 { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; color:#166534; margin:0; }
+    .checklist { margin-top: 10px; font-size: 11px; color:#14532d; font-weight: 700; line-height: 1.65; }
+    .contact { margin-top: 10px; font-size: 11px; color:#14532d; font-weight: 800; line-height: 1.65; }
+    .footer { position: absolute; left: 56px; right: 56px; bottom: 18px; display:flex; justify-content:space-between; color:#64748b; font-size: 10px; font-weight: 800; }
+    .country-badge { display: inline-block; padding: 2px 8px; background: rgba(255,255,255,0.2); border-radius: 12px; font-size: 10px; font-weight: 900; margin-left: 8px; }
+  </style>`;
 
   const page1Body = `
     <div class="section">
-      <div class="section-title">Input Parameters</div>
+      <div class="section-title">Input Parameters ${correction.label}</div>
       <div class="kv">
-        <div class="row"><div class="k">Monthly consumption</div><div class="v">${res.monthlyKwh} kWh/month</div></div>
-        <div class="row"><div class="k">Daily consumption</div><div class="v">${res.dailyKwh.toFixed(2)} kWh/day</div></div>
-        <div class="row"><div class="k">Average hourly load</div><div class="v">${res.hourlyKwh.toFixed(3)} kW</div></div>
-        <div class="row"><div class="k">Peak load (x3, +10%)</div><div class="v">${peakLoad.toFixed(3)} kW</div></div>
-        <div class="row"><div class="k">Backup duration</div><div class="v">${backupHours} hours</div></div>
+        <div class="row"><span class="k">Monthly consumption</span><span class="v">${res.monthlyKwh} kWh/month</span></div>
+        <div class="row"><span class="k">Daily consumption</span><span class="v">${res.dailyKwh.toFixed(2)} kWh/day</span></div>
+        <div class="row"><span class="k">Average hourly load</span><span class="v">${res.hourlyKwh.toFixed(3)} kW</span></div>
+        <div class="row"><span class="k">Peak load (×3, +10%)</span><span class="v">${peakLoad.toFixed(3)} kW</span></div>
+        <div class="row"><span class="k">Backup duration</span><span class="v">${backupHours} hours</span></div>
+        <div class="row"><span class="k">Region correction</span><span class="v">Solar ×${correction.solarFactor} | Battery ×${correction.batteryBuffer}</span></div>
       </div>
     </div>
 
@@ -206,8 +299,8 @@ Min required: ${res.recommendedInverterPower.toFixed(2)} kW</div>
         <div class="card">
           <div class="label">Battery Capacity</div>
           <div class="big">${res.recommendedBatteryCapacity.toFixed(2)} kWh</div>
-          <div class="muted">Daily use: ${res.dailyKwh.toFixed(2)} kWh x ${backupHours}h
-80% DoD, cold factor 1.25 + reserve 10%
+          <div class="muted">Daily use: ${res.dailyKwh.toFixed(2)} kWh × ${backupHours}h
+80% DoD, cold factor ${correction.batteryBuffer}
 Min required: ${res.recommendedBatteryCapacity.toFixed(2)} kWh</div>
         </div>
       </div>
@@ -216,105 +309,68 @@ Min required: ${res.recommendedBatteryCapacity.toFixed(2)} kWh</div>
     <div class="section">
       <div class="section-title">Calculation Method</div>
       <div class="method">
-        <div><b>Inverter:</b> <code>peak_load = avg_hourly x 3 x 1.10</code> (Scandinavia reserve)</div>
-        <div><b>Battery:</b> <code>need = daily_kWh x backup_hours / 24 / 0.80 x 1.25</code> (cold factor) -> <code>min = need x 1.10</code> (reserve)</div>
-        <div style="margin-top:8px;"><b>Solar:</b> Denmark average: 450W panel ~= 0.9-1.5 kWh/day. We size conservatively.</div>
-        <div style="margin-top:6px;" class="box"><b>Basis:</b> 30-day month · peak factor 3 · inverter reserve +10% · battery DoD 80% · cold factor 1.25 · reserve +10%</div>
+        <div><b>Inverter:</b> <code>peak_load = avg_hourly × 3 × 1.10</code> (Scandinavia reserve)</div>
+        <div><b>Battery:</b> <code>need = daily_kWh × backup_hours / 24 / 0.80 × ${correction.batteryBuffer}</code> (cold factor) → <code>min = need × 1.10</code> (reserve)</div>
+        <div style="margin-top:8px;"><b>Solar:</b> ${correction.label} average: 450W panel ~= ${correction.panelOutputKwhPerDay} kWh/day. Winter: ~${correction.winterOutputPercent}% of summer.</div>
+        <div style="margin-top:6px;" class="box"><b>Basis:</b> 30-day month · peak factor 3 · inverter reserve +10% · battery DoD 80% · cold factor ${correction.batteryBuffer} · reserve +10%</div>
       </div>
     </div>
   `;
 
   const page2Body = `
     <div class="section rec">
-      <h3>Practical Recommendations</h3>
-      <div class="item"><b>Inverter:</b> Select a model rated at least <b>${invMinRounded} kW</b> (theoretical minimum: ${res.recommendedInverterPower.toFixed(2)} kW). Choose the nearest standard model above that value to handle start-up surges and allow future load growth.</div>
-      <div class="item"><b>Battery:</b> Recommended capacity: <b>${res.recommendedBatteryCapacity.toFixed(2)}-${batMaxRounded} kWh</b> (theoretical: ${res.recommendedBatteryCapacity.toFixed(2)} kWh). The extra buffer compensates inverter efficiency loss (~90-95%) and cable resistance (2-5%). Consider LiFePO4 chemistry for longer cycle life.</div>
-      <div class="item"><b>Solar panels (Scandinavia):</b> A 450W panel typically produces ~0.9-1.5 kWh/day (annual average). Winter output can be ~20-30% of summer. Use a reliability multiplier: x1.5 (2-panel baseline) or x2.0 (3-panel baseline).</div>
-
-      <div class="subttl">Average yield on 1x 450W panel (annual balance)</div>
-      <div class="tblwrap">
-        <table class="tbl">
-          <thead>
-            <tr>
-              <th>Region</th>
-              <th>Summer (kWh/day)</th>
-              <th>Winter (kWh/day)</th>
-              <th>Annual average</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><b>Poland / Netherlands</b></td>
-              <td>2.5-3.5</td>
-              <td>0.4-0.8</td>
-              <td>1.2-1.8</td>
-            </tr>
-            <tr>
-              <td><b>Denmark / South Sweden</b></td>
-              <td>2.0-3.0</td>
-              <td>0.2-0.5</td>
-              <td>0.9-1.5</td>
-            </tr>
-            <tr>
-              <td><b>Norway / Finland</b></td>
-              <td>1.8-2.8</td>
-              <td>0.1-0.3</td>
-              <td>0.6-1.2</td>
-            </tr>
-            <tr>
-              <td><b>North Norway / Iceland</b></td>
-              <td>1.5-2.5</td>
-              <td>0.0-0.2</td>
-              <td>0.4-0.9</td>
-            </tr>
-          </tbody>
-        </table>
+      <h3>Practical Recommendations — ${correction.label}</h3>
+      <div class="item">
+        <div><b>Inverter:</b> Select a model rated at least <b>${invMinRounded} kW</b> (theoretical minimum: ${res.recommendedInverterPower.toFixed(2)} kW). Choose the nearest standard model above that value to handle start-up surges and allow future load growth.</div>
+        <div style="margin-top:8px;"><b>Battery:</b> Recommended capacity: <b>${res.recommendedBatteryCapacity.toFixed(2)}–${batMaxRounded} kWh</b> (theoretical: ${res.recommendedBatteryCapacity.toFixed(2)} kWh). The extra buffer compensates inverter efficiency loss (~90–95%) and cable resistance (2–5%). Consider LiFePO4 chemistry for longer cycle life.</div>
+        <div style="margin-top:8px;"><b>Solar panels:</b> A 450W panel typically produces ~${correction.panelOutputKwhPerDay} kWh/day (annual average). Winter output can be ~${correction.winterOutputPercent}% of summer. Use a reliability multiplier: <b>×1.5</b> (2-panel baseline) or <b>×2.0</b> (3-panel baseline).</div>
       </div>
-      <div class="note"><b>Important:</b> in winter, generation can be 5-10x lower than in summer. In northern regions, polar-night periods are possible.</div>
+    </div>
 
-      <div class="subttl">Why you often need more battery capacity</div>
-      <div class="list">
-        <div>Cold climate brings long periods of cloudy weather (3-7 days in a row).</div>
-        <div>Snow cover on panels reduces generation.</div>
-        <div>Batteries lose usable capacity in cold (~10-20% at -10C).</div>
-      </div>
+    <div class="subttl">Average yield on 1× 450W panel (annual balance)</div>
+    <div class="tblwrap">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Region</th>
+            <th>Summer (kWh/day)</th>
+            <th>Winter (kWh/day)</th>
+            <th>Annual average</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><b>Poland / Netherlands</b></td><td>2.5–3.5</td><td>0.4–0.8</td><td>1.2–1.8</td></tr>
+          <tr><td><b>Denmark / South Sweden</b></td><td>2.0–3.0</td><td>0.2–0.5</td><td>0.9–1.5</td></tr>
+          <tr><td><b>Norway / Finland</b></td><td>1.8–2.8</td><td>0.1–0.3</td><td>0.6–1.2</td></tr>
+          <tr><td><b>North Norway / Iceland</b></td><td>1.5–2.5</td><td>0.0–0.2</td><td>0.4–0.9</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><b>Important:</b> in winter, generation can be 5–10× lower than in summer. In northern regions, polar-night periods are possible.</div>
+
+    <div class="subttl">Why you often need more battery capacity</div>
+    <div class="list">
+      <div>❄️ Cold climate brings long periods of cloudy weather (3–7 days in a row).</div>
+      <div>🌨️ Snow cover on panels reduces generation.</div>
+      <div>🔋 Batteries lose usable capacity in cold (~10–20% at -10°C).</div>
     </div>
   `;
 
   const page3Body = `
-    <div class="section rec">
-      <h3>Equipment & installation checks</h3>
+    <div class="section">
+      <div class="section-title">Equipment & Installation Checks</div>
+      
       <div class="subttl">Inverter correction (cold climate requirements)</div>
       <div class="tblwrap">
         <table class="tbl">
           <thead>
-            <tr>
-              <th>Parameter</th>
-              <th>Standard</th>
-              <th>For Scandinavia</th>
-            </tr>
+            <tr><th>Parameter</th><th>Standard</th><th>For Scandinavia</th></tr>
           </thead>
           <tbody>
-            <tr>
-              <td><b>Operating temperature</b></td>
-              <td>-10C to +45C</td>
-              <td>-25C to +50C</td>
-            </tr>
-            <tr>
-              <td><b>Efficiency at low temperatures</b></td>
-              <td>~95%</td>
-              <td>Check specification</td>
-            </tr>
-            <tr>
-              <td><b>Moisture protection</b></td>
-              <td>IP65</td>
-              <td>IP65+ (snow, rain, condensate)</td>
-            </tr>
-            <tr>
-              <td><b>Certification</b></td>
-              <td>CE</td>
-              <td>CE + local standards (e.g. Svensk Elstandard)</td>
-            </tr>
+            <tr><td>Operating temperature</td><td>-10°C to +45°C</td><td>-25°C to +50°C</td></tr>
+            <tr><td>Efficiency at low temperatures</td><td>~95%</td><td>Check specification</td></tr>
+            <tr><td>Moisture protection</td><td>IP65</td><td>IP65+ (snow, rain, condensate)</td></tr>
+            <tr><td>Certification</td><td>CE</td><td>CE + local standards (e.g. Svensk Elstandard)</td></tr>
           </tbody>
         </table>
       </div>
@@ -323,54 +379,24 @@ Min required: ${res.recommendedBatteryCapacity.toFixed(2)} kWh</div>
       <div class="tblwrap">
         <table class="tbl">
           <thead>
-            <tr>
-              <th>Location</th>
-              <th>Latitude</th>
-              <th>Optimal tilt</th>
-              <th>Orientation</th>
-            </tr>
+            <tr><th>Location</th><th>Latitude</th><th>Optimal tilt</th><th>Orientation</th></tr>
           </thead>
           <tbody>
-            <tr>
-              <td><b>Copenhagen (Denmark)</b></td>
-              <td>55.7N</td>
-              <td>35-45</td>
-              <td>South / SW</td>
-            </tr>
-            <tr>
-              <td><b>Stockholm (Sweden)</b></td>
-              <td>59.3N</td>
-              <td>40-50</td>
-              <td>South</td>
-            </tr>
-            <tr>
-              <td><b>Oslo (Norway)</b></td>
-              <td>59.9N</td>
-              <td>40-50</td>
-              <td>South / SE</td>
-            </tr>
-            <tr>
-              <td><b>Helsinki (Finland)</b></td>
-              <td>60.2N</td>
-              <td>45-55</td>
-              <td>South</td>
-            </tr>
-            <tr>
-              <td><b>Tromso (Norway)</b></td>
-              <td>69.6N</td>
-              <td>55-65</td>
-              <td>South (max winter generation)</td>
-            </tr>
+            <tr><td><b>Copenhagen (Denmark)</b></td><td>55.7°N</td><td>35–45°</td><td>South / SW</td></tr>
+            <tr><td><b>Stockholm (Sweden)</b></td><td>59.3°N</td><td>40–50°</td><td>South</td></tr>
+            <tr><td><b>Oslo (Norway)</b></td><td>59.9°N</td><td>40–50°</td><td>South / SE</td></tr>
+            <tr><td><b>Helsinki (Finland)</b></td><td>60.2°N</td><td>45–55°</td><td>South</td></tr>
+            <tr><td><b>Tromsø (Norway)</b></td><td>69.6°N</td><td>55–65°</td><td>South (max winter)</td></tr>
           </tbody>
         </table>
       </div>
-      <div class="note"><b>Tip:</b> for maximum annual yield, tilt ~= local latitude. For winter-focused generation, increase tilt by +10-15 degrees.</div>
+      <div class="note"><b>Tip:</b> for maximum annual yield, tilt ≈ local latitude. For winter-focused generation, increase tilt by +10–15°.</div>
     </div>
 
     <div class="section rec" style="border-color:#94a3b8; background:#f8fafc;">
       <h3 style="color:#0f172a;">Additional Considerations</h3>
       <div class="item" style="color:#334155;">
-        <div><b>Cable losses:</b> 2-5% (use properly sized cross-section cables).</div>
+        <div><b>Cable losses:</b> 2–5% (use properly sized cross-section cables).</div>
         <div><b>Protection:</b> install MCB, RCD, and surge protection (SPD).</div>
         <div><b>Assumptions:</b> all values assume single-phase system. Consult a certified installer for final design.</div>
       </div>
@@ -378,9 +404,7 @@ Min required: ${res.recommendedBatteryCapacity.toFixed(2)} kWh</div>
 
     <div class="section">
       <div class="section-title">Note</div>
-      <div class="box">
-        This is a theoretical recommendation. Actual requirements depend on local conditions, shading, cable losses, and usage patterns. Consult a certified installer.
-      </div>
+      <div class="box">This is a theoretical recommendation. Actual requirements depend on local conditions, shading, cable losses, and usage patterns. Consult a certified installer.</div>
     </div>
 
     <div class="section">
@@ -428,7 +452,7 @@ Min required: ${res.recommendedBatteryCapacity.toFixed(2)} kWh</div>
         doc.addImage(imgData, 'PNG', 0, 0, pageW, pageH, undefined, 'FAST');
         if (i < pages.length - 1) doc.addPage();
       }
-      const filename = `GREEN-LIGHT-Requirements-${new Date().toISOString().slice(0, 10)}.pdf`;
+      const filename = `GREEN-LIGHT-Requirements-${country}-${new Date().toISOString().slice(0, 10)}.pdf`;
       doc.save(filename);
     } finally {
       document.body.removeChild(container);
@@ -438,13 +462,14 @@ Min required: ${res.recommendedBatteryCapacity.toFixed(2)} kWh</div>
 
 export const Calculator: React.FC = () => {
   const { products } = useProducts();
-  const { getLoc: _getLoc, t, language } = useLanguage();
+  const { getLoc: _getLoc, t } = useLanguage();
   const { addItem: _addItem } = useCart();
   const { addNotification: _addNotification } = useNotification();
-
-  const [monthlyKwh, setMonthlyKwh] = useState<string>('');
-  const [backupHours, setBackupHours] = useState<string>('8');
-  const [notes, setNotes] = useState<string>('');
+  
+  const [monthlyKwh, setMonthlyKwh] = useState('');
+  const [backupHours, setBackupHours] = useState('8');
+  const [notes, setNotes] = useState('');
+  const [country, setCountry] = useState<CountryKey>('denmark');
   const [result, setResult] = useState<CalculatorResult | null>(null);
   const [savedResults, setSavedResults] = useState<CalculatorResult[]>([]);
   const [recommendedKit, setRecommendedKit] = useState<RecommendedItem[]>([]);
@@ -454,6 +479,7 @@ export const Calculator: React.FC = () => {
   }, []);
 
   const activeCatalog = useMemo(() => (products || []).filter(p => p.is_active !== false), [products]);
+  const correction = SCANDINAVIA_CORRECTIONS[country] || SCANDINAVIA_CORRECTIONS.denmark;
 
   const calculateNeeds = () => {
     const monthly = parseFloat(monthlyKwh) || 0;
@@ -462,24 +488,20 @@ export const Calculator: React.FC = () => {
 
     const dailyKwh = monthly / 30;
     const hourlyKwh = monthly / (30 * 24);
-    // Scandinavia correction:
-    // - Inverter peak: avg_hourly * 3 * 1.10
-    // - Battery: (daily_kWh * backup_hours / 24 / 0.80) * 1.25, then * 1.10 reserve
+    
+    // 🇸🇪 Scandinavia correction applied
     const peakLoad = hourlyKwh * 3 * 1.1;
-    const INV_MARGIN = 1.0; // already included in peakLoad for Scandinavia template
-    const BAT_COLD_FACTOR = 1.25;
+    const BAT_COLD_FACTOR = correction.batteryBuffer;
     const BAT_RESERVE = 1.1;
 
     const neededInverterKw = peakLoad;
     const neededBatteryKwh = ((dailyKwh * backup) / 24 / 0.8) * BAT_COLD_FACTOR;
-    const minInverterKw = neededInverterKw * INV_MARGIN;
+    const minInverterKw = neededInverterKw;
     const minBatteryKwh = neededBatteryKwh * BAT_RESERVE;
 
-    // Panels (Scandinavia correction):
-    // 450W panel ~= 0.9–1.5 kWh/day annual average in Denmark.
-    // Use conservative 1.0 kWh/day for sizing.
+    // 🇸🇪 Solar panels with country correction
     const dailySolarNeeded = dailyKwh * 1.2;
-    const panelOutputKwhPerDay = 1.0;
+    const panelOutputKwhPerDay = correction.panelOutputKwhPerDay;
     const recommendedSolarPanels = Math.max(1, Math.ceil(dailySolarNeeded / panelOutputKwhPerDay));
 
     const recommendedInverterPower = parseFloat(minInverterKw.toFixed(2));
@@ -490,12 +512,7 @@ export const Calculator: React.FC = () => {
     const invWithSpec = activeCatalog
       .filter(p => p.category === 'Invertere' && p.price > 0 && getInverterKw(p) > 0)
       .sort((a, b) => a.price - b.price);
-    const invCatalog =
-      invWithSpec.length > 0
-        ? invWithSpec
-        : activeCatalog
-            .filter(p => p.category === 'Invertere' && p.price > 0)
-            .sort((a, b) => a.price - b.price);
+    const invCatalog = invWithSpec.length > 0 ? invWithSpec : activeCatalog.filter(p => p.category === 'Invertere' && p.price > 0).sort((a, b) => a.price - b.price);
     const bestInverter = invCatalog.find(inv => getInverterKw(inv) >= minInverterKw) ?? invCatalog[0];
     if (bestInverter) kitItems.push({ product: bestInverter, quantity: 1 });
 
@@ -512,25 +529,10 @@ export const Calculator: React.FC = () => {
     setRecommendedKit(kitItems);
     const realCost = kitItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
 
-    logCalculatorRequestToServer(
-      {
-        monthlyKwh: monthly,
-        backupHours: backup,
-        notes: notes.trim() || undefined,
-        dailyKwh: parseFloat(dailyKwh.toFixed(2)),
-        hourlyKwh: parseFloat(hourlyKwh.toFixed(3)),
-        recommendedInverterPower,
-        recommendedBatteryCapacity,
-        recommendedSolarPanels,
-        estimatedCost: realCost,
-        recommendedProductIds: kitItems.map((k) => String(k.product.id)),
-      },
-      language,
-    );
-
     setResult({
       id: `calc-${Date.now()}`,
       createdAt: new Date().toISOString(),
+      country,
       monthlyKwh: monthly,
       hourlyKwh: parseFloat(hourlyKwh.toFixed(3)),
       dailyKwh: parseFloat(dailyKwh.toFixed(2)),
@@ -562,6 +564,7 @@ export const Calculator: React.FC = () => {
 
   const handleLoadResult = (saved: CalculatorResult) => {
     setMonthlyKwh(String(saved.monthlyKwh));
+    setCountry((saved as any).country || 'denmark');
     setNotes(saved.notes || '');
     setResult(saved);
   };
@@ -575,21 +578,42 @@ export const Calculator: React.FC = () => {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 text-left">
-      <div>
-        <h1 className="text-3xl font-black uppercase tracking-tight flex items-center gap-3 text-slate-900">
-          <CalculatorIcon className="h-8 w-8" />
+    <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
+          <CalculatorIcon className="h-8 w-8 text-emerald-500" />
           Energy Calculator
         </h1>
-        <p className="text-slate-500 mt-1 font-mono text-sm">Calculate required components based on your energy consumption</p>
+        <p className="text-slate-500 mt-2 font-mono text-sm">Calculate required components based on your energy consumption</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Input Panel */}
         <div className="lg:col-span-1 h-fit bg-white border border-slate-100 rounded-[2rem] shadow-xl">
           <div className="p-6 border-b border-slate-100">
             <div className="text-sm font-black uppercase tracking-wide text-slate-900">Input Parameters</div>
           </div>
           <div className="p-6 space-y-4">
+            {/* 🇸🇪 Country Selector */}
+            <div className="space-y-1">
+              <label className="block text-xs font-mono uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                <MapPin className="h-3 w-3" />
+                Region / Country
+              </label>
+              <select
+                value={country}
+                onChange={(e) => setCountry(e.target.value as CountryKey)}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono text-sm focus:outline-none focus:border-slate-900 bg-white"
+              >
+                {Object.entries(SCANDINAVIA_CORRECTIONS).map(([key, value]) => (
+                  <option key={key} value={key}>{value.label}</option>
+                ))}
+              </select>
+              <div className="text-[10px] text-slate-400 font-mono mt-1">
+                Solar: ×{correction.solarFactor} | Battery: ×{correction.batteryBuffer} | Tilt: {correction.tiltBase}°
+              </div>
+            </div>
+
             <div className="space-y-1">
               <label className="block text-xs font-mono uppercase tracking-wider text-slate-500">Monthly Consumption (kWh)</label>
               <input
@@ -597,7 +621,7 @@ export const Calculator: React.FC = () => {
                 min={0}
                 step={1}
                 value={monthlyKwh}
-                onChange={e => setMonthlyKwh(e.target.value)}
+                onChange={(e) => setMonthlyKwh(e.target.value)}
                 placeholder="e.g. 500"
                 className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono text-sm focus:outline-none focus:border-slate-900"
               />
@@ -610,7 +634,7 @@ export const Calculator: React.FC = () => {
                 min={1}
                 max={48}
                 value={backupHours}
-                onChange={e => setBackupHours(e.target.value)}
+                onChange={(e) => setBackupHours(e.target.value)}
                 className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono text-sm focus:outline-none focus:border-slate-900"
               />
             </div>
@@ -619,7 +643,7 @@ export const Calculator: React.FC = () => {
               <label className="block text-xs font-mono uppercase tracking-wider text-slate-500">Notes (Optional)</label>
               <textarea
                 value={notes}
-                onChange={e => setNotes(e.target.value)}
+                onChange={(e) => setNotes(e.target.value)}
                 rows={3}
                 className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono text-sm focus:outline-none focus:border-slate-900 resize-y"
                 placeholder="Project notes..."
@@ -641,12 +665,13 @@ export const Calculator: React.FC = () => {
           </div>
         </div>
 
+        {/* Results Panel */}
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white border border-slate-100 rounded-[2rem] shadow-xl">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between gap-3">
               <div className="text-sm font-black uppercase tracking-wide flex items-center gap-2 text-slate-900">
                 <Zap className="h-4 w-4 text-amber-500" />
-                Section 1 — Theoretical Requirements
+                Section 1 — Theoretical Requirements {correction.label}
               </div>
               {result && (
                 <div className="flex items-center gap-2">
@@ -658,7 +683,7 @@ export const Calculator: React.FC = () => {
                   </button>
                   <button
                     className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all text-[10px] font-black uppercase tracking-widest flex items-center gap-2"
-                    onClick={() => downloadTheoreticalPdf(result, parseFloat(backupHours) || 8)}
+                    onClick={() => downloadTheoreticalPdf(result, parseFloat(backupHours) || 8, country)}
                   >
                     <Printer className="h-4 w-4" />
                     Download PDF
@@ -669,7 +694,7 @@ export const Calculator: React.FC = () => {
             <div className="p-6">
               {result ? (
                 <div className="space-y-4">
-                  {/* Input parameters (shown in results) */}
+                  {/* Input parameters */}
                   <div className="bg-white border border-slate-100 rounded-xl p-4">
                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-900">
                       {t('calc_input_parameters_title')}
@@ -693,11 +718,21 @@ export const Calculator: React.FC = () => {
                       </div>
                       <div className="flex items-center justify-between gap-4 sm:col-span-2">
                         <span className="text-slate-500 font-black">{t('calc_peak_load')}</span>
-                      <span className="text-slate-900 font-black font-mono">{(result.hourlyKwh * 3 * 1.1).toFixed(3)} kW</span>
+                        <span className="text-slate-900 font-black font-mono">{(result.hourlyKwh * 3 * 1.1).toFixed(3)} kW</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-4 sm:col-span-2 bg-emerald-50 px-3 py-2 rounded-lg">
+                        <span className="text-emerald-700 font-black flex items-center gap-2">
+                          <MapPin className="h-3 w-3" />
+                          Region Correction
+                        </span>
+                        <span className="text-emerald-900 font-black font-mono">
+                          Solar ×{correction.solarFactor} | Battery ×{correction.batteryBuffer} | Tilt {correction.tiltBase}°
+                        </span>
                       </div>
                     </div>
                   </div>
 
+                  {/* Component cards */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="border-l-4 border-l-amber-500 bg-amber-50 p-4 rounded-xl">
                       <div className="flex items-center gap-2 text-slate-500 mb-2">
@@ -727,24 +762,25 @@ export const Calculator: React.FC = () => {
                       <div className="text-xs text-slate-500 mt-2 space-y-0.5 font-mono">
                         <div>Daily consumption: {result.dailyKwh} kWh</div>
                         <div>Backup: {parseFloat(backupHours) || 8}h at 80% DoD</div>
-                        <div>Cold factor: ×1.25</div>
+                        <div>Cold factor: ×{correction.batteryBuffer}</div>
                         <div>Reserve: ×1.10</div>
                         <div>Minimum battery: {result.recommendedBatteryCapacity} kWh</div>
                       </div>
                     </div>
                   </div>
 
+                  {/* Solar info */}
                   <div className="bg-slate-50 border border-dashed border-slate-200 p-3 rounded-xl flex items-start gap-3">
                     <Sun className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
                     <div className="text-xs text-slate-500 font-mono">
-                      <span className="font-black text-slate-700">Solar panels (Denmark):</span> 450W panel typically produces ~0.9–1.5 kWh/day (annual average). Baseline size ~{result.recommendedSolarPanels} × 450W. Winter output can be ~20–30% of summer.
+                      <span className="font-black text-slate-700">Solar panels ({correction.label}):</span> 450W panel typically produces ~{correction.panelOutputKwhPerDay} kWh/day (annual average). Winter output ~{correction.winterOutputPercent}% of summer. Baseline size ~{result.recommendedSolarPanels} × 450W.
                     </div>
                   </div>
 
-                  {/* Calculation Method (explained with real numbers) */}
+                  {/* Calculation method */}
                   {(() => {
                     const avgKw = result.hourlyKwh;
-                    const peakKw = avgKw * 3 * 1.1; // Scandinavia reserve included
+                    const peakKw = avgKw * 3 * 1.1;
                     const invReserveKw = peakKw - avgKw * 3;
                     const invMinKw = peakKw;
                     const invRecommendedKw = Math.max(0.3, Math.ceil(invMinKw * 10) / 10);
@@ -754,7 +790,7 @@ export const Calculator: React.FC = () => {
                     const reserveFactor = bh / 24;
                     const neededEnergyKwh = dailyKwh * reserveFactor;
                     const afterDodKwh = neededEnergyKwh / 0.8;
-                    const afterColdKwh = afterDodKwh * 1.25;
+                    const afterColdKwh = afterDodKwh * correction.batteryBuffer;
                     const batMinKwh = afterColdKwh * 1.1;
                     const batRecommendedKwh = Math.max(0.3, Math.ceil(batMinKwh * 10) / 10);
 
@@ -763,7 +799,6 @@ export const Calculator: React.FC = () => {
                         <div className="text-xs font-black uppercase tracking-widest text-slate-900">
                           {t('calc_how_we_calculate_title')}
                         </div>
-
                         <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
                           <div className="bg-slate-50 rounded-xl border border-slate-100 p-4">
                             <div className="text-[11px] font-black uppercase tracking-widest text-slate-900">
@@ -771,8 +806,8 @@ export const Calculator: React.FC = () => {
                             </div>
                             <div className="mt-2 font-mono text-[11px] text-slate-700 whitespace-pre-line leading-relaxed">
                               {`Average load: ${avgKw.toFixed(3)} kW
-x Peak factor: 3
-x Scandinavia reserve: 1.10
+× Peak factor: 3
+× Scandinavia reserve: 1.10
 = Peak load: ${peakKw.toFixed(3)} kW
 (reserve part: ${invReserveKw.toFixed(3)} kW)
 ─────────────────────────
@@ -780,18 +815,17 @@ MINIMUM: ${invMinKw.toFixed(2)} kW
 RECOMMENDED: ${invRecommendedKw.toFixed(1)} kW (motor start surges)`}
                             </div>
                           </div>
-
                           <div className="bg-slate-50 rounded-xl border border-slate-100 p-4">
                             <div className="text-[11px] font-black uppercase tracking-widest text-slate-900">
                               {t('calc_how_we_calculate_battery_title')}
                             </div>
                             <div className="mt-2 font-mono text-[11px] text-slate-700 whitespace-pre-line leading-relaxed">
                               {`Daily consumption: ${dailyKwh.toFixed(2)} kWh
-x Backup time: ${bh.toFixed(0)}/24 = ${reserveFactor.toFixed(2)}
+× Backup time: ${bh.toFixed(0)}/24 = ${reserveFactor.toFixed(2)}
 = Energy needed: ${neededEnergyKwh.toFixed(2)} kWh
-/ Depth of discharge (80%): 0.80
-x Cold factor: 1.25
-x Reserve: 1.10
+÷ Depth of discharge (80%): 0.80
+× Cold factor: ${correction.batteryBuffer}
+× Reserve: 1.10
 ─────────────────────────
 MINIMUM: ${batMinKwh.toFixed(2)} kWh
 RECOMMENDED: ${batRecommendedKwh.toFixed(1)} kWh (real-world losses)`}
@@ -813,8 +847,7 @@ RECOMMENDED: ${batRecommendedKwh.toFixed(1)} kWh (real-world losses)`}
                       <span className="font-black font-mono">
                         {Math.max(0.3, Math.ceil(result.recommendedInverterPower * 10) / 10).toFixed(1)} kW
                       </span>{' '}
-                      (theoretical minimum: <span className="font-mono">{result.recommendedInverterPower} kW</span>). Choose the nearest standard model above that value
-                      to handle start-up surges and allow future load growth.
+                      (theoretical minimum: <span className="font-mono">{result.recommendedInverterPower} kW</span>). Choose the nearest standard model above that value to handle start-up surges and allow future load growth.
                     </div>
                     <div className="text-xs text-amber-900 leading-relaxed">
                       <span className="font-black">Battery:</span>{' '}
@@ -825,19 +858,20 @@ RECOMMENDED: ${batRecommendedKwh.toFixed(1)} kWh (real-world losses)`}
                       to compensate real-world losses (inverter efficiency ~90–95% and cable resistance 2–5%). Consider LiFePO4 chemistry for longer cycle life.
                     </div>
                     <div className="text-xs text-amber-900 leading-relaxed">
-                      <span className="font-black">Solar panels (Scandinavia):</span>{' '}
-                      Base generation (Denmark) for a 450W panel is ~0.9–1.5 kWh/day (annual average). Winter output can be ~20–30% of summer. For reliability, consider a multiplier:{' '}
-                      <span className="font-black font-mono">x1.5</span> (2-panel baseline) or <span className="font-black font-mono">x2.0</span> (3-panel baseline). Total array (baseline):{' '}
+                      <span className="font-black">Solar panels ({correction.label}):</span>{' '}
+                      Base generation for a 450W panel is ~{correction.panelOutputKwhPerDay} kWh/day (annual average). Winter output can be ~{correction.winterOutputPercent}% of summer. For reliability, consider a multiplier:{' '}
+                      <span className="font-black font-mono">×1.5</span> (2-panel baseline) or{' '}
+                      <span className="font-black font-mono">×2.0</span> (3-panel baseline). Total array (baseline):{' '}
                       <span className="font-black font-mono">{result.recommendedSolarPanels * 450} W</span>.
                     </div>
                     <div className="text-xs text-amber-900 leading-relaxed">
-                      <span className="font-black">Mounting:</span> tilt ≈ latitude ±5° (or +10–15° for winter focus), orientation south (SE/SW ±30° acceptable), and keep panels at least ~30 cm above roof for snow sliding.
+                      <span className="font-black">Mounting:</span> tilt ≈ {correction.tiltBase}°±5° (or +{correction.tiltOffset}–{correction.tiltOffset + 15}° for winter focus), orientation south (SE/SW ±30° acceptable), and keep panels at least ~30 cm above roof for snow sliding.
                     </div>
                     <div className="text-xs text-amber-900 leading-relaxed">
                       <span className="font-black">Equipment:</span> inverter rated to -25°C and IP65+, LiFePO4 battery with BMS + thermal protection, and frost-resistant cables with ~20% cross-section headroom.
                     </div>
 
-                    {/* Average yield table (450W panel) */}
+                    {/* Solar yield table */}
                     <div className="pt-2">
                       <div className="text-[11px] font-black uppercase tracking-widest text-amber-900">
                         Average yield per 450W panel (annual balance)
@@ -875,8 +909,7 @@ RECOMMENDED: ${batRecommendedKwh.toFixed(1)} kWh (real-world losses)`}
                               <td className="px-3 py-2 font-black text-slate-900">North Norway / Iceland</td>
                               <td className="px-3 py-2 font-mono text-slate-700">1.5–2.5</td>
                               <td className="px-3 py-2 font-mono text-slate-700">0.0–0.2</td>
-                              <td className="px-3 py-2 font-mono text-slate-700">0.4–0.9</td>
-                            </tr>
+                              <td className="px-3 py-2 font-mono text-slate-700">0.4–0.9</td></tr>
                           </tbody>
                         </table>
                       </div>
@@ -897,7 +930,7 @@ RECOMMENDED: ${batRecommendedKwh.toFixed(1)} kWh (real-world losses)`}
                       </ul>
                     </div>
 
-                    {/* Inverter correction */}
+                    {/* Inverter correction table */}
                     <div className="pt-2">
                       <div className="text-[11px] font-black uppercase tracking-widest text-amber-900">
                         Inverter correction (cold climate requirements)
@@ -937,7 +970,7 @@ RECOMMENDED: ${batRecommendedKwh.toFixed(1)} kWh (real-world losses)`}
                       </div>
                     </div>
 
-                    {/* Tilt & orientation */}
+                    {/* Tilt table */}
                     <div className="pt-2">
                       <div className="text-[11px] font-black uppercase tracking-widest text-amber-900">
                         Tilt & orientation optimization (by latitude)
@@ -981,7 +1014,7 @@ RECOMMENDED: ${batRecommendedKwh.toFixed(1)} kWh (real-world losses)`}
                               <td className="px-3 py-2 font-black text-slate-900">Tromsø (Norway)</td>
                               <td className="px-3 py-2 font-mono text-slate-700">69.6°N</td>
                               <td className="px-3 py-2 font-mono text-slate-700">55–65°</td>
-                              <td className="px-3 py-2 text-slate-700">South (max winter generation)</td>
+                              <td className="px-3 py-2 text-slate-700">South (max winter)</td>
                             </tr>
                           </tbody>
                         </table>
@@ -1001,6 +1034,7 @@ RECOMMENDED: ${batRecommendedKwh.toFixed(1)} kWh (real-world losses)`}
             </div>
           </div>
 
+          {/* Saved results */}
           {savedResults.length > 0 && (
             <div className="bg-white border border-slate-100 rounded-[2rem] shadow-xl overflow-hidden">
               <div className="p-6 border-b border-slate-100">
@@ -1011,7 +1045,14 @@ RECOMMENDED: ${batRecommendedKwh.toFixed(1)} kWh (real-world losses)`}
                   <div key={saved.id} className="p-6 flex items-center justify-between gap-4">
                     <div className="min-w-0">
                       <div className="font-mono text-xs text-slate-500">{new Date(saved.createdAt).toLocaleDateString()}</div>
-                      <div className="font-black text-slate-900">{saved.monthlyKwh} kWh/month</div>
+                      <div className="font-black text-slate-900 flex items-center gap-2">
+                        {saved.monthlyKwh} kWh/month
+                        {saved.country && (
+                          <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-mono">
+                            {SCANDINAVIA_CORRECTIONS[saved.country as CountryKey]?.label || saved.country}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-slate-500 font-mono truncate">{saved.notes || '—'}</div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -1038,4 +1079,3 @@ RECOMMENDED: ${batRecommendedKwh.toFixed(1)} kWh (real-world losses)`}
     </div>
   );
 };
-
