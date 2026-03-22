@@ -8,7 +8,7 @@ interface AdminRatesModalProps {
 }
 
 export const AdminRatesModal: React.FC<AdminRatesModalProps> = ({ onClose }) => {
-  const { rates, updateRates } = useLanguage();
+  const { rates, updateRates, t } = useLanguage();
   const { addNotification } = useNotification();
   const [localRates, setLocalRates] = useState(rates);
 
@@ -18,21 +18,21 @@ export const AdminRatesModal: React.FC<AdminRatesModalProps> = ({ onClose }) => 
         <div className="px-10 py-8 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
           <div className="flex items-center gap-4">
             <div className="bg-amber-500 p-2 rounded-lg text-slate-900"><TrendingUp size={18} /></div>
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">Currency Exchange Rates</h3>
+            <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">{t('admin_rates_title')}</h3>
           </div>
           <button onClick={onClose} className="p-3 hover:bg-slate-100 rounded-2xl transition-all text-slate-400"><X size={24} /></button>
         </div>
 
         <div className="p-10 space-y-8 overflow-y-auto custom-scrollbar">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-relaxed">
-            Update the base conversion rates for the platform. These values affect all public pricing displays.
+            {t('admin_rates_hint')}
           </p>
           <div className="grid grid-cols-1 gap-6">
             {Object.entries(localRates)
               .filter(([key]) => key !== 'timestamp')
               .map(([currency, rate]) => (
                 <div key={currency} className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-900 uppercase ml-2">{currency} (Base: EUR)</label>
+                  <label className="text-[9px] font-black text-slate-900 uppercase ml-2">{currency} {t('admin_rates_base_label')}</label>
                   <div className="relative">
                     <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 font-black text-[10px]">{currency}</div>
                     <input
@@ -53,7 +53,7 @@ export const AdminRatesModal: React.FC<AdminRatesModalProps> = ({ onClose }) => 
             onClick={async () => {
               try {
                 await updateRates(localRates);
-                addNotification('Rates Updated', 'success');
+                addNotification(t('admin_rates_updated'), 'success');
                 onClose();
               } catch (err: any) {
                 addNotification(err.message, 'error');
@@ -61,7 +61,7 @@ export const AdminRatesModal: React.FC<AdminRatesModalProps> = ({ onClose }) => 
             }}
             className="btn-action !bg-amber-500 shadow-xl px-12 !rounded-2xl"
           >
-            <Save size={18} className="mr-2" /> Update Rates
+            <Save size={18} className="mr-2" /> {t('admin_rates_save')}
           </button>
         </div>
       </div>

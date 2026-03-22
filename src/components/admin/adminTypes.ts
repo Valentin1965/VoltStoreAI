@@ -7,6 +7,7 @@ export const categoryToTable: Record<string, string> = {
   'Power Station': 'ev_chargers',
   'Varmepumper': 'heat_pumps',
   'Sæt': 'kits',
+  'Monteringssystemer': 'mounting_systems',
 };
 
 export const IMAGE_FALLBACK =
@@ -22,7 +23,7 @@ export const ORDER_STATUSES = [
   { key: 'cancelled',          label: 'Annulleret',         color: 'bg-rose-50 border-rose-200 text-rose-700',        dot: 'bg-rose-500' },
 ] as const;
 
-export type AdminTab = 'dashboard' | 'orders' | 'kits' | 'products' | 'clients' | 'calculator';
+export type AdminTab = 'dashboard' | 'orders' | 'kits' | 'products' | 'mounting' | 'clients' | 'calculator';
 export type ModalTab = 'main' | 'media' | 'specs' | 'kit_builder';
 
 export interface OrderStatusEdit {

@@ -396,11 +396,10 @@ export const CatalogSection: React.FC = () => {
     if (!selectedProduct) return 0;
 
     const isKit = selectedProduct.category === 'Sæt' || (selectedProduct as any).category === 'Kits';
-    // Для комплектів беремо окреме поле base_price, якщо воно є,
-    // інакше падаємо назад до стандартного price
-    const rawBasePrice = isKit && typeof (selectedProduct as any).base_price === 'number'
-      ? (selectedProduct as any).base_price
-      : selectedProduct.price;
+    // Комплект: базова ціна з base_price лише якщо > 0; інакше product.price (total / fallback з контексту)
+    const bp = (selectedProduct as any).base_price;
+    const rawBasePrice =
+      isKit && typeof bp === 'number' && bp > 0 ? bp : selectedProduct.price;
 
     const base = getDiscountedPrice(rawBasePrice);
     if (!isKit) return base;
@@ -474,7 +473,7 @@ export const CatalogSection: React.FC = () => {
             <button 
               key={cat} 
               onClick={() => setSelectedCategory?.(selectedCategory === cat ? 'All' : cat)} 
-              className={`px-3 py-2 lg:px-8 lg:py-4 rounded-2xl text-[9px] lg:text-[10px] font-black uppercase tracking-tight lg:tracking-widest transition-all shrink-0 text-center leading-tight max-w-[64px] lg:max-w-none ${selectedCategory === cat ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-white text-slate-400 border border-slate-100 hover:bg-slate-50'}`}
+              className={`px-2 py-2 sm:px-3 lg:px-6 lg:py-4 rounded-2xl text-[8px] sm:text-[9px] lg:text-[10px] font-black uppercase tracking-tight lg:tracking-widest transition-all shrink-0 text-center leading-tight max-w-[5.25rem] sm:max-w-[7rem] lg:max-w-[11rem] min-h-[2.75rem] lg:min-h-0 flex items-center justify-center hyphens-auto break-words whitespace-normal ${selectedCategory === cat ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-white text-slate-400 border border-slate-100 hover:bg-slate-50'}`}
             >
               {t(`cat_${cat}`)}
             </button>
@@ -915,11 +914,11 @@ export const CatalogSection: React.FC = () => {
                   {/* Docs */}
                   {Array.isArray(selectedProduct.docs) && selectedProduct.docs.length > 0 && (
                     <div className="space-y-3">
-                      <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-widest flex items-center gap-2"><FileText size={14} className="text-emerald-500" /> {t('product_docs') || 'Documentation'}</h4>
+                      <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-widest flex items-center gap-2"><FileText size={14} className="text-emerald-500" /> {t('documentation_title')}</h4>
                       <div className="flex flex-wrap gap-2">
                         {selectedProduct.docs.map((d: any, i: number) => (
                           <a key={i} href={d.url} target="_blank" className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl hover:bg-emerald-50 transition-colors text-[9px] font-black uppercase border border-slate-100">
-                            <Download size={12} className="text-emerald-500" /> {d.title || 'Doc'}
+                            <Download size={12} className="text-emerald-500" /> {d.title || t('product_doc_default')}
                           </a>
                         ))}
                       </div>
@@ -969,20 +968,20 @@ export const CatalogSection: React.FC = () => {
                   </div>
                   <div className="lg:col-span-7 space-y-12">
                     <div className="space-y-4">
-                      <h4 className="text-[11px] font-black uppercase text-emerald-500 tracking-[0.2em] flex items-center gap-2"><Info size={16} /> Asset Details</h4>
+                      <h4 className="text-[11px] font-black uppercase text-emerald-500 tracking-[0.2em] flex items-center gap-2"><Info size={16} /> {t('about_product')}</h4>
                       <div className="bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100 leading-relaxed text-slate-600 italic font-medium">{getLoc(selectedProduct.description)}</div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="space-y-4">
-                        <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-widest flex items-center gap-2"><Layers size={14} className="text-emerald-500" /> Technical Filters</h4>
+                        <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-widest flex items-center gap-2"><Layers size={14} className="text-emerald-500" /> {t('specs_title')}</h4>
                         <CategorySpecs product={selectedProduct} />
                       </div>
                       <div className="space-y-4">
-                        <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-widest flex items-center gap-2"><FileText size={14} className="text-emerald-500" /> Documentation</h4>
+                        <h4 className="text-[10px] font-black uppercase text-slate-900 tracking-widest flex items-center gap-2"><FileText size={14} className="text-emerald-500" /> {t('documentation_title')}</h4>
                         <div className="space-y-2">
                           {Array.isArray(selectedProduct.docs) && selectedProduct.docs.length > 0 ? selectedProduct.docs.map((d: any, i: number) => (
                             <a key={i} href={d.url} target="_blank" className="flex justify-between items-center p-4 bg-slate-50 rounded-xl hover:bg-emerald-50 transition-colors group">
-                              <span className="text-[9px] font-black uppercase">{d.title || 'Tech Sheet'}</span>
+                              <span className="text-[9px] font-black uppercase">{d.title || t('product_doc_default')}</span>
                               <Download size={14} className="text-slate-300 group-hover:text-emerald-500" />
                             </a>
                           )) : <p className="text-[10px] text-slate-400 italic">{t('product_no_docs')}</p>}

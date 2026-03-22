@@ -444,13 +444,13 @@ interface AdminProductModalProps {
         const { error: retryError } = await persist(retryPayload);
         if (retryError) throw retryError;
       }
-      addNotification('Registry Updated', 'success');
+      addNotification(t('admin_registry_updated'), 'success');
       onClose();
       if (typeof onSaved === 'function') {
         onSaved(); // захищений виклик
       }
     } catch (err: any) {
-      addNotification(err.message || 'DB Sync Error', 'error');
+      addNotification(err.message || t('admin_db_sync_error'), 'error');
     }
   };
 
@@ -481,7 +481,7 @@ interface AdminProductModalProps {
             (['main', 'kit_builder'] as const).map(tab => (
               <button key={tab} onClick={() => setModalTab(tab)}
                 className={`flex-1 py-4 md:py-5 text-center font-black text-xs md:text-[10px] uppercase tracking-wider md:tracking-widest transition-colors ${modalTab === tab ? 'border-b-4 border-emerald-500 text-emerald-600' : 'text-slate-500 hover:text-slate-900'}`}>
-                {tab === 'main' ? 'Kit Identity' : 'Component Assembly'}
+                {tab === 'main' ? t('admin_modal_tab_kit_identity') : t('admin_modal_tab_kit_builder')}
               </button>
             ))
           ) : (
@@ -504,16 +504,22 @@ interface AdminProductModalProps {
                 {formData.category !== 'Sæt' && (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-slate-50 p-5 md:p-8 rounded-2xl md:rounded-[2.5rem] border border-slate-100 shadow-inner">
                     <div className="space-y-2">
-                      <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">Asset Class (Target Table)</label>
+                      <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">{t('admin_modal_asset_class')}</label>
                       <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}
                         className="input-premium appearance-none bg-white" disabled={!!editingProduct}>
-                        {Object.keys(categoryToTable).map(c => <option key={c} value={c}>{c}</option>)}
+                        {Object.keys(categoryToTable)
+                          .filter((c) => c !== 'Monteringssystemer')
+                          .map((c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ))}
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">Brand (BrandProd)</label>
+                      <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">{t('admin_modal_brand')}</label>
                       <input value={formData.BrandProd || ''} onChange={e => setFormData({ ...formData, BrandProd: e.target.value })}
-                        className="input-premium bg-white text-sm md:text-base" placeholder="e.g. Huawei, Victron, Daikin..." />
+                        className="input-premium bg-white text-sm md:text-base" placeholder={t('admin_modal_brand_ph')} />
                     </div>
                   </div>
                 )}
@@ -521,7 +527,7 @@ interface AdminProductModalProps {
                 <div className={`grid grid-cols-1 ${formData.category === 'Sæt' ? '' : 'lg:grid-cols-2'} gap-12`}>
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs md:text-[10px] font-black uppercase text-slate-400 tracking-widest px-2">Localization Matrix</h4>
+                      <h4 className="text-xs md:text-[10px] font-black uppercase text-slate-400 tracking-widest px-2">{t('admin_modal_loc_matrix')}</h4>
                       <div className="flex gap-1.5">
                         {(['da','en','no','se'] as Language[]).map(l => (
                           <button key={l} type="button" onClick={() => setEditLang(l)}
@@ -538,18 +544,19 @@ interface AdminProductModalProps {
                         </label>
                         <input
                           required
-                          value={formData.category === 'Sæt' ? (formData.name?.[editLang] || '') : (formData.ModelName || '')}
+                          value={(() => {
+                            const raw = formData.name?.[editLang];
+                            const hasLoc = raw != null && String(raw).trim() !== '';
+                            if (hasLoc) return String(raw);
+                            return formData.category === 'Sæt' ? '' : (formData.ModelName || '');
+                          })()}
                           onChange={e => {
-                            if (formData.category === 'Sæt') {
-                              const lang = (editLang || 'en') as Language;
-                              const current = (formData.name && typeof formData.name === 'object') ? formData.name : emptyLoc();
-                              setFormData({ ...formData, name: { ...current, [lang]: e.target.value } });
-                            } else {
-                              setFormData({ ...formData, ModelName: e.target.value });
-                            }
+                            const lang = (editLang || 'en') as Language;
+                            const current = (formData.name && typeof formData.name === 'object') ? formData.name : emptyLoc();
+                            setFormData({ ...formData, name: { ...current, [lang]: e.target.value } });
                           }}
                           className="input-premium text-sm md:text-base"
-                          placeholder={formData.category === 'Sæt' ? 'e.g. Premium Solar Kit' : 'e.g. SUN2000-10KTL-M1'}
+                          placeholder={formData.category === 'Sæt' ? t('admin_modal_kit_name_ph') : t('admin_modal_model_ph')}
                         />
                       </div>
 
@@ -568,13 +575,13 @@ interface AdminProductModalProps {
                                 })
                               }
                               className="input-premium min-h-[180px] py-4 resize-y"
-                              placeholder="Describe what is included in this kit..."
+                              placeholder={t('admin_modal_kit_desc_ph')}
                             />
                           </div>
                           <div className="flex justify-end">
                             <div className="space-y-2 w-full md:w-1/4">
                               <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">
-                                Base kit price (EUR excl. VAT)
+                                {t('admin_modal_base_kit_price')}
                               </label>
                               <input
                                 type="number"
@@ -586,12 +593,72 @@ interface AdminProductModalProps {
                               />
                             </div>
                           </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+                            <div className="space-y-2">
+                              <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2 flex items-center gap-2">
+                                <ImageIconLucide size={12} className="text-emerald-500" /> {t('admin_modal_main_image')}
+                              </label>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={e => setMainImageFile(e.target.files?.[0] || null)}
+                                className="input-premium file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                              />
+                              {mainImagePreviewUrl && (
+                                <img
+                                  src={mainImagePreviewUrl}
+                                  alt="Preview"
+                                  className="mt-2 w-24 h-24 object-cover rounded-xl border border-slate-100"
+                                />
+                              )}
+                              {formData.image && !mainImagePreviewUrl && (
+                                <img
+                                  src={formData.image}
+                                  alt="Current"
+                                  className="mt-2 w-24 h-24 object-cover rounded-xl border border-slate-100"
+                                />
+                              )}
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2 flex items-center gap-2">
+                                <LayoutGrid size={12} className="text-emerald-500" /> {t('admin_modal_gallery')}
+                              </label>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={e =>
+                                  setSelectedImageFiles(prev => mergeFiles(prev, Array.from(e.target.files || [])))
+                                }
+                                className="input-premium file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                              />
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {Array.isArray(formData.images) &&
+                                  formData.images.map((img: string, i: number) => (
+                                    <img
+                                      key={`kit-cur-${i}`}
+                                      src={img}
+                                      alt=""
+                                      className="w-16 h-16 object-cover rounded-xl border border-slate-100"
+                                    />
+                                  ))}
+                                {galleryPreviewUrls.map((url, i) => (
+                                  <img
+                                    key={`kit-new-${i}`}
+                                    src={url}
+                                    alt=""
+                                    className="w-16 h-16 object-cover rounded-xl border border-amber-100 ring-2 ring-amber-100"
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       ) : (
                         <>
                           <div className="grid grid-cols-2 gap-6">
                             <div className="space-y-2">
-                              <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">Main Image</label>
+                              <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">{t('admin_modal_main_image')}</label>
                               <input
                                 type="file"
                                 accept="image/*"
@@ -631,7 +698,7 @@ interface AdminProductModalProps {
                           </div>
                           <div className="grid grid-cols-2 gap-6">
                             <div className="space-y-2">
-                              <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">Price Ex. VAT (EUR)</label>
+                              <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">{t('admin_modal_price_ex_vat')}</label>
                               <input
                                 type="number"
                                 step="0.01"
@@ -659,7 +726,7 @@ interface AdminProductModalProps {
                     {formData.category !== 'Sæt' && (
                       <div className="space-y-2">
                         <label className="text-xs md:text-[9px] font-black text-slate-900 uppercase ml-2">
-                          Short Description ({editLang})
+                          {t('admin_modal_short_desc')} ({editLang})
                         </label>
                         <textarea
                           value={formData.description?.[editLang] || ''}
@@ -670,7 +737,7 @@ interface AdminProductModalProps {
                             })
                           }
                           className="input-premium min-h-[150px] py-4"
-                          placeholder="Brief technical summary..."
+                          placeholder={t('admin_modal_short_desc_ph')}
                         />
                       </div>
                     )}
@@ -697,8 +764,8 @@ interface AdminProductModalProps {
                         </div>
                         <div className="flex items-center gap-6 bg-slate-50 p-6 rounded-3xl border border-slate-100">
                           <div className="flex-1 space-y-1">
-                            <div className="text-xs md:text-[10px] font-black uppercase text-slate-900">Sales Leader</div>
-                            <div className="text-[10px] md:text-[8px] font-bold text-slate-400 uppercase">Mark as best seller</div>
+                            <div className="text-xs md:text-[10px] font-black uppercase text-slate-900">{t('admin_modal_sales_leader')}</div>
+                            <div className="text-[10px] md:text-[8px] font-bold text-slate-400 uppercase">{t('admin_modal_sales_leader_hint')}</div>
                           </div>
                           <button
                             type="button"
@@ -726,7 +793,7 @@ interface AdminProductModalProps {
               <div className="space-y-10 animate-fade-in">
                 <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner space-y-6">
                   <h4 className="text-xs md:text-[10px] font-black uppercase text-slate-400 tracking-widest px-2">
-                    Image Gallery (URLs / Upload)
+                    {t('admin_modal_image_gallery_section')}
                   </h4>
                   <div className="space-y-4">
                     <div className="space-y-2">
@@ -767,7 +834,7 @@ interface AdminProductModalProps {
                     ))}
                     <button type="button" onClick={() => setLocalImages([...localImages, ''])}
                       className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-[10px] font-black uppercase text-slate-400 hover:border-emerald-500 hover:text-emerald-500 transition-all">
-                      + Add Image Slot
+                      {t('admin_modal_add_slot_img')}
                     </button>
                   </div>
                 </div>
@@ -781,7 +848,7 @@ interface AdminProductModalProps {
                           <div className="relative">
                             <FileText size={16} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
                             <input value={doc.title} onChange={e => { const n = [...localDocs]; n[idx].title = e.target.value; setLocalDocs(n); }}
-                              className="w-full input-premium pl-12 bg-white" placeholder="Document Title (e.g. Datasheet)" />
+                              className="w-full input-premium pl-12 bg-white" placeholder={t('admin_modal_doc_title_ph')} />
                           </div>
                           <div className="relative flex items-center">
                             {doc.url ? (
@@ -811,7 +878,7 @@ interface AdminProductModalProps {
                     ))}
                     <button type="button" onClick={() => setLocalDocs([...localDocs, { title: '', url: '' }])}
                       className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-[10px] font-black uppercase text-slate-400 hover:border-emerald-500 hover:text-emerald-500 transition-all">
-                      + Add Document Slot
+                      {t('admin_modal_add_slot_doc')}
                     </button>
                   </div>
                 </div>
@@ -858,7 +925,7 @@ interface AdminProductModalProps {
                 </div>
 
                 <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner space-y-6">
-                  <h4 className="text-xs md:text-[10px] font-black uppercase text-slate-400 tracking-widest px-2">Custom Specifications</h4>
+                  <h4 className="text-xs md:text-[10px] font-black uppercase text-slate-400 tracking-widest px-2">{t('admin_modal_custom_specs')}</h4>
                   <div className="space-y-4">
                     {localSpecs.map((s, idx) => (
                       <div key={idx} className="flex gap-4">
@@ -872,7 +939,7 @@ interface AdminProductModalProps {
                     ))}
                     <button type="button" onClick={() => setLocalSpecs([...localSpecs, { label: '', value: '' }])}
                       className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-[10px] font-black uppercase text-slate-400 hover:border-emerald-500 hover:text-emerald-500 transition-all">
-                      + Add Specification
+                      {t('admin_modal_add_spec')}
                     </button>
                   </div>
                 </div>
@@ -891,30 +958,30 @@ interface AdminProductModalProps {
                     <div className="space-y-4">
                       {localKitComponentsAdditional.map((c, idx) => (
                         <div key={c.id} className="flex flex-wrap gap-3 items-center">
-                          <label className="flex items-center shrink-0 cursor-pointer" title="Market">
+                          <label className="flex items-center shrink-0 cursor-pointer" title={t('admin_modal_market')}>
                             <input type="checkbox" checked={!!c.market} onChange={e => { const n = [...localKitComponentsAdditional]; n[idx] = { ...n[idx], market: e.target.checked }; setLocalKitComponentsAdditional(n); }} className="w-4 h-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500" />
                           </label>
-                          <input value={c.typeComplect ?? ''} onChange={e => { const n = [...localKitComponentsAdditional]; n[idx] = { ...n[idx], typeComplect: e.target.value }; setLocalKitComponentsAdditional(n); }} className="w-32 input-premium bg-white !text-xs" placeholder="Type complect" />
-                          <input value={c.name} onChange={e => { const n = [...localKitComponentsAdditional]; n[idx] = { ...n[idx], name: e.target.value }; setLocalKitComponentsAdditional(n); }} className="flex-1 min-w-[140px] input-premium bg-white !text-xs" placeholder="Component name" />
-                          <input type="number" min={1} value={c.quantity ?? 1} onChange={e => { const n = [...localKitComponentsAdditional]; n[idx] = { ...n[idx], quantity: Math.max(1, Number(e.target.value) || 1) }; setLocalKitComponentsAdditional(n); }} className="w-24 input-premium bg-white !text-xs" placeholder="Qty" />
-                          <input type="number" step="0.01" min={0} value={c.price ?? 0} onChange={e => { const n = [...localKitComponentsAdditional]; n[idx] = { ...n[idx], price: Number(e.target.value) || 0 }; setLocalKitComponentsAdditional(n); }} className="w-28 input-premium bg-white !text-xs" placeholder="Cost (EUR)" />
+                          <input value={c.typeComplect ?? ''} onChange={e => { const n = [...localKitComponentsAdditional]; n[idx] = { ...n[idx], typeComplect: e.target.value }; setLocalKitComponentsAdditional(n); }} className="w-32 input-premium bg-white !text-xs" placeholder={t('admin_modal_type_complect')} />
+                          <input value={c.name} onChange={e => { const n = [...localKitComponentsAdditional]; n[idx] = { ...n[idx], name: e.target.value }; setLocalKitComponentsAdditional(n); }} className="flex-1 min-w-[140px] input-premium bg-white !text-xs" placeholder={t('admin_modal_component_name')} />
+                          <input type="number" min={1} value={c.quantity ?? 1} onChange={e => { const n = [...localKitComponentsAdditional]; n[idx] = { ...n[idx], quantity: Math.max(1, Number(e.target.value) || 1) }; setLocalKitComponentsAdditional(n); }} className="w-24 input-premium bg-white !text-xs" placeholder={t('admin_modal_qty')} />
+                          <input type="number" step="0.01" min={0} value={c.price ?? 0} onChange={e => { const n = [...localKitComponentsAdditional]; n[idx] = { ...n[idx], price: Number(e.target.value) || 0 }; setLocalKitComponentsAdditional(n); }} className="w-28 input-premium bg-white !text-xs" placeholder={t('admin_modal_cost_eur')} />
                           <button type="button" onClick={() => setLocalKitComponentsAdditional(localKitComponentsAdditional.filter((_, i) => i !== idx))} className="p-4 text-rose-500 hover:bg-rose-50 rounded-2xl transition-all shrink-0" aria-label="Remove"><Trash2 size={20} /></button>
                         </div>
                       ))}
-                      <button type="button" onClick={() => setLocalKitComponentsAdditional([...localKitComponentsAdditional, { id: `manual-${uuidv4()}`, name: '', quantity: 1, price: 0, typeComplect: '', market: false }])} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-[10px] font-black uppercase text-slate-400 hover:border-emerald-500 hover:text-emerald-500 transition-all">+ Add component</button>
+                      <button type="button" onClick={() => setLocalKitComponentsAdditional([...localKitComponentsAdditional, { id: `manual-${uuidv4()}`, name: '', quantity: 1, price: 0, typeComplect: '', market: false }])} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-[10px] font-black uppercase text-slate-400 hover:border-emerald-500 hover:text-emerald-500 transition-all">{t('admin_modal_add_component')}</button>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-6">
                   <h4 className="text-[11px] font-black uppercase text-slate-900 tracking-widest flex items-center gap-3">
-                    <Layers size={18} className="text-emerald-500" /> Assembly Workspace
+                    <Layers size={18} className="text-emerald-500" /> {t('admin_modal_assembly_workspace')}
                   </h4>
                   <div className="bg-slate-900 rounded-[3rem] p-10 text-white space-y-6 shadow-2xl relative overflow-hidden min-h-[300px]">
                     {(localKitComponents.length === 0 && localKitComponentsAdditional.length === 0) ? (
                       <div className="flex flex-col items-center justify-center h-full py-10 text-slate-700 opacity-50 space-y-4">
                         <LayoutGrid size={60} />
-                        <p className="text-[10px] font-black uppercase tracking-[0.3em]">Workspace Empty</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em]">{t('admin_modal_workspace_empty')}</p>
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4 relative z-10">
@@ -957,7 +1024,7 @@ interface AdminProductModalProps {
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
                       <div className="space-y-1">
                         <span className="block text-[10px] font-black uppercase text-emerald-600 tracking-widest">
-                          Total of components
+                          {t('admin_modal_total_components')}
                         </span>
                         <DualPrice
                           priceExVat={
@@ -972,8 +1039,8 @@ interface AdminProductModalProps {
                       <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                         <div className="flex items-center gap-3 bg-emerald-50/60 px-4 py-3 rounded-2xl border border-emerald-200 flex-1">
                           <div className="flex-1">
-                            <div className="text-[10px] font-black uppercase text-emerald-900">Visibility Status</div>
-                            <div className="text-[9px] font-bold text-emerald-700/80 uppercase">Show in public catalog</div>
+                            <div className="text-[10px] font-black uppercase text-emerald-900">{t('admin_modal_visibility')}</div>
+                            <div className="text-[9px] font-bold text-emerald-700/80 uppercase">{t('admin_modal_visibility_hint')}</div>
                           </div>
                           <button
                             type="button"
@@ -991,8 +1058,8 @@ interface AdminProductModalProps {
                         </div>
                         <div className="flex items-center gap-3 bg-emerald-50/60 px-4 py-3 rounded-2xl border border-emerald-200 flex-1">
                           <div className="flex-1">
-                            <div className="text-[10px] font-black uppercase text-emerald-900">Sales Leader</div>
-                            <div className="text-[9px] font-bold text-emerald-700/80 uppercase">Mark as best seller</div>
+                            <div className="text-[10px] font-black uppercase text-emerald-900">{t('admin_modal_sales_leader')}</div>
+                            <div className="text-[9px] font-bold text-emerald-700/80 uppercase">{t('admin_modal_sales_leader_hint')}</div>
                           </div>
                           <button
                             type="button"
@@ -1042,12 +1109,12 @@ interface AdminProductModalProps {
         {/* Footer — stacked on mobile, readable text */}
         <div className="px-4 md:px-10 py-4 md:py-8 border-t border-slate-100 bg-slate-50/50 rounded-b-[2rem] md:rounded-b-[3rem] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 shrink-0">
           <div className="flex items-center gap-3 text-xs md:text-[9px] font-black text-slate-500 md:text-slate-400 uppercase tracking-wider md:tracking-widest">
-            <ShieldCheck size={16} className="text-emerald-500 shrink-0" /> <span className="truncate">Table: {categoryToTable[formData.category]}</span>
+            <ShieldCheck size={16} className="text-emerald-500 shrink-0" /> <span className="truncate">{t('admin_modal_table')}: {categoryToTable[formData.category]}</span>
           </div>
           <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4">
-            <button type="button" onClick={onClose} className="px-6 py-4 sm:py-5 font-black uppercase text-xs md:text-[10px] text-slate-400 hover:text-slate-900 transition-colors rounded-2xl border border-slate-200 sm:border-0">Cancel</button>
+            <button type="button" onClick={onClose} className="px-6 py-4 sm:py-5 font-black uppercase text-xs md:text-[10px] text-slate-400 hover:text-slate-900 transition-colors rounded-2xl border border-slate-200 sm:border-0">{t('admin_btn_cancel')}</button>
             <button onClick={handleSubmit} type="button" className="btn-action !bg-slate-900 shadow-2xl px-6 md:px-16 py-4 md:py-5 !rounded-2xl group ring-4 ring-slate-900/10 text-sm md:text-base">
-              <Save size={20} className="text-emerald-500 group-hover:scale-125 transition-transform duration-500 shrink-0" /> Commit to Registry
+              <Save size={20} className="text-emerald-500 group-hover:scale-125 transition-transform duration-500 shrink-0" /> {t('admin_modal_commit')}
             </button>
           </div>
         </div>

@@ -22,9 +22,10 @@ import { AdminRatesModal }            from './AdminRatesModal';
 import { AdminDashboard }            from './AdminDashboard';
 import { AdminCalculatorLogs }       from './AdminCalculatorLogs';
 import { AdminStockDemandModal }     from './AdminStockDemandModal';
+import { AdminMountingSystemsPanel } from './AdminMountingSystemsPanel';
 
 // ── ProductRow ──────────────────────────────────────────────────────────
-const ProductRow = React.memo(({ product, onEdit, onDelete, formatPrice: _formatPrice, getLoc }: any) => (
+const ProductRow = React.memo(({ product, onEdit, onDelete, formatPrice: _formatPrice, getLoc, t }: any) => (
   <tr className="hover:bg-slate-50/50 transition-colors group">
     <td className="p-6 flex items-center gap-4 text-left">
       <img src={product.image || IMAGE_FALLBACK} className="w-12 h-12 rounded-2xl object-cover border border-slate-100 shadow-sm" loading="lazy" alt="" />
@@ -34,7 +35,7 @@ const ProductRow = React.memo(({ product, onEdit, onDelete, formatPrice: _format
           {product.is_leader && <Crown size={12} className="text-amber-500 fill-amber-500" />}
         </div>
         <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 flex-wrap">
-          ID: {String(product.id).slice(0, 8)} | {product.category}
+          {t('admin_col_id')}: {String(product.id).slice(0, 8)} | {product.category}
           {product.BrandProd && ` | ${product.BrandProd}`}
         </div>
       </div>
@@ -68,6 +69,22 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
   const { addNotification }      = useNotification();
   const { getLoc, t, language, formatPrice } = useLanguage();
   const localeStr = language === 'da' ? 'da-DK' : language === 'no' ? 'nb-NO' : language === 'se' ? 'sv-SE' : 'en-GB';
+
+  const adminMainTabLabel = useCallback(
+    (tab: AdminTab) => {
+      switch (tab) {
+        case 'dashboard': return t('admin_tab_dashboard');
+        case 'products': return t('admin_tab_products');
+        case 'orders': return t('admin_tab_orders');
+        case 'kits': return t('admin_tab_kits');
+        case 'mounting': return t('admin_tab_mounting');
+        case 'clients': return t('admin_tab_clients');
+        case 'calculator': return t('admin_tab_calculator');
+        default: return String(tab);
+      }
+    },
+    [t],
+  );
 
   // Data
   const [orders, setOrders]                   = useState<Order[]>([]);
@@ -127,6 +144,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
   const allProducts = useMemo(() => products.map(p => ({ ...p, realId: p.id })), [products]);
 
   const filteredAdminProducts = useMemo(() => allProducts.filter(p => {
+    if (p.category === 'Monteringssystemer') return false;
     if (adminCategoryFilter !== 'All' && p.category !== adminCategoryFilter) return false;
     if (adminManufacturerFilter && !(p.BrandProd || p.manufacturer || '').toLowerCase().includes(adminManufacturerFilter.toLowerCase())) return false;
     return true;
@@ -169,10 +187,10 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
       setDbClients(data || []);
     } catch (err: any) {
       // Fallback message — RLS blocks direct table access after Migration 5
-      addNotification('Clients: run Migration 5 and set admin_key in app_config', 'error');
+      addNotification(t('admin_clients_fetch_error'), 'error');
       console.error('[Admin] fetchDbClients RPC error:', err.message);
     }
-  }, [addNotification]);
+  }, [addNotification, t]);
 
   useEffect(() => { setIsMounted(true); }, []);
   useEffect(() => {
@@ -259,8 +277,8 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
     const csv = BOM + [headers.map(h => `"${h}"`), ...rows].map(r => r.join(sep)).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     saveAs(blob, `GLS-orders-${new Date().toISOString().slice(0, 10)}.csv`);
-    addNotification(`Eksporterede ${filteredOrders.length} ordrer til CSV`, 'success');
-  }, [filteredOrders, addNotification, localeStr]);
+    addNotification(t('admin_export_csv_toast').replace('{n}', String(filteredOrders.length)), 'success');
+  }, [filteredOrders, addNotification, localeStr, t]);
 
   const openClientHistory = useCallback(async (client: any) => {
     setSelectedClient(client);
@@ -320,7 +338,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
   };
 
   const handleDelete = async (id: string | number, category: string) => {
-    if (!window.confirm('Confirm deletion?')) return;
+    if (!window.confirm(t('admin_confirm_delete_product'))) return;
     const table  = categoryToTable[category] || 'products';
     const realId = typeof id === 'string' && id.includes('-') ? id.split('-')[1] : id;
     try {
@@ -344,17 +362,17 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
           </div>
           <div>
             <h1 className="text-2xl font-black uppercase tracking-tighter">Terminal <span className="text-emerald-500">v5.0</span></h1>
-            <p className="text-slate-400 text-[9px] font-black uppercase tracking-[0.3em] mt-2">Multi-Table Asset Management</p>
+            <p className="text-slate-400 text-[9px] font-black uppercase tracking-[0.3em] mt-2">{t('admin_header_subtitle')}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 bg-white/5 p-2 rounded-[2rem]">
-          {(['dashboard', 'products', 'orders', 'kits', 'clients', 'calculator'] as const).map(tab => (
+          {(['dashboard', 'products', 'orders', 'kits', 'mounting', 'clients', 'calculator'] as const).map(tab => (
             <button key={tab} onClick={() => { setActiveTab(tab); if (tab === 'orders') setNewOrdersCount(0); }}
               className={`relative px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-400 hover:text-white'}`}>
               {tab === 'calculator' ? (
                 <span className="inline-flex items-center gap-1.5"><Calculator size={12} /> {t('admin_tab_calculator')}</span>
               ) : (
-                tab
+                adminMainTabLabel(tab)
               )}
               {tab === 'orders' && newOrdersCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center px-1 animate-pulse">
@@ -365,13 +383,13 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
           ))}
           <div className="w-[1px] h-8 bg-white/10 mx-2 hidden sm:block" />
           <button onClick={() => setIsRatesModalOpen(true)} className="px-6 py-3 bg-white/10 text-amber-400 hover:bg-white/20 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all border border-amber-500/30">
-            <TrendingUp size={14} className="inline mr-2" /> Rates
+            <TrendingUp size={14} className="inline mr-2" /> {t('admin_btn_rates')}
           </button>
           <button onClick={() => handleOpenModal(undefined, 'Sæt')} className="px-6 py-3 bg-white/10 text-emerald-400 hover:bg-white/20 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all border border-emerald-500/30">
-            <Layers size={14} className="inline mr-2" /> New Kit
+            <Layers size={14} className="inline mr-2" /> {t('admin_btn_new_kit')}
           </button>
           <button onClick={() => handleOpenModal()} className="btn-action !bg-emerald-500 !py-3 !px-6 !text-[9px] !rounded-2xl ml-2">
-            <Plus size={14} /> New Asset
+            <Plus size={14} /> {t('admin_btn_new_asset')}
           </button>
           <button onClick={onLogout} className="p-3 text-rose-400 hover:bg-rose-50 rounded-2xl transition-all"><LogOut size={18} /></button>
         </div>
@@ -390,11 +408,17 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
 
       {activeTab === 'calculator' && <AdminCalculatorLogs />}
 
+      {activeTab === 'mounting' && (
+        <div className="px-4 md:px-8 pb-20">
+          <AdminMountingSystemsPanel />
+        </div>
+      )}
+
       {/* ── Registry table ───────────────────────────────────────────── */}
-      <div style={{ display: activeTab === 'dashboard' || activeTab === 'calculator' ? 'none' : undefined }}>
+      <div style={{ display: activeTab === 'dashboard' || activeTab === 'calculator' || activeTab === 'mounting' ? 'none' : undefined }}>
         <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-slate-50/30">
           <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">
-            <Activity size={18} className="text-emerald-500" /> {activeTab} Registry
+            <Activity size={18} className="text-emerald-500" /> {adminMainTabLabel(activeTab)} {t('admin_registry_suffix')}
           </h3>
           {(activeTab === 'products' || activeTab === 'kits') && (
             <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
@@ -408,7 +432,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                 <select value={adminCategoryFilter} onChange={e => setAdminCategoryFilter(e.target.value as any)}
                   className="bg-white border border-slate-200 rounded-xl py-2 px-4 text-[10px] font-black uppercase outline-none focus:border-emerald-500 transition-all cursor-pointer">
                   <option value="All">{t('admin_all_categories')}</option>
-                  {categories.filter(c => c !== 'All' && c !== 'Sæt').map(c => <option key={c} value={c}>{c}</option>)}
+                  {categories.filter(c => c !== 'All' && c !== 'Sæt' && c !== 'Monteringssystemer').map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               )}
             </div>
@@ -431,11 +455,11 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                 <option value="in_transit">{t('admin_status_in_transit')}</option>
               </select>
               <button onClick={fetchOrders} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
-                <RefreshCcw size={12} /> Refresh
+                <RefreshCcw size={12} /> {t('admin_btn_refresh')}
               </button>
               <button onClick={exportOrdersCSV}
                 className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
-                <TrendingUp size={12} /> CSV
+                <TrendingUp size={12} /> {t('admin_btn_csv')}
               </button>
               <button
                 type="button"
@@ -485,7 +509,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                         </div>
                       </td>
                       <td className="p-6 text-center">
-                        <span className={`text-[8px] font-black uppercase px-2.5 py-1 rounded-full ${c.client_type === 'business' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>{c.client_type === 'business' ? 'Firma' : 'Privat'}</span>
+                        <span className={`text-[8px] font-black uppercase px-2.5 py-1 rounded-full ${c.client_type === 'business' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>{c.client_type === 'business' ? t('admin_business_label') : t('admin_private_label')}</span>
                       </td>
                       <td className="p-6 text-center"><div className="text-[10px] font-bold text-slate-700">{c.city || '—'}</div><div className="text-[8px] text-slate-400">{c.country || ''}</div></td>
                       <td className="p-6 text-center text-[10px] font-bold text-slate-500">{c.phone || '—'}</td>
@@ -493,7 +517,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                       <td className="p-6 text-right">
                         <button onClick={e => { e.stopPropagation(); openClientHistory(c); }}
                           className="flex items-center gap-1.5 ml-auto px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
-                          <Package size={12} /> Historik
+                          <Package size={12} /> {t('admin_client_history_btn')}
                         </button>
                       </td>
                     </tr>
@@ -517,7 +541,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                       <tr><td colSpan={5} className="p-10 text-center"><Loader2 size={24} className="animate-spin inline text-emerald-500" /></td></tr>
                     ) : paginatedOrders.length === 0 ? (
                       <tr><td colSpan={5} className="p-10 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest">
-                        {ordersSearch || ordersStatusFilter !== 'all' ? 'No orders match filter' : 'No orders yet'}
+                        {ordersSearch || ordersStatusFilter !== 'all' ? t('admin_orders_empty_filtered') : t('admin_no_orders_yet')}
                       </td></tr>
                     ) : paginatedOrders.map(order => (
                       <tr key={order.id} onClick={() => setSelectedOrder(order)}
@@ -537,7 +561,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                         </td>
                         <td className="p-6 text-center">
                           <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-full ${(order as any).client_type === 'business' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
-                            {(order as any).client_type === 'business' ? 'Firma' : 'Privat'}
+                            {(order as any).client_type === 'business' ? t('admin_business_label') : t('admin_private_label')}
                           </span>
                         </td>
                         <td className="p-6 text-center font-black text-xs text-slate-700">{formatPrice(order.total_price)}</td>
@@ -546,12 +570,12 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                           {(order as any).order_status && (order as any).order_status !== 'accepted' && (
                             <div className="mt-1 text-[8px] font-black uppercase text-slate-400">
                               {(order as any).order_status === 'in_progress'
-                                ? 'I arbejde'
+                                ? t('admin_status_in_progress')
                                 : (order as any).order_status === 'awaiting_transport'
-                                  ? 'Afventer'
+                                  ? t('admin_status_awaiting')
                                   : (order as any).order_status === 'cancelled'
-                                    ? 'Annulleret'
-                                    : 'I transit'}
+                                    ? t('admin_status_cancelled')
+                                    : t('admin_status_in_transit')}
                             </div>
                           )}
                         </td>
@@ -573,6 +597,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                         onDelete={handleDelete}
                         formatPrice={formatPrice}
                         getLoc={getLoc}
+                        t={t}
                       />
                     ))}
                 </tbody>
@@ -582,7 +607,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
           {activeTab === 'orders' && !isLoadingOrders && totalOrderPages > 1 && (
             <div className="flex items-center justify-between px-8 py-4 border-t border-slate-50 bg-slate-50/30">
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                Page {ordersPage + 1} / {totalOrderPages} &nbsp;·&nbsp; {filteredOrders.length} orders
+                {t('admin_page_label')} {ordersPage + 1} {t('admin_of_short')} {totalOrderPages} &nbsp;·&nbsp; {filteredOrders.length} {t('admin_orders_word')}
               </span>
               <div className="flex items-center gap-2">
                 <button onClick={() => setOrdersPage(p => Math.max(0, p - 1))}

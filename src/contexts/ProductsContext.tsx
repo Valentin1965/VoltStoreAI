@@ -279,6 +279,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         chargers,
         pumps,
         kits,
+        mounting,
         prods,
       ] = await Promise.all([
         fetchTable('batteries'),
@@ -287,6 +288,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         fetchTable('ev_chargers'),
         fetchTable('heat_pumps'),
         fetchTable('kits'),
+        fetchTable('mounting_systems'),
         fetchTable('products'),   // ← main product table (including legacy kits, if any)
       ]);
 
@@ -348,18 +350,38 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const rawKitComponents = isKit
           ? (Array.isArray(p.components) ? p.components : safeJsonParse(p.components, 'kit'))
           : safeJsonParse(p.kit_components, 'kit');
+        const normalizedKitForPrice = isKit ? normalizeKitComponents(rawKitComponents) : [];
+        const kitSumBaseComponents = isKit
+          ? normalizedKitForPrice
+            .filter((c) => c.is_base !== false)
+            .reduce((s, c) => s + (Number(c.price) || 0) * (Number(c.quantity) || 1), 0)
+          : 0;
+        const numPrice = (v: unknown) => {
+          const n = Number(v);
+          return Number.isFinite(n) && n > 0 ? n : 0;
+        };
+        const kitCatalogPrice = isKit
+          ? numPrice(p.total_price) ||
+            numPrice(p.price) ||
+            numPrice(p.base_price) ||
+            (kitSumBaseComponents > 0 ? kitSumBaseComponents : 0)
+          : 0;
         return {
           ...p,
           id: `${effectiveCategory}-${p.id}`,
           name: nameLoc,
           description: descLoc,
-          price: isKit ? (p.total_price ?? p.price ?? 0) : (p.PriceEurExVat ?? p.price ?? 0),
+          // Kits: DB often has base_price set but total_price still 0 — use sensible fallback for list/cart
+          price: isKit
+            ? kitCatalogPrice
+            : (p.PriceEurExVat ?? p.price_eur_ex_vat ?? p.price ?? 0),
           // kits: show base price separately in UI (CatalogSection expects base_price)
           base_price: isKit ? (typeof p.base_price === 'number' ? p.base_price : (p.base_price ? Number(p.base_price) : 0)) : undefined,
           category: effectiveCategory,
           image: imageStr,
           images: imagesArr.length ? imagesArr : (imageStr ? [imageStr] : []),
-          stock: p.StockLvl ?? p.stock ?? 0,
+          stock: p.StockLvl ?? p.stock ?? p.stock_lvl ?? 0,
+          PriceEurExVat: p.PriceEurExVat ?? p.price_eur_ex_vat ?? undefined,
           specs: safeJsonParse(p.specs, 'specs'),
           docs: safeJsonParse(p.docs, 'docs'),
           kitComponents: isKit ? normalizeKitComponents(rawKitComponents) : rawKitComponents,
@@ -375,6 +397,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ...(chargers || []).map(p => mapProduct(p, 'Power Station')),
         ...(pumps  || []).map(p => mapProduct(p, 'Varmepumper')),
         ...(kits   || []).map(p => mapProduct(p, 'Sæt')),
+        ...(mounting || []).map(p => mapProduct(p, 'Monteringssystemer')),
         ...(prods  || []).map(p => mapProduct(p, (p.category as Category) || 'Power Station')),
       ];
 
@@ -396,6 +419,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       case 'Power Station': return 'ev_chargers';
       case 'Varmepumper': return 'heat_pumps';
       case 'Sæt': return 'kits';
+      case 'Monteringssystemer': return 'mounting_systems';
       default: return 'products';
     }
   };
@@ -467,7 +491,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const deleteProduct = useCallback(async (id: string) => {
     // Strip the prefix from the ID (e.g., "Batterier-1" -> "1")
     const realId = id.includes('-') ? id.split('-').slice(1).join('-') : id;
-    const tables = ['batteries', 'inverters', 'solar_panels', 'ev_chargers', 'heat_pumps'];
+    const tables = ['batteries', 'inverters', 'solar_panels', 'ev_chargers', 'heat_pumps', 'kits', 'mounting_systems', 'products'];
     try {
       await Promise.all(tables.map(table => 
         supabase.from(table).delete().eq('id', realId)
