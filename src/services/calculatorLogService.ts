@@ -4,7 +4,7 @@ import { supabase } from './supabase';
 export type CalculatorRequestPayload = {
   monthlyKwh: number;
   backupHours: number;
-  /** Calculator region key (e.g. denmark, sweden_south, sweden_north, norway_south, norway_north) */
+  /** Calculator region: denmark | sweden_south | sweden_north | norway_south | norway_north */
   country?: string;
   notes?: string;
   /** Derived fields at time of calculation */
@@ -15,6 +15,10 @@ export type CalculatorRequestPayload = {
   recommendedSolarPanels?: number;
   estimatedCost?: number;
   recommendedProductIds?: string[];
+  /** Optional user-entered retail price per kWh (regional currency) at time of calculation */
+  userGridPricePerKwh?: number;
+  /** Optional user-entered feed-in price per kWh (regional currency) */
+  userFeedInTariffPerKwh?: number;
 };
 
 /**

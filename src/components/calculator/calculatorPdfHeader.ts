@@ -23,5 +23,5 @@ export const GLS_PDF_TOPBAR_BRAND_CSS = `
   .pdf-logo-mark { flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
   .pdf-logo-mark svg { display: block; }
   .topbar-titles { min-width: 0; }
-  .brand-logo-line { margin-top: 2px; font-weight: 800; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #059669; }
+  .brand-logo-line { margin-top: 2px; font-weight: 800; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.92); }
 `;

@@ -88,10 +88,23 @@ export const translations = {
     calc_energi_prices_empty_today_title: "Ingen timeliste for i dag endnu",
     calc_energi_prices_empty_today_lead: "Nedenfor kan du stadig se 7-dages historik, hvis den er tilgængelig.",
     calc_energi_prices_zones_note:
-      "Energi Data Service dækker DK1/DK2, SE3/SE4, NO2 m.fl. Nordnorge (NO4) findes i Nord Pool, men ikke i denne feed — diagrammet bruger NO2 som reference.",
+      "Energi Data Service dækker bl.a. DK1/DK2, SE3/SE4 og NO2. Nordnorge (NO4) findes i Nord Pool, men ikke i denne feed — diagrammet bruger NO2 som reference.",
     calc_energi_spot_no4_note:
       "Time-spot kurven bruger prisområde NO2, fordi Energi Data Service ikke publicerer NO4. Nordnorsk Nord Pool-område er NO4.",
     calc_energi_prices_retry: "Prøv igen",
+    calc_user_tariff_section_title: "Dine elpriser (valgfrit)",
+    calc_user_grid_price_label: "Netpris du betaler (per kWh)",
+    calc_user_feedin_label: "Indfødsels-/eksportpris (per kWh)",
+    calc_user_tariff_example_prefix: "Fx standard:",
+    calc_user_tariff_hint:
+      "Angiv priser i samme valuta som dit valgte områdes model (som på regningen). Tomme felter = beregningsstandard.",
+    calc_user_tariff_active: "Økonomien bruger dine indtastede priser pr. kWh (ellers standard for regionen).",
+    calc_section3_user_tariffs_subtitle: "Diagrammer viser dine indtastede tariffer (flade kurver)",
+    calc_section3_user_tariffs_banner:
+      "Live spotpriser fra Energi Data Service erstattes af dine værdier, så afsnit 3 matcher din aftale.",
+    calc_energi_chart_spot_legend: "Spot (time)",
+    calc_guide_user_tariff:
+      "Under Input kan du frivilligt indtaste netpris og eventuel eksportpris pr. kWh, så besparelse og tilbagebetaling passer bedre til dit abonnement.",
 
     // ── About ─────────────────────────────────────────────────────────────────
     about_intro_badge: "Om os",
@@ -880,6 +893,20 @@ export const translations = {
     calc_energi_spot_no4_note:
       "Timespot-grafen bruker NO2, fordi Energi Data Service ikke publiserer NO4. Nord-Norges Nord Pool-prisområde er NO4.",
     calc_energi_prices_retry: "Prøv igjen",
+    calc_user_tariff_section_title: "Dine strømpriser (valgfritt)",
+    calc_user_grid_price_label: "Nettpris du betaler (per kWh)",
+    calc_user_feedin_label: "Inntredings-/eksportpris (per kWh)",
+    calc_user_tariff_example_prefix: "F.eks. standard:",
+    calc_user_tariff_hint:
+      "Bruk samme valuta som modellen for valgt område (som på fakturaen). Tomme felt = standardantakelser.",
+    calc_user_tariff_active: "Økonomien bruker dine innlagte priser per kWh.",
+    calc_section3_user_tariffs_subtitle: "Grafene viser dine innlagte tariffer (flate kurver)",
+    calc_section3_user_tariffs_banner:
+      "Live spotpriser fra Energi Data Service erstattes med dine verdier, slik at del 3 samsvarer med avtalen din.",
+    calc_energi_chart_spot_legend: "Spot (per time)",
+    calc_guide_user_tariff:
+      "Du kan valgfritt legge inn nettpris og evt. eksportpris per kWh under Input for mer treffsikre besparelser.",
+
     delivery: "Levering",
     payment_secure: "Sikker betaling",
     company: "Virksomhed",
@@ -1642,6 +1669,20 @@ export const translations = {
     calc_energi_spot_no4_note:
       "Timspot-diagrammet använder NO2 eftersom Energi Data Service inte publicerar NO4. Nord norskt Nord Pool-område är NO4.",
     calc_energi_prices_retry: "Försök igen",
+    calc_user_tariff_section_title: "Dina elpriser (valfritt)",
+    calc_user_grid_price_label: "Nätpris du betalar (per kWh)",
+    calc_user_feedin_label: "Inmatakning-/exportpris (per kWh)",
+    calc_user_tariff_example_prefix: "T.ex. standard:",
+    calc_user_tariff_hint:
+      "Ange priser i samma valuta som modellen för vald region (som på fakturan). Tomma fält = standardvärden.",
+    calc_user_tariff_active: "Ekonomin använder dina inmatade priser per kWh.",
+    calc_section3_user_tariffs_subtitle: "Diagrammen visar dina inmatade tariffer (platta kurvor)",
+    calc_section3_user_tariffs_banner:
+      "Live spotpriser från Energi Data Service ersätts med dina värden så att avsnitt 3 matchar ditt avtal.",
+    calc_energi_chart_spot_legend: "Spot (per timme)",
+    calc_guide_user_tariff:
+      "Under Indata kan du frivilligt ange nät- och ev. exportpris per kWh för bättre träff i besparing och återbetalning.",
+
     delivery: "Levering",
     payment_secure: "Sikker betaling",
     company: "Virksomhed",
@@ -2401,10 +2442,24 @@ export const translations = {
     calc_energi_prices_empty_today_title: "No hourly prices for today yet",
     calc_energi_prices_empty_today_lead: "7-day history is shown below when available.",
     calc_energi_prices_zones_note:
-      "This app uses Denmark, Sweden, and Norway only. Energi Data Service includes e.g. DK1/DK2, SE3/SE4, NO2. Northern Norway is NO4 in Nord Pool but not in this dataset — the chart uses NO2 as a reference.",
+      "Hourly spot data comes from Energi Data Service for bidding zones such as DK1/DK2, SE3/SE4, and NO2. Northern Norway (NO4) exists in Nord Pool but is not published in this feed — for that region the chart uses NO2 as a reference.",
     calc_energi_spot_no4_note:
       "The hourly spot chart uses bidding zone NO2 because Energi Data Service does not publish NO4. Northern Norway’s Nord Pool area code is NO4.",
     calc_energi_prices_retry: "Try again",
+    calc_user_tariff_section_title: "Your electricity prices (optional)",
+    calc_user_grid_price_label: "Grid price you pay (per kWh)",
+    calc_user_feedin_label: "Feed-in / export price (per kWh)",
+    calc_user_tariff_example_prefix: "e.g. model default:",
+    calc_user_tariff_hint:
+      "Use the same currency as the regional model (e.g. DKK, SEK, NOK, or EUR for the selected area — like on your bill). Leave blank to use built-in defaults.",
+    calc_user_tariff_active: "Economic analysis uses your entered prices per kWh for savings and payback.",
+    calc_section3_user_tariffs_subtitle: "Charts show your entered tariffs (flat curves)",
+    calc_section3_user_tariffs_banner:
+      "Live Energi Data Service spot prices are replaced with your values so Section 3 matches your tariff.",
+    calc_energi_chart_spot_legend: "Spot (hourly)",
+    calc_guide_user_tariff:
+      "Under Input you can optionally enter your retail and feed-in price per kWh so savings and payback match your tariff.",
+
     delivery: "Delivery",
     payment_secure: "Secure Payment",
     company: "Company",

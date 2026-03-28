@@ -30,6 +30,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area,
 } from 'recharts';
+import { getGlsPdfBrandMarkSvg, GLS_PDF_TOPBAR_BRAND_CSS } from './calculatorPdfHeader';
 
 function formatCurrency(n: number): string {
   return new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
@@ -148,8 +149,9 @@ const getEnergiApiPriceArea = (country: CountryKey): string | null => {
 // Dev/Cdn: Vite middleware or Vercel /api/energi-dataset-elspotprices → api.energidataservice.dk/dataset/Elspotprices
 const ENERGI_BASE = '/api/energi-dataset-elspotprices';
 
-// Format date as yyyy-MM-dd (API also accepts this simpler format)
-const fmtDate = (d: Date) => d.toISOString().slice(0, 10);
+/** yyyy-MM-dd in Europe/Copenhagen — aligns Nord Pool / Energi day boundaries (avoids UTC midnight skew). */
+const fmtDate = (d: Date) =>
+  d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Copenhagen' });
 
 type EnergiFetchOk<T> = { data: T; httpOk: boolean };
 
@@ -284,9 +286,11 @@ const getPanelWattage = (p: any): number => {
 };
 
 // ─── Company ──────────────────────────────────────────────────────────────────
-const COMPANY_NAME  = 'GREEN LIGHT Scandinavia Group';
+const COMPANY_NAME = 'GREEN LIGHT Scandinavia Group';
 const COMPANY_EMAIL = 'info@glsolargroup.dk';
-const COMPANY_WEB   = 'www.glsolargroup.dk';
+const COMPANY_WEB = 'www.glsolargroup.dk';
+const COMPANY_CONTACT = 'Katmosevej 16, Viborg 8800, Denmark';
+const COMPANY_TEL = '+45 61 48 52 19';
 
 // ─── Economic data ────────────────────────────────────────────────────────────
 const ECONOMIC_DATA: Record<string, {
@@ -300,10 +304,80 @@ const ECONOMIC_DATA: Record<string, {
   norway_north: { pricePerKwh:0.16, currency:'NOK', symbol:'kr', gridCO2:24,  feedInTariff:0.07, subsidyPercent:19, subsidyNote:'Enova støtte available.',         vatRate:25, avgSunHoursYear:750  },
 };
 
+/** User-entered tariffs for economics (same units as ECONOMIC_DATA for the region — e.g. DKK/kWh, SEK/kWh). */
+type TariffOverride = { pricePerKwh?: number; feedInTariff?: number };
+
+/** When set, Section 3 charts use flat synthetic curves from these values instead of Energi API rows. */
+function tariffOverrideDrivesSection3(t: TariffOverride | undefined): t is TariffOverride {
+  if (!t) return false;
+  const g = t.pricePerKwh;
+  const f = t.feedInTariff;
+  if (g != null && Number.isFinite(g) && g > 0) return true;
+  if (f != null && Number.isFinite(f) && f >= 0) return true;
+  return false;
+}
+
+function buildSyntheticSection3TodayHourly(tariff: TariffOverride): ElectricityPriceData[] {
+  const grid = tariff.pricePerKwh;
+  const feed = tariff.feedInTariff;
+  const rowPrice = grid != null && grid > 0 ? grid : feed;
+  if (rowPrice == null || !Number.isFinite(rowPrice) || !(rowPrice >= 0)) return [];
+  const todayStr = fmtDate(new Date());
+  const out: ElectricityPriceData[] = [];
+  for (let h = 0; h < 24; h++) {
+    out.push({
+      hour: `${String(h).padStart(2, '0')}:00`,
+      price: rowPrice,
+      date: todayStr,
+    });
+  }
+  return out;
+}
+
+function buildSyntheticSection3History(tariff: TariffOverride, days = 7): DailyPriceData[] {
+  const grid = tariff.pricePerKwh;
+  const feed = tariff.feedInTariff;
+  const hasGrid = grid != null && Number.isFinite(grid) && grid > 0;
+  const hasFeed = feed != null && Number.isFinite(feed) && feed >= 0;
+  if (!hasGrid && !hasFeed) return [];
+  const rows: DailyPriceData[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = fmtDate(d);
+    if (hasGrid && hasFeed) {
+      rows.push({
+        date: dateStr,
+        minPrice: Math.min(grid!, feed!),
+        maxPrice: Math.max(grid!, feed!),
+        avgPrice: (grid! + feed!) / 2,
+      });
+    } else if (hasGrid) {
+      rows.push({ date: dateStr, avgPrice: grid!, minPrice: grid!, maxPrice: grid! });
+    } else {
+      rows.push({ date: dateStr, avgPrice: feed!, minPrice: feed!, maxPrice: feed! });
+    }
+  }
+  return rows;
+}
+
 // ─── Economic calculator ──────────────────────────────────────────────────────
-function calcEconomics(country: string, monthlyKwh: number, inverter: any, battery: any, panel: any, panelsNeeded: number) {
-  const ecoKey = country === 'sweden' ? 'sweden_south' : country;
-  const eco = ECONOMIC_DATA[ecoKey] || ECONOMIC_DATA.denmark;
+function calcEconomics(
+  country: string, monthlyKwh: number, inverter: any, battery: any, panel: any, panelsNeeded: number,
+  tariffOverride?: TariffOverride | null,
+) {
+  const ecoKey =
+    country === 'sweden' ? 'sweden_south' : Object.prototype.hasOwnProperty.call(ECONOMIC_DATA, country) ? country : 'denmark';
+  const ecoBase = ECONOMIC_DATA[ecoKey] || ECONOMIC_DATA.denmark;
+  const pricePerKwh =
+    tariffOverride != null && tariffOverride.pricePerKwh != null && Number.isFinite(tariffOverride.pricePerKwh) && tariffOverride.pricePerKwh > 0
+      ? tariffOverride.pricePerKwh
+      : ecoBase.pricePerKwh;
+  const feedInTariff =
+    tariffOverride != null && tariffOverride.feedInTariff != null && Number.isFinite(tariffOverride.feedInTariff) && tariffOverride.feedInTariff >= 0
+      ? tariffOverride.feedInTariff
+      : ecoBase.feedInTariff;
+  const eco = { ...ecoBase, pricePerKwh, feedInTariff };
   const panelWp = Number(panel?.RatedPwrWp) || getPanelWattage(panel || {});
   const totalPvKwp = (panelWp * panelsNeeded) / 1000;
   const annualConsumption = monthlyKwh * 12;
@@ -413,7 +487,7 @@ const downloadFullReportPdf = async (
   res: CalculatorResult, backupHours: number, country: CountryKey,
   advanced: { peakFactor: number; maxPower: number; invEff: number; cableLoss: number },
   matchingInverters: any[], matchingBatteries: any[], matchingSolarPanels: any[],
-  includeSolar: boolean, electricityPrices?: ElectricityPriceData[]
+  includeSolar: boolean, electricityPrices?: ElectricityPriceData[], tariffOverride?: TariffOverride | null,
 ) => {
   const corr = SCANDINAVIA_CORRECTIONS[country] || SCANDINAVIA_CORRECTIONS.denmark;
   const dateStr = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' });
@@ -430,15 +504,31 @@ const downloadFullReportPdf = async (
   const pan0 = matchingSolarPanels.length > 0 ? (matchingSolarPanels[0] as any).panel : null;
   const panN = matchingSolarPanels.length > 0 ? (matchingSolarPanels[0] as any).panelsNeeded : 0;
   const compatChecks = (inv0 && bat0) ? runCompatibilityChecks(inv0, bat0, pan0||{}, panN, res) : [];
-  const econ = (inv0 && bat0) ? calcEconomics(country, res.monthlyKwh, inv0, bat0, pan0||{}, panN) : null;
+  const econ = (inv0 && bat0) ? calcEconomics(country, res.monthlyKwh, inv0, bat0, pan0||{}, panN, tariffOverride) : null;
 
   const avgPx = electricityPrices?.length ? (electricityPrices.reduce((s,p)=>s+p.price,0)/electricityPrices.length).toFixed(4) : 'N/A';
   const minPx = electricityPrices?.length ? Math.min(...electricityPrices.map(p=>p.price)).toFixed(4) : 'N/A';
   const maxPx = electricityPrices?.length ? Math.max(...electricityPrices.map(p=>p.price)).toFixed(4) : 'N/A';
 
-  const css = `<style>*{box-sizing:border-box;margin:0;padding:0;}.page{width:794px;min-height:1123px;padding:32px 44px 60px;font-family:Arial,sans-serif;color:#0f172a;background:#fff;position:relative;page-break-after:always;}.topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px 14px;border-radius:10px;background:#059669;color:#fff;margin-bottom:16px;}.brand{font-weight:900;font-size:20px;color:#fff;}.subtitle{margin-top:2px;font-weight:800;font-size:10px;text-transform:uppercase;color:rgba(255,255,255,.9);}.company{text-align:right;font-size:8px;font-weight:700;color:rgba(255,255,255,.95);line-height:1.5;}.sh{font-size:11px;font-weight:900;text-transform:uppercase;color:#059669;border-bottom:2px solid #059669;padding-bottom:4px;margin:14px 0 8px;}.kvg{display:grid;grid-template-columns:1fr 1fr;gap:3px 20px;}.kvr{display:flex;justify-content:space-between;font-size:9px;padding:2px 0;border-bottom:1px solid #f1f5f9;}.kvk{color:#475569;font-weight:700;}.kvv{color:#0f172a;font-weight:900;font-family:monospace;}.cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:8px 0;}.card{border:1px solid #e2e8f0;border-radius:8px;padding:8px;}.card-lbl{font-size:7px;font-weight:900;text-transform:uppercase;color:#64748b;}.card-val{font-size:18px;font-weight:900;color:#059669;font-family:monospace;margin:2px 0;}.card-sub{font-size:8px;color:#64748b;line-height:1.3;}.rec{border:1px solid #fde68a;background:#fffbeb;border-radius:8px;padding:8px 10px;margin:6px 0;}.rec h3{font-size:8px;font-weight:900;text-transform:uppercase;color:#92400e;margin-bottom:4px;}.ri{font-size:8px;color:#7c2d12;font-weight:700;line-height:1.5;margin:2px 0;}.pg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0;}.pc{border:1px solid #e2e8f0;border-radius:6px;padding:7px 9px;}.pn{font-size:9px;font-weight:900;color:#0f172a;line-height:1.2;}.ps{font-size:8px;color:#64748b;font-family:monospace;margin-top:1px;}.pp{font-size:9px;font-weight:900;color:#16a34a;font-family:monospace;margin-top:2px;}.pb{display:inline-block;font-size:7px;font-weight:900;text-transform:uppercase;padding:1px 5px;border-radius:3px;margin-top:2px;}.bi{background:#fef3c7;color:#92400e;}.bb{background:#dbeafe;color:#1e40af;}.bs{background:#dcfce7;color:#166534;}.tbl{width:100%;border-collapse:collapse;font-size:8px;margin:4px 0;}.tbl thead th{background:#f8fafc;text-align:left;padding:4px 7px;font-weight:900;border:1px solid #e2e8f0;color:#374151;}.tbl tbody td{padding:3px 7px;border:1px solid #e2e8f0;color:#0f172a;font-weight:600;}.tbl tbody tr:nth-child(even) td{background:#f8fafc;}.cr{display:flex;align-items:flex-start;gap:8px;padding:4px 7px;border-radius:6px;margin:3px 0;font-size:8px;}.cok{background:#f0fdf4;border:1px solid #bbf7d0;}.cwn{background:#fffbeb;border:1px solid #fde68a;}.cfl{background:#fef2f2;border:1px solid #fecaca;}.cin{background:#eff6ff;border:1px solid #bfdbfe;}.cd{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:1px;}.dok{background:#22c55e;}.dwn{background:#f59e0b;}.dfl{background:#ef4444;}.din{background:#60a5fa;}.eco{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:8px 0;}.ec{border:1px solid #e2e8f0;border-radius:8px;padding:8px;text-align:center;}.ev{font-size:16px;font-weight:900;font-family:monospace;color:#059669;}.el{font-size:7px;font-weight:900;text-transform:uppercase;color:#64748b;margin-top:1px;}.es{font-size:7px;color:#94a3b8;margin-top:1px;}.ft{position:absolute;bottom:12px;left:44px;right:44px;display:flex;justify-content:space-between;color:#94a3b8;font-size:7px;font-weight:800;border-top:1px solid #e2e8f0;padding-top:4px;}.fpb{background:#059669;color:#fff;font-size:7px;font-weight:900;padding:1px 6px;border-radius:10px;}.tg{font-size:7px;font-weight:900;padding:1px 5px;border-radius:3px;}.tgn{background:#dcfce7;color:#166534;}.tga{background:#fef3c7;color:#92400e;}.tgr{background:#fee2e2;color:#991b1b;}</style>`;
+  const css = `<style>${GLS_PDF_TOPBAR_BRAND_CSS}
+*{box-sizing:border-box;margin:0;padding:0;}.page{width:794px;min-height:1123px;padding:32px 44px 60px;font-family:Arial,sans-serif;color:#0f172a;background:#fff;position:relative;page-break-after:always;}.topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px 14px;border-radius:10px;background:#059669;color:#fff;margin-bottom:16px;}.brand{font-weight:900;font-size:20px;color:#fff;}.subtitle{margin-top:2px;font-weight:800;font-size:10px;text-transform:uppercase;color:rgba(255,255,255,.9);}.company{text-align:right;font-size:8px;font-weight:700;color:rgba(255,255,255,.95);line-height:1.5;}.sh{font-size:11px;font-weight:900;text-transform:uppercase;color:#059669;border-bottom:2px solid #059669;padding-bottom:4px;margin:14px 0 8px;}.kvg{display:grid;grid-template-columns:1fr 1fr;gap:3px 20px;}.kvr{display:flex;justify-content:space-between;font-size:9px;padding:2px 0;border-bottom:1px solid #f1f5f9;}.kvk{color:#475569;font-weight:700;}.kvv{color:#0f172a;font-weight:900;font-family:monospace;}.cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:8px 0;}.card{border:1px solid #e2e8f0;border-radius:8px;padding:8px;}.card-lbl{font-size:7px;font-weight:900;text-transform:uppercase;color:#64748b;}.card-val{font-size:18px;font-weight:900;color:#059669;font-family:monospace;margin:2px 0;}.card-sub{font-size:8px;color:#64748b;line-height:1.3;}.rec{border:1px solid #fde68a;background:#fffbeb;border-radius:8px;padding:8px 10px;margin:6px 0;}.rec h3{font-size:8px;font-weight:900;text-transform:uppercase;color:#92400e;margin-bottom:4px;}.ri{font-size:8px;color:#7c2d12;font-weight:700;line-height:1.5;margin:2px 0;}.pg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0;}.pc{border:1px solid #e2e8f0;border-radius:6px;padding:7px 9px;}.pn{font-size:9px;font-weight:900;color:#0f172a;line-height:1.2;}.ps{font-size:8px;color:#64748b;font-family:monospace;margin-top:1px;}.pp{font-size:9px;font-weight:900;color:#16a34a;font-family:monospace;margin-top:2px;}.pb{display:inline-block;font-size:7px;font-weight:900;text-transform:uppercase;padding:1px 5px;border-radius:3px;margin-top:2px;}.bi{background:#fef3c7;color:#92400e;}.bb{background:#dbeafe;color:#1e40af;}.bs{background:#dcfce7;color:#166534;}.tbl{width:100%;border-collapse:collapse;font-size:8px;margin:4px 0;}.tbl thead th{background:#f8fafc;text-align:left;padding:4px 7px;font-weight:900;border:1px solid #e2e8f0;color:#374151;}.tbl tbody td{padding:3px 7px;border:1px solid #e2e8f0;color:#0f172a;font-weight:600;}.tbl tbody tr:nth-child(even) td{background:#f8fafc;}.cr{display:flex;align-items:flex-start;gap:8px;padding:4px 7px;border-radius:6px;margin:3px 0;font-size:8px;}.cok{background:#f0fdf4;border:1px solid #bbf7d0;}.cwn{background:#fffbeb;border:1px solid #fde68a;}.cfl{background:#fef2f2;border:1px solid #fecaca;}.cin{background:#eff6ff;border:1px solid #bfdbfe;}.cd{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:1px;}.dok{background:#22c55e;}.dwn{background:#f59e0b;}.dfl{background:#ef4444;}.din{background:#60a5fa;}.eco{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:8px 0;}.ec{border:1px solid #e2e8f0;border-radius:8px;padding:8px;text-align:center;}.ev{font-size:16px;font-weight:900;font-family:monospace;color:#059669;}.el{font-size:7px;font-weight:900;text-transform:uppercase;color:#64748b;margin-top:1px;}.es{font-size:7px;color:#94a3b8;margin-top:1px;}.ft{position:absolute;bottom:12px;left:44px;right:44px;display:flex;justify-content:space-between;color:#94a3b8;font-size:7px;font-weight:800;border-top:1px solid #e2e8f0;padding-top:4px;}.fpb{background:#059669;color:#fff;font-size:7px;font-weight:900;padding:1px 6px;border-radius:10px;}.tg{font-size:7px;font-weight:900;padding:1px 5px;border-radius:3px;}.tgn{background:#dcfce7;color:#166534;}.tga{background:#fef3c7;color:#92400e;}.tgr{background:#fee2e2;color:#991b1b;}</style>`;
 
-  const hdr = (sub: string) => `<div class="topbar"><div><div class="brand">Green Light</div><div class="subtitle">${esc(sub)}</div></div><div class="company"><b>${esc(COMPANY_NAME)}</b><br/>${esc(COMPANY_WEB)}<br/>${esc(dateStr)}</div></div>`;
+  const hdr = (sub: string, pageNum: number) => `
+    <div class="topbar">
+      <div class="topbar-brand">
+        <div class="pdf-logo-mark">${getGlsPdfBrandMarkSvg(pageNum)}</div>
+        <div class="topbar-titles">
+          <div class="brand">Green Light</div>
+          <div class="brand-logo-line">${esc(COMPANY_NAME)}</div>
+          <div class="subtitle">${esc(sub)}</div>
+        </div>
+      </div>
+      <div class="company">
+        <b>${esc(COMPANY_WEB)}</b><br/>
+        ${esc(COMPANY_CONTACT)} · ${esc(COMPANY_TEL)}<br/>
+        ${esc(dateStr)}
+      </div>
+    </div>`;
   const ftr = (n: number) => `<div class="ft"><div>${esc(COMPANY_NAME)} · ${esc(corr.label)}</div><div><span class="fpb">Page ${n} / ${totalPages}</span></div></div>`;
 
   const neededEnergy = res.dailyKwh*(backupHours/24);
@@ -454,10 +544,12 @@ const downloadFullReportPdf = async (
     return `<div class="pc"><span class="pb ${badge}">${lbl}</span><div class="pn">${esc(name)}</div><div class="ps">${esc(extra)}</div>${price?`<div class="pp">${price} excl. VAT</div>`:''}</div>`;
   };
 
-  const compatDot = (s: string) => `<div class="cd d${s.slice(0,2)}"></div>`;
-  const compatRow = (c: CompatCheck) => `<div class="cr c${c.status.slice(0,2)}">${compatDot(c.status)}<div style="flex:1"><div style="font-weight:900">[${c.category}] ${c.title}</div><div style="color:#374151">${esc(c.detail)}</div>${c.tip?`<div style="font-size:7px;color:#6b7280">💡 ${esc(c.tip)}</div>`:''}</div><span class="tg ${c.status==='ok'?'tgn':c.status==='warn'?'tga':c.status==='fail'?'tgr':'tgn'}">${c.status==='ok'?'PASS':c.status.toUpperCase()}</span></div>`;
+  const compatRowCls = (s: CheckStatus) => (s === 'ok' ? 'cok' : s === 'warn' ? 'cwn' : s === 'fail' ? 'cfl' : 'cin');
+  const compatDotCls = (s: CheckStatus) => (s === 'ok' ? 'dok' : s === 'warn' ? 'dwn' : s === 'fail' ? 'dfl' : 'din');
+  const compatDot = (s: CheckStatus) => `<div class="cd ${compatDotCls(s)}"></div>`;
+  const compatRow = (c: CompatCheck) => `<div class="cr ${compatRowCls(c.status)}">${compatDot(c.status)}<div style="flex:1"><div style="font-weight:900">[${c.category}] ${c.title}</div><div style="color:#374151">${esc(c.detail)}</div>${c.tip?`<div style="font-size:7px;color:#6b7280">💡 ${esc(c.tip)}</div>`:''}</div><span class="tg ${c.status==='ok'?'tgn':c.status==='warn'?'tga':c.status==='fail'?'tgr':'tgn'}">${c.status==='ok'?'PASS':c.status.toUpperCase()}</span></div>`;
 
-  const page1 = `${hdr('Full Report · Section 1 — Theoretical Requirements')}
+  const page1 = `${hdr('Full Report · Section 1 — Theoretical Requirements', 1)}
 <div class="sh">Input Parameters</div>
 <div class="kvg">
   <div><div class="kvr"><span class="kvk">Monthly consumption</span><span class="kvv">${res.monthlyKwh} kWh/month</span></div><div class="kvr"><span class="kvk">Daily consumption</span><span class="kvv">${res.dailyKwh.toFixed(2)} kWh/day</span></div><div class="kvr"><span class="kvk">Average hourly load</span><span class="kvv">${res.hourlyKwh.toFixed(3)} kW</span></div><div class="kvr"><span class="kvk">Backup duration</span><span class="kvv">${backupHours} hours</span></div></div>
@@ -493,7 +585,7 @@ ${ftr(1)}`;
   const batCards = matchingBatteries.slice(0,4).map(p=>renderProd(p,'bat',`${p.CapKwh||''} kWh · ${p.BattChem||''} · ${p.NomVoltV||''}V`)).join('');
   const solCards = includeSolar ? matchingSolarPanels.slice(0,4).map((item:any)=>renderProd(item.panel,'sol',`${item.wattage} Wp · ${item.panel.CellTech||''} · ×${item.panelsNeeded} needed`)).join('') : '';
 
-  const page2 = `${hdr('Full Report · Section 2 — Matching Products from Catalog')}
+  const page2 = `${hdr('Full Report · Section 2 — Matching Products from Catalog', 2)}
 <div class="sh">Inverters — ≥ ${res.recommendedInverterPower} kW (${matchingInverters.length} found)</div>
 <div class="pg">${invCards||'<div style="font-size:8px;color:#94a3b8;padding:8px">No matching inverters found.</div>'}</div>
 ${matchingInverters.length>4?`<div style="font-size:8px;color:#94a3b8;text-align:center">+ ${matchingInverters.length-4} more</div>`:''}
@@ -503,7 +595,7 @@ ${matchingBatteries.length>4?`<div style="font-size:8px;color:#94a3b8;text-align
 ${includeSolar?`<div class="sh">Solar Panels — Winter Sizing (${matchingSolarPanels.length} found)</div><div class="pg">${solCards||'<div style="font-size:8px;color:#94a3b8;padding:8px">No solar panels found.</div>'}</div>`:'<div style="font-size:8px;color:#94a3b8;padding:6px;border:1px dashed #e2e8f0;border-radius:6px;">Solar panel calculation not included.</div>'}
 ${ftr(2)}`;
 
-  const page3 = `${hdr('Full Report · Section 3 — Compatibility & Economic Analysis')}
+  const page3 = `${hdr('Full Report · Section 3 — Compatibility & Economic Analysis', 3)}
 ${compatChecks.length>0?`<div class="sh">Compatibility — ${inv0?.BrandProd} ${inv0?.ModelName} + ${bat0?.BrandProd} ${bat0?.ModelName}</div>${compatChecks.map(compatRow).join('')}`:'<div style="font-size:8px;color:#94a3b8;padding:8px">No matching products for compatibility check.</div>'}
 ${econ?`<div class="sh">Economic Analysis — ${corr.label} · ${econ.eco.symbol}${econ.eco.pricePerKwh}/kWh</div>
 <div class="eco">
@@ -524,7 +616,7 @@ ${econ?`<div class="sh">Economic Analysis — ${corr.label} · ${econ.eco.symbol
 <div style="margin-top:6px;padding:5px 8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:8px;color:#166534;">🌿 CO₂ saved: ${Math.round(econ.co2SavedKg)} kg/year = ${(econ.co2SavedKg/210).toFixed(1)} flights Amsterdam→Oslo</div>`:''}
 ${ftr(3)}`;
 
-  const page4 = includeSolar ? `${hdr('Full Report · Section 4 — Solar Reference')}
+  const page4 = includeSolar ? `${hdr('Full Report · Section 4 — Solar Reference', 4)}
 <div class="sh">Solar Yield Reference (450W Panel per Region)</div>
 <table class="tbl"><thead><tr><th>Region</th><th>Summer kWh/day</th><th>Winter kWh/day</th><th>Annual avg</th><th>Optimal tilt</th></tr></thead><tbody>
   <tr><td>🇩🇰 Denmark</td><td>2.0–3.0</td><td>0.2–0.5</td><td>0.9–1.5</td><td>40°</td></tr>
@@ -593,10 +685,10 @@ const downloadKitPdf = async (
   inv: any, bat: any, panel: any|null, panelsNeeded: number,
   result: CalculatorResult, country: CountryKey,
   solarInstallType: string, solarAzimuth: number, solarTilt: number,
-  roofArea: string, includeSolar: boolean
+  roofArea: string, includeSolar: boolean, tariffOverride?: TariffOverride | null,
 ) => {
   const corr = SCANDINAVIA_CORRECTIONS[country] || SCANDINAVIA_CORRECTIONS.denmark;
-  const eco  = calcEconomics(country, result.monthlyKwh, inv, bat, panel||{}, panelsNeeded);
+  const eco  = calcEconomics(country, result.monthlyKwh, inv, bat, panel||{}, panelsNeeded, tariffOverride);
   const dateStr = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' });
   const esc = (s:any) => String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
   const eur = (n:number) => `€ ${Math.round(n).toLocaleString('nl-NL')}`;
@@ -705,7 +797,7 @@ const downloadKitPdf = async (
             roofArea ? ['Available area', `${areaAvail} m²`] : null,
             panelsNeeded > 0 ? ['Area used', `${areaUsed} m² of ${areaAvail} m²`] : null,
             panel.ProdWarrYrs ? ['Prod. warranty', `${panel.ProdWarrYrs} yr`] : null,
-          ].map(([k,v]) => `<div class="comp-kv"><span class="comp-k">${k}</span><span class="comp-v">${esc(v as string)}</span></div>`).join('')}
+          ].filter(Boolean).map(([k,v]) => `<div class="comp-kv"><span class="comp-k">${k}</span><span class="comp-v">${esc(v as string)}</span></div>`).join('')}
         </div>
         <div class="comp-price">${panPrice ? eur(panPrice) + ' each · ' + eur(panTotal) + ' total excl. VAT' : 'Price on request'}</div>
       </div>
@@ -786,10 +878,11 @@ interface KitModalProps {
   matchingInverters: any[]; matchingBatteries: any[]; matchingSolarPanels: any[];
   result: CalculatorResult; country: CountryKey; includeSolar: boolean;
   solarInstallType: string; solarAzimuth: number; solarTilt: number; roofArea: string;
+  tariffOverride?: TariffOverride | null;
   onClose: () => void;
 }
 
-function KitModal({ matchingInverters, matchingBatteries, matchingSolarPanels, result, country, includeSolar, solarInstallType, solarAzimuth, solarTilt, roofArea, onClose }: KitModalProps) {
+function KitModal({ matchingInverters, matchingBatteries, matchingSolarPanels, result, country, includeSolar, solarInstallType, solarAzimuth, solarTilt, roofArea, tariffOverride, onClose }: KitModalProps) {
   const [selInv, setSelInv] = React.useState(0);
   const [selBat, setSelBat] = React.useState(0);
   const [selSol, setSelSol] = React.useState(0);
@@ -802,7 +895,7 @@ function KitModal({ matchingInverters, matchingBatteries, matchingSolarPanels, r
   const panelsNeeded = solItem?.panelsNeeded || 0;
   const corr = SCANDINAVIA_CORRECTIONS[country];
 
-  const econ = inv && bat ? calcEconomics(country, result.monthlyKwh, inv, bat, panel||{}, panelsNeeded) : null;
+  const econ = inv && bat ? calcEconomics(country, result.monthlyKwh, inv, bat, panel||{}, panelsNeeded, tariffOverride) : null;
 
   const invKw  = inv  ? getInverterKw(inv)         : 0;
   const batKwh = bat ? (getBatteryKwh(bat) || Number(bat.CapKwh) || 0) : 0;
@@ -979,7 +1072,7 @@ function KitModal({ matchingInverters, matchingBatteries, matchingSolarPanels, r
               disabled={pdfLoading}
               onClick={async () => {
                 setPdfLoading(true);
-                try { await downloadKitPdf(inv, bat, panel, panelsNeeded, result, country, solarInstallType, solarAzimuth, solarTilt, roofArea, includeSolar); }
+                try { await downloadKitPdf(inv, bat, panel, panelsNeeded, result, country, solarInstallType, solarAzimuth, solarTilt, roofArea, includeSolar, tariffOverride); }
                 finally { setPdfLoading(false); }
               }}
               className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#059669] text-white text-xs font-black uppercase tracking-wide hover:bg-[#047857] transition-colors disabled:opacity-60">
@@ -1026,6 +1119,9 @@ export const Calculator: React.FC = () => {
   /** User-facing state for Section 3 empty chart (distinct from “region unsupported”). */
   const [energiPricesUi, setEnergiPricesUi] = useState<'loading' | 'ok' | 'error' | 'empty' | 'empty_today'>('loading');
   const [pricesReloadKey, setPricesReloadKey] = useState(0);
+  /** Optional — same currency as regional model (bill / kWh) for economics & PDF. */
+  const [userGridPricePerKwh, setUserGridPricePerKwh] = useState('');
+  const [userFeedInTariffPerKwh, setUserFeedInTariffPerKwh] = useState('');
 
   const activeCatalog = useMemo(() => (products || []).filter(p => p.is_active !== false), [products]);
   const inverters = useMemo(() => activeCatalog.filter(p => p.category === 'Invertere'), [activeCatalog]);
@@ -1068,6 +1164,40 @@ export const Calculator: React.FC = () => {
   }, [country, pricesReloadKey]);
 
   const correction = SCANDINAVIA_CORRECTIONS[country] || SCANDINAVIA_CORRECTIONS.denmark;
+  const regionalEco = useMemo(() => {
+    const ecoKey =
+      country === 'sweden' ? 'sweden_south' : Object.prototype.hasOwnProperty.call(ECONOMIC_DATA, country) ? country : 'denmark';
+    return ECONOMIC_DATA[ecoKey] || ECONOMIC_DATA.denmark;
+  }, [country]);
+
+  const tariffOverrideForEcon = useMemo((): TariffOverride | undefined => {
+    const g = parseFloat(userGridPricePerKwh);
+    const f = parseFloat(userFeedInTariffPerKwh);
+    const out: TariffOverride = {};
+    if (userGridPricePerKwh.trim() !== '' && Number.isFinite(g) && g > 0) out.pricePerKwh = g;
+    if (userFeedInTariffPerKwh.trim() !== '' && Number.isFinite(f) && f >= 0) out.feedInTariff = f;
+    if (!('pricePerKwh' in out) && !('feedInTariff' in out)) return undefined;
+    return out;
+  }, [userGridPricePerKwh, userFeedInTariffPerKwh]);
+
+  const section3ClientTariffs = tariffOverrideDrivesSection3(tariffOverrideForEcon);
+
+  const displayElectricityPrices = useMemo(() => {
+    if (section3ClientTariffs && tariffOverrideForEcon) {
+      const syn = buildSyntheticSection3TodayHourly(tariffOverrideForEcon);
+      if (syn.length) return syn;
+    }
+    return electricityPrices;
+  }, [section3ClientTariffs, tariffOverrideForEcon, electricityPrices]);
+
+  const displayHistoricalPrices = useMemo(() => {
+    if (section3ClientTariffs && tariffOverrideForEcon) {
+      const syn = buildSyntheticSection3History(tariffOverrideForEcon);
+      if (syn.length) return syn;
+    }
+    return historicalPrices;
+  }, [section3ClientTariffs, tariffOverrideForEcon, historicalPrices]);
+
   const advancedParams = {
     peakFactor: parseFloat(peakLoadFactor)||3,
     maxPower:   parseFloat(maxPowerKw)||0,
@@ -1104,6 +1234,8 @@ export const Calculator: React.FC = () => {
     }
     const recIds = [matchInv[0]?.id, matchBat[0]?.id, matchSol[0]?.panel?.id].filter(Boolean) as string[];
 
+    const gridParsed = parseFloat(userGridPricePerKwh);
+    const feedParsed = parseFloat(userFeedInTariffPerKwh);
     logCalculatorRequestToServer(
       {
         monthlyKwh: monthly,
@@ -1117,6 +1249,8 @@ export const Calculator: React.FC = () => {
         recommendedSolarPanels,
         estimatedCost: 0,
         recommendedProductIds: recIds,
+        ...(userGridPricePerKwh.trim() !== '' && Number.isFinite(gridParsed) && gridParsed > 0 ? { userGridPricePerKwh: gridParsed } : {}),
+        ...(userFeedInTariffPerKwh.trim() !== '' && Number.isFinite(feedParsed) && feedParsed >= 0 ? { userFeedInTariffPerKwh: feedParsed } : {}),
       },
       language,
     );
@@ -1152,8 +1286,8 @@ export const Calculator: React.FC = () => {
   const currentEcon = useMemo(()=>{
     if (!result||matchingInverters.length===0||matchingBatteries.length===0) return null;
     return calcEconomics(country, result.monthlyKwh, matchingInverters[0], matchingBatteries[0],
-      matchingSolarPanels[0]?.panel||{}, matchingSolarPanels[0]?.panelsNeeded||0);
-  }, [result, matchingInverters, matchingBatteries, matchingSolarPanels, country]);
+      matchingSolarPanels[0]?.panel||{}, matchingSolarPanels[0]?.panelsNeeded||0, tariffOverrideForEcon);
+  }, [result, matchingInverters, matchingBatteries, matchingSolarPanels, country, tariffOverrideForEcon]);
 
   const paybackData = useMemo(()=>{
     if (!currentEcon) return [];
@@ -1175,14 +1309,38 @@ export const Calculator: React.FC = () => {
     ].filter(d=>d.value>0);
   }, [currentEcon, matchingSolarPanels]);
 
-  const priceChartData = useMemo(()=>electricityPrices.slice(0,24).map(p=>({ hour:p.hour, price:p.price })), [electricityPrices]);
-  const historicalChartData = useMemo(()=>historicalPrices.map(p=>{
-    const short = p.date.length >= 10 ? `${p.date.slice(8, 10)}/${p.date.slice(5, 7)}` : p.date;
-    return { date: short, avg: p.avgPrice, min: p.minPrice, max: p.maxPrice };
-  }), [historicalPrices]);
+  const priceChartData = useMemo(() => {
+    const g = tariffOverrideForEcon?.pricePerKwh;
+    const f = tariffOverrideForEcon?.feedInTariff;
+    const showFeedLine =
+      g != null && g > 0 && f != null && f >= 0 && Number.isFinite(g) && Number.isFinite(f);
+    return displayElectricityPrices.slice(0, 24).map((p) => ({
+      hour: p.hour,
+      price: p.price,
+      ...(showFeedLine ? { feedIn: f } : {}),
+    }));
+  }, [displayElectricityPrices, tariffOverrideForEcon]);
+
+  const historicalChartData = useMemo(() => {
+    return displayHistoricalPrices.map((p) => {
+      const short = p.date.length >= 10 ? `${p.date.slice(8, 10)}/${p.date.slice(5, 7)}` : p.date;
+      return { date: short, avg: p.avgPrice, min: p.minPrice, max: p.maxPrice };
+    });
+  }, [displayHistoricalPrices]);
+
+  const hourlyChartPrimaryLabel = useMemo(() => {
+    if (!section3ClientTariffs) return t('calc_energi_chart_spot_legend');
+    const g = tariffOverrideForEcon?.pricePerKwh;
+    if (g != null && g > 0) return t('calc_user_grid_price_label');
+    return t('calc_user_feedin_label');
+  }, [section3ClientTariffs, tariffOverrideForEcon, t]);
 
   const handleSave = () => { if (!result) return; saveCalculatorResult({...result,notes}); setSavedResults(getCalculatorResults()); };
-  const handleReset = () => { setMonthlyKwh(''); setBackupHours('8'); setNotes(''); setResult(null); setPeakLoadFactor('3'); setMaxPowerKw(''); setInverterEfficiencyPercent('92'); setCableLossPercent('2'); };
+  const handleReset = () => {
+    setMonthlyKwh(''); setBackupHours('8'); setNotes(''); setResult(null); setPeakLoadFactor('3'); setMaxPowerKw('');
+    setInverterEfficiencyPercent('92'); setCableLossPercent('2');
+    setUserGridPricePerKwh(''); setUserFeedInTariffPerKwh('');
+  };
 
   return (
     <>
@@ -1223,6 +1381,37 @@ export const Calculator: React.FC = () => {
               <div className="space-y-1">
                 <label className="block text-xs font-mono uppercase tracking-wider text-slate-500">Backup Hours Required</label>
                 <input type="number" min={1} max={48} value={backupHours} onChange={e=>setBackupHours(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono text-sm focus:outline-none focus:border-slate-900" />
+              </div>
+
+              <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                  <DollarSign className="h-3 w-3" /> {t('calc_user_tariff_section_title')}
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-mono uppercase tracking-wider text-slate-500">{t('calc_user_grid_price_label')}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={userGridPricePerKwh}
+                    onChange={(e) => setUserGridPricePerKwh(e.target.value)}
+                    placeholder={`${t('calc_user_tariff_example_prefix')} ${regionalEco.pricePerKwh} ${regionalEco.currency}/kWh`}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono text-sm focus:outline-none focus:border-[#059669] bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-mono uppercase tracking-wider text-slate-500">{t('calc_user_feedin_label')}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={userFeedInTariffPerKwh}
+                    onChange={(e) => setUserFeedInTariffPerKwh(e.target.value)}
+                    placeholder={`${t('calc_user_tariff_example_prefix')} ${regionalEco.feedInTariff} ${regionalEco.currency}/kWh`}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 font-mono text-sm focus:outline-none focus:border-[#059669] bg-white"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 leading-relaxed">{t('calc_user_tariff_hint')}</p>
               </div>
 
               {/* Solar installation configurator */}
@@ -1451,7 +1640,7 @@ export const Calculator: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <button className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all text-[10px] font-black uppercase tracking-widest" onClick={handleSave}>Save</button>
                     <button className="px-4 py-2 rounded-xl border border-[#059669] text-[#059669] hover:bg-orange-50 transition-all text-[10px] font-black uppercase tracking-widest flex items-center gap-2"
-                      onClick={()=>downloadFullReportPdf(result, parseFloat(backupHours)||8, country, advancedParams, matchingInverters, matchingBatteries, matchingSolarPanels as any[], includeSolar, electricityPrices)}>
+                      onClick={()=>downloadFullReportPdf(result, parseFloat(backupHours)||8, country, advancedParams, matchingInverters, matchingBatteries, matchingSolarPanels as any[], includeSolar, displayElectricityPrices, tariffOverrideForEcon)}>
                       <Printer className="h-4 w-4" /> Download PDF
                     </button>
                   </div>
@@ -1645,10 +1834,19 @@ export const Calculator: React.FC = () => {
                 <div className="p-6 border-b border-slate-100">
                   <div className="text-sm font-black uppercase tracking-wide flex items-center gap-2 text-slate-900">
                     <Activity className="h-4 w-4 text-blue-500" /> Section 3 — Real-Time Electricity Prices
-                    {pricesLoading && <Loader2 className="h-4 w-4 animate-spin text-[#059669]" />}
+                    {pricesLoading && !section3ClientTariffs && <Loader2 className="h-4 w-4 animate-spin text-[#059669]" />}
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">Live data from Energi Data Service · {correction.label}</p>
-                  {country === 'norway_north' && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    {section3ClientTariffs
+                      ? `${t('calc_section3_user_tariffs_subtitle')} · ${correction.label}`
+                      : `Live data from Energi Data Service · ${correction.label}`}
+                  </p>
+                  {section3ClientTariffs && (
+                    <p className="text-[10px] text-emerald-900 bg-emerald-50 border border-emerald-100 rounded-lg px-2 py-1.5 mt-2 leading-relaxed">
+                      {t('calc_section3_user_tariffs_banner')}
+                    </p>
+                  )}
+                  {!section3ClientTariffs && country === 'norway_north' && (
                     <p className="text-[10px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5 mt-2 leading-relaxed">
                       {t('calc_energi_spot_no4_note')}
                     </p>
@@ -1666,7 +1864,29 @@ export const Calculator: React.FC = () => {
                             <XAxis dataKey="hour" tick={{ fontSize:10 }} stroke="#64748b" />
                             <YAxis tick={{ fontSize:10 }} stroke="#64748b" />
                             <Tooltip contentStyle={{ fontSize:11, borderRadius:8 }} />
-                            <Area type="monotone" dataKey="price" stroke="#059669" fill="#059669" fillOpacity={0.2} strokeWidth={2} name="Price" />
+                            {priceChartData[0] != null && 'feedIn' in priceChartData[0] && (
+                              <Legend wrapperStyle={{ fontSize:10 }} />
+                            )}
+                            <Area
+                              type="monotone"
+                              dataKey="price"
+                              stroke="#059669"
+                              fill="#059669"
+                              fillOpacity={0.2}
+                              strokeWidth={2}
+                              name={hourlyChartPrimaryLabel}
+                            />
+                            {priceChartData[0] != null && 'feedIn' in priceChartData[0] && (
+                              <Area
+                                type="monotone"
+                                dataKey="feedIn"
+                                stroke="#2563eb"
+                                fill="#3b82f6"
+                                fillOpacity={0.12}
+                                strokeWidth={2}
+                                name={t('calc_user_feedin_label')}
+                              />
+                            )}
                           </AreaChart>
                         </ResponsiveContainer>
                       </SafeChart>
@@ -1755,6 +1975,11 @@ export const Calculator: React.FC = () => {
                   </div>
                 </div>
                 <div className="p-6 space-y-6">
+                  {tariffOverrideForEcon && (
+                    <div className="text-[11px] text-emerald-900 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 leading-relaxed">
+                      {t('calc_user_tariff_active')}
+                    </div>
+                  )}
                   {/* KPI row */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="bg-green-50 border border-green-200 rounded-xl p-4">
@@ -1908,7 +2133,7 @@ export const Calculator: React.FC = () => {
           matchingSolarPanels={matchingSolarPanels as any[]}
           result={result} country={country} includeSolar={includeSolar}
           solarInstallType={solarInstallType} solarAzimuth={solarAzimuth}
-          solarTilt={solarTilt} roofArea={roofArea}
+          solarTilt={solarTilt} roofArea={roofArea} tariffOverride={tariffOverrideForEcon}
           onClose={() => setShowKit(false)}
         />
       )}
@@ -1928,7 +2153,8 @@ export const Calculator: React.FC = () => {
                 ['☀️ Include Solar','Toggle to include solar panel sizing. Disable for battery+inverter-only systems.'],
                 ['⚙️ Advanced Settings','Peak Load Factor (default 3×) — max vs avg load ratio. Or enter Max Power directly. Inverter Efficiency 90–96%. Cable Losses 1–5%.'],
                 ['⚡ Electricity Prices','Live prices from Energi Data Service (Denmark/Nordics). Shows today\'s hourly chart and 7-day history.'],
-                ['💰 Economic Analysis','Calculates annual savings, payback period, 25-year ROI and CO₂ reduction based on regional tariffs and subsidies.'],
+                ['💶 Your tariff (optional)', t('calc_guide_user_tariff')],
+                ['💰 Economic Analysis','Calculates annual savings, payback period, 25-year ROI and CO₂ reduction based on regional tariffs and subsidies (or your entered prices).'],
               ].map(([title,desc])=>(
                 <div key={title} className="space-y-1">
                   <div className="font-black text-slate-800 text-sm">{title}</div>

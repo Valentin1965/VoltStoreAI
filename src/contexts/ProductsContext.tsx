@@ -179,6 +179,14 @@ const safeStringArrayParse = (data: any): string[] => {
   return [];
 };
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** QUIC / HTTP3, StrictMode double-mount, and flaky Wi‑Fi often surface as AbortError or “failed to fetch”. */
+function isTransientNetworkOrAbort(msg: string): boolean {
+  const m = (msg || '').toLowerCase();
+  return /abort|aborted|quic|failed to fetch|network|timeout|socket|econnreset|ecconn|fetch/i.test(m);
+}
+
 export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const categoriesList: Category[] = ['Power Station', 'Invertere', 'Batterier', 'Solpaneler', 'Sæt', 'Varmepumper', 'Monteringssystemer'];
   const allCategoriesList = ['All', ...categoriesList];
@@ -248,49 +256,66 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setFilterRatedPwrWp('');
   }, [filterBrand]);
 
+  /** Bumps on each fetchProducts() so aborted/StrictMode runs cannot overwrite a newer result or clear loading early. */
+  const fetchGenerationRef = useRef(0);
+
   const fetchProducts = useCallback(async () => {
     if (!isSupabaseConfigured) {
       setIsLoading(false);
       setDbProducts(MOCK_PRODUCTS as any);
       return;
     }
+    const gen = ++fetchGenerationRef.current;
     setIsLoading(true);
     try {
-      // Fetch from all specialized tables in parallel with individual error handling
       const fetchTable = async (tableName: string) => {
-        try {
-          const { data, error } = await supabase.from(tableName).select('*');
-          if (error) {
-            console.error(`[DB] ${tableName}: ${error.code} — ${error.message}${error.hint ? ' | hint: ' + error.hint : ''}`);
+        const maxAttempts = 3;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            const { data, error } = await supabase.from(tableName).select('*');
+            if (error) {
+              const transient =
+                isTransientNetworkOrAbort(error.message || '') ||
+                /timeout|aborted/i.test(error.hint || '');
+              if (transient && attempt < maxAttempts) {
+                await sleep(280 * attempt);
+                continue;
+              }
+              console.error(
+                `[DB] ${tableName}: ${error.code} — ${error.message}${error.hint ? ' | hint: ' + error.hint : ''}`,
+              );
+              return [];
+            }
+            if (import.meta.env.DEV) console.log(`[DB] ${tableName}: ${data?.length ?? 0} rows`);
+            return data || [];
+          } catch (e: any) {
+            const msg = e?.message || String(e);
+            if (isTransientNetworkOrAbort(msg) && attempt < maxAttempts) {
+              await sleep(280 * attempt);
+              continue;
+            }
+            console.error(`[DB] ${tableName} exception:`, msg);
             return [];
           }
-          console.log(`[DB] ${tableName}: ${data?.length ?? 0} rows`);
-          return data || [];
-        } catch (e: any) {
-          console.error(`[DB] ${tableName} exception:`, e.message);
-          return [];
         }
+        return [];
       };
 
-      const [
-        bats,
-        invs,
-        panels,
-        chargers,
-        pumps,
-        kits,
-        mounting,
-        prods,
-      ] = await Promise.all([
+      // Two waves (4 + 4) reduces simultaneous HTTP/3 streams — helps ERR_QUIC_PROTOCOL_ERROR on some networks.
+      const [bats, invs, panels, chargers] = await Promise.all([
         fetchTable('batteries'),
         fetchTable('inverters'),
         fetchTable('solar_panels'),
         fetchTable('ev_chargers'),
+      ]);
+      const [pumps, kits, mounting, prods] = await Promise.all([
         fetchTable('heat_pumps'),
         fetchTable('kits'),
         fetchTable('mounting_systems'),
-        fetchTable('products'),   // ← main product table (including legacy kits, if any)
+        fetchTable('products'),
       ]);
+
+      if (gen !== fetchGenerationRef.current) return;
 
 
 
@@ -405,7 +430,7 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } catch (err: any) {
       console.warn('[ProductsContext] Sync notice:', err.message);
     } finally {
-      setIsLoading(false);
+      if (gen === fetchGenerationRef.current) setIsLoading(false);
     }
   }, []);
 
