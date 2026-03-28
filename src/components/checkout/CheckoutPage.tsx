@@ -1,4 +1,4 @@
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, memo, useEffect } from 'react';
 import { useCart } from '../../contexts/CartContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -20,6 +20,16 @@ interface FormData {
   delivery_same: boolean;
   delivery_country: string; delivery_city: string; delivery_street: string;
   delivery_house_number: string; delivery_apartment: string; delivery_postal_code: string; delivery_phone: string;
+}
+
+/** POST target for Mollie — same host by default; override with VITE_PAYMENT_API_BASE when API lives elsewhere. */
+function getCreatePaymentUrl(): string {
+  const explicit = (import.meta.env.VITE_PAYMENT_API_BASE || '').trim().replace(/\/$/, '');
+  if (explicit) return `${explicit}/api/create-payment`;
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/api/create-payment`;
+  }
+  return '/api/create-payment';
 }
 
 const emptyForm: FormData = {
@@ -80,7 +90,12 @@ const CheckoutFormSection = memo(({ data, onChange, t }: {
   );
 });
 
-export const CheckoutPage: React.FC<{ onBackToCart: () => void; onOrderSuccess: () => void; setView?: (view: AppView) => void }> = ({ onBackToCart, onOrderSuccess, setView }) => {
+export const CheckoutPage: React.FC<{
+  onBackToCart: () => void;
+  /** Pass Supabase order UUID so success page can load the receipt (email / fallback card flow). */
+  onOrderSuccess: (orderId?: string) => void;
+  setView?: (view: AppView) => void;
+}> = ({ onBackToCart, onOrderSuccess, setView }) => {
   const { items, totalPrice, clearCart } = useCart();
   const { addNotification } = useNotification();
   const { t, formatPrice, language, getLoc } = useLanguage();
@@ -103,6 +118,24 @@ export const CheckoutPage: React.FC<{ onBackToCart: () => void; onOrderSuccess: 
   const [paymentMethod, setPaymentMethod] = useState<'Email Order' | 'Credit Card'>('Email Order');
   const [clientMessage, setClientMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    setFormData(prev => ({
+      ...prev,
+      first_name: currentUser.first_name || prev.first_name,
+      last_name: currentUser.last_name || prev.last_name,
+      email: currentUser.email || prev.email,
+      phone: currentUser.phone || prev.phone,
+      company_name: currentUser.company_name || prev.company_name,
+      vat_number: currentUser.vat_number || prev.vat_number,
+      street: currentUser.street || prev.street,
+      house_number: currentUser.house_number || prev.house_number,
+      postal_code: currentUser.postal_code || prev.postal_code,
+      city: currentUser.city || prev.city,
+      country: currentUser.country || prev.country,
+    }));
+  }, [currentUser?.id, currentUser?.email]);
 
   const handleFieldChange = useCallback((field: keyof FormData, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -165,10 +198,11 @@ export const CheckoutPage: React.FC<{ onBackToCart: () => void; onOrderSuccess: 
 
         addNotification(t('order_success_msg'), 'success');
         clearCart();
-        onOrderSuccess();
+        onOrderSuccess(data.id);
       } else {
         // Credit Card (Mollie) flow
-        const resp = await fetch('/api/create-payment', {
+        const createPaymentUrl = getCreatePaymentUrl();
+        const resp = await fetch(createPaymentUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -198,9 +232,15 @@ export const CheckoutPage: React.FC<{ onBackToCart: () => void; onOrderSuccess: 
         }
 
         if (!resp.ok || !payload?.checkoutUrl) {
-          // If payment endpoint is unavailable (e.g. 404 on non-Vercel env),
-          // keep the already-saved order and gracefully fall back to email flow.
+          // 404 = no serverless route (local Vite without DEV_API_PROXY, or static host without /api).
           if (resp.status === 404) {
+            if (import.meta.env.DEV) {
+              console.warn(
+                '[Checkout] POST',
+                createPaymentUrl,
+                '→ 404. Vite should proxy /api to production by default — restart `npm run dev`. Override with DEV_API_PROXY=… in .env.local, or set DEV_API_PROXY_DISABLE=true to turn proxy off.',
+              );
+            }
             await sendOrderEmails({
               orderNo: data.order_number || data.id.slice(0, 8),
               orderDate: new Date().toLocaleDateString(),
@@ -215,9 +255,9 @@ export const CheckoutPage: React.FC<{ onBackToCart: () => void; onOrderSuccess: 
               currency: orderData.currency,
               lang: language,
             });
-            addNotification('Card payment is unavailable right now. Order has been saved.', 'success');
+            addNotification(t('checkout_card_api_404'), 'info');
             clearCart();
-            onOrderSuccess();
+            onOrderSuccess(data.id);
             return;
           }
 

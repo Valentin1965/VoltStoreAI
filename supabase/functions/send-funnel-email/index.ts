@@ -3,24 +3,12 @@
 // Secrets: same as send-email — RESEND_API_KEY, optional RESEND_FROM
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { corsHeadersFor } from '../_shared/cors.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
 const SALES_EMAIL = 'sales@glsolargroup.dk';
 const COMPANY_NAME = 'Green Light Scandinavia';
 const FROM = Deno.env.get('RESEND_FROM') ?? `${COMPANY_NAME} <onboarding@resend.dev>`;
-
-const ALLOWED_ORIGINS = ['https://glsolargroup.dk', 'https://www.glsolargroup.dk'];
-
-function getCorsHeaders(req: Request): Record<string, string> {
-  const origin = req.headers.get('origin') ?? '';
-  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
-  return {
-    'Access-Control-Allow-Origin': allowed,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Vary': 'Origin',
-  };
-}
 
 type Lang = 'da' | 'en' | 'no' | 'se';
 
@@ -207,14 +195,16 @@ function buildFunnelHTML(data: Record<string, unknown>, step: FunnelStepKey): st
 }
 
 serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: getCorsHeaders(req) });
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeadersFor(req) });
+  }
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405, headers: getCorsHeaders(req) });
+    return new Response('Method not allowed', { status: 405, headers: corsHeadersFor(req) });
   }
   if (!RESEND_API_KEY) {
     return new Response(
       JSON.stringify({ error: 'RESEND_API_KEY not set' }),
-      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+      { status: 500, headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' } },
     );
   }
 
@@ -226,7 +216,7 @@ serve(async (req: Request) => {
     if (!FUNNEL_STEPS.includes(step)) {
       return new Response(
         JSON.stringify({ error: `Unknown step: ${data.step}. Use: ${FUNNEL_STEPS.join(', ')}` }),
-        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+        { status: 400, headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' } },
       );
     }
 
@@ -234,7 +224,7 @@ serve(async (req: Request) => {
     if (!to.includes('@')) {
       return new Response(
         JSON.stringify({ error: 'customerEmail required' }),
-        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } },
+        { status: 400, headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' } },
       );
     }
 
@@ -257,14 +247,14 @@ serve(async (req: Request) => {
     if (!r.ok) throw new Error(`Resend ${r.status}: ${await r.text()}`);
 
     return new Response(JSON.stringify({ ok: true }), {
-      headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
+      headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' },
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[send-funnel-email]', err);
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
-      headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
+      headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' },
     });
   }
 });

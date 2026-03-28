@@ -7,8 +7,9 @@ export enum AppView {
   CALCULATOR = 'calculator',
   SERVICE = 'service',
   ABOUT = 'about',
+  CONTACT = 'contact',
   CABINET = 'cabinet',
-  SUCCESS = 'success' 
+  SUCCESS = 'success',
 }
 
 // NOTE: Category values come from DB/localization and have drift over time.

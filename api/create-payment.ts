@@ -5,11 +5,6 @@ const mollieClient = createMollieClient({
   apiKey: process.env.MOLLIE_API_KEY as string 
 });
 
-const supabaseAdmin = createClient(
-  process.env.VITE_SUPABASE_URL as string,
-  process.env.SUPABASE_SERVICE_ROLE_KEY as string
-);
-
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -19,6 +14,20 @@ export default async function handler(req: any, res: any) {
     console.error('MOLLIE_API_KEY is not set');
     return res.status(503).json({ error: 'Card payment is not configured', message: 'MOLLIE_API_KEY missing' });
   }
+
+  const supabaseUrl =
+    process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error('Supabase admin env missing: SUPABASE_URL or VITE_SUPABASE_URL, and SUPABASE_SERVICE_ROLE_KEY');
+    return res.status(503).json({
+      error: 'Card payment is not configured',
+      message: 'Supabase service credentials missing for payment handler',
+    });
+  }
+
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
@@ -58,13 +67,23 @@ export default async function handler(req: any, res: any) {
 
     if (dbError) {
       console.error('Database update error:', dbError);
-      throw new Error('Failed to link Mollie ID to order');
+      throw new Error(
+        `Failed to link Mollie ID to order: ${dbError.message}. Ensure orders.mollie_id column exists (see supabase_migration.sql).`,
+      );
     }
 
-    // 3. Повертаємо посилання на оплату
-    return res.status(200).json({ 
-      checkoutUrl: payment.getCheckoutUrl(),
-      paymentId: payment.id 
+    const checkoutUrl = (payment as any).getCheckoutUrl?.() ?? null;
+    if (!checkoutUrl) {
+      console.error('Mollie payment created but no checkout URL', payment?.id);
+      return res.status(502).json({
+        error: 'No checkout URL',
+        message: 'Mollie did not return a checkout link for this payment.',
+      });
+    }
+
+    return res.status(200).json({
+      checkoutUrl,
+      paymentId: payment.id,
     });
 
   } catch (error: any) {

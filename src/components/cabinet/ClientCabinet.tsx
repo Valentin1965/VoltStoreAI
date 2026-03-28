@@ -7,18 +7,29 @@ import { AppView } from '../../types';
 import {
   ShoppingBag, User, ShieldCheck,
   AtSign, UserPlus, ArrowRight, Loader2,
-  KeyRound, ChevronLeft, LogIn, Activity,
-  LogOut, Package, MapPin, Phone, Mail,
+  KeyRound, ChevronLeft, LogIn, Activity, Mail, Smartphone,
+  LogOut, Package, MapPin, Phone,
   ShoppingCart, Zap, Building2, Percent,
   Truck, Edit3, Check, Bell, BellOff, CheckCircle2
 } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
+import { getRememberedSiteCountry } from '../../routing/siteCountry';
+import { defaultCallingCodeForSiteCountry, normalizePhoneE164 } from '../../utils/phoneE164';
 
 export const ClientCabinet: React.FC = () => {
   const { t, language, formatPrice } = useLanguage();
   const { addNotification } = useNotification();
-  const { currentUser, isLoadingUser, loginByEmail, registerClient, logout } = useUser();
+  const {
+    currentUser,
+    isLoadingUser,
+    loginWithEmailPassword,
+    completeTotpVerification,
+    registerClient,
+    logout,
+    requestSignInOtp,
+    verifySignInOtp,
+  } = useUser();
   const push = usePushNotifications(currentUser?.id ?? null);
   const { items: cartItems, totalPrice, totalItems: cartCount } = useCart();
 
@@ -29,11 +40,24 @@ export const ClientCabinet: React.FC = () => {
   const [loadingOrders, setLoadingOrders] = useState(false);
 
   // Login form
+  const [loginMethod, setLoginMethod] = useState<'password' | 'email_otp' | 'phone_otp'>('email_otp');
   const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginPhone, setLoginPhone] = useState('');
+  const [normalizedOtpPhone, setNormalizedOtpPhone] = useState<string | null>(null);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [hasSbSession, setHasSbSession] = useState(false);
+  const [totpOn, setTotpOn] = useState(false);
+  const [loginMfa, setLoginMfa] = useState<{ factorId: string; challengeId: string } | null>(null);
+  const [loginTotpCode, setLoginTotpCode] = useState('');
+  const [totpEnroll, setTotpEnroll] = useState<{ factorId: string; qrSvg: string } | null>(null);
+  const [totpConfirmCode, setTotpConfirmCode] = useState('');
 
   // Register form
   const [reg, setReg] = useState({
     first_name: '', last_name: '', email: '', phone: '',
+    password: '', password_confirm: '',
     client_type: 'private' as 'private' | 'business',
     company_name: '', vat_number: '',
     country: 'Danmark', city: '', street: '', house_number: '', postal_code: '',
@@ -57,34 +81,258 @@ export const ClientCabinet: React.FC = () => {
       });
   }, [activeTab, currentUser]);
 
+  const resetLoginOtp = useCallback(() => {
+    setOtpSent(false);
+    setOtpCode('');
+    setNormalizedOtpPhone(null);
+    setLoginMfa(null);
+    setLoginTotpCode('');
+  }, []);
+
+  const goProfileLogin = useCallback(() => {
+    setActiveTab('profile');
+    setAuthMode('login');
+    resetLoginOtp();
+    setLoginMethod('email_otp');
+    setLoginPassword('');
+  }, [resetLoginOtp]);
+  const goProfileRegister = useCallback(() => {
+    setActiveTab('profile');
+    setAuthMode('register');
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) setAuthMode('idle');
+  }, [currentUser]);
+
+  const refreshTotpStatus = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    setHasSbSession(!!session);
+    if (!session) {
+      setTotpOn(false);
+      return;
+    }
+    const { data } = await supabase.auth.mfa.listFactors();
+    setTotpOn((data?.totp ?? []).some(f => f.status === 'verified'));
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    void refreshTotpStatus();
+  }, [currentUser, activeTab, refreshTotpStatus]);
+
   const handleLogin = useCallback(async () => {
     if (!loginEmail.trim()) { addNotification(t('cabinet_enter_email'), 'info'); return; }
+    if (!loginPassword) { addNotification(t('cabinet_password_required'), 'info'); return; }
     setIsProcessing(true);
-    const result = await loginByEmail(loginEmail.trim());
-    if (result === 'found') {
+    setLoginMfa(null);
+    setLoginTotpCode('');
+    const result = await loginWithEmailPassword(loginEmail.trim(), loginPassword);
+    if (result.status === 'found') {
       addNotification(t('cabinet_welcome_back'), 'success');
       setAuthMode('idle');
       setLoginEmail('');
+      setLoginPassword('');
+      setLoginPhone('');
+      resetLoginOtp();
+      void refreshTotpStatus();
+    } else if (result.status === 'mfa') {
+      setLoginMfa({ factorId: result.factorId, challengeId: result.challengeId });
+      addNotification(t('auth_totp_step_hint'), 'info');
+    } else if (result.status === 'no_profile') {
+      addNotification(t('auth_otp_no_profile'), 'error');
     } else {
-      addNotification(t('cabinet_not_found'), 'error');
-      setReg(r => ({ ...r, email: loginEmail }));
+      addNotification(t('cabinet_invalid_credentials'), 'error');
+      setReg(r => ({ ...r, email: loginEmail.trim() }));
     }
     setIsProcessing(false);
-  }, [loginEmail, loginByEmail, addNotification, t]);
+  }, [loginEmail, loginPassword, loginWithEmailPassword, addNotification, t, refreshTotpStatus, resetLoginOtp]);
+
+  const handleSendLoginOtp = useCallback(async () => {
+    const siteCountry = getRememberedSiteCountry() ?? 'dk';
+    setLoginMfa(null);
+    setLoginTotpCode('');
+    if (loginMethod === 'email_otp') {
+      if (!loginEmail.trim()) {
+        addNotification(t('cabinet_enter_email'), 'info');
+        return;
+      }
+      setIsProcessing(true);
+      const { error } = await requestSignInOtp('email', loginEmail.trim(), siteCountry);
+      setIsProcessing(false);
+      if (error) {
+        addNotification(t('auth_otp_request_failed'), 'error');
+        return;
+      }
+      setOtpSent(true);
+      addNotification(t('auth_otp_sent_email'), 'info');
+      return;
+    }
+    const cc = defaultCallingCodeForSiteCountry(siteCountry);
+    const ph = normalizePhoneE164(loginPhone, cc);
+    if (ph.replace(/\D/g, '').length < 8) {
+      addNotification(t('err_phone_invalid'), 'error');
+      return;
+    }
+    setIsProcessing(true);
+    const { error, normalizedPhone: norm } = await requestSignInOtp('phone', loginPhone, siteCountry);
+    setIsProcessing(false);
+    if (error) {
+      addNotification(t('auth_otp_request_failed'), 'error');
+      return;
+    }
+    setNormalizedOtpPhone(norm ?? ph);
+    setOtpSent(true);
+    addNotification(t('auth_otp_sent_phone'), 'info');
+  }, [loginMethod, loginEmail, loginPhone, requestSignInOtp, addNotification, t]);
+
+  const handleVerifyLoginOtp = useCallback(async () => {
+    const ch = loginMethod === 'email_otp' ? 'email' as const : 'phone' as const;
+    const addr = ch === 'email' ? loginEmail.trim().toLowerCase() : (normalizedOtpPhone ?? '');
+    if (ch === 'phone' && !addr) {
+      addNotification(t('err_phone_invalid'), 'error');
+      return;
+    }
+    if (!otpCode.replace(/\s/g, '')) {
+      addNotification(t('auth_magic_link_code_invalid'), 'info');
+      return;
+    }
+    setIsProcessing(true);
+    setLoginMfa(null);
+    setLoginTotpCode('');
+    const result = await verifySignInOtp(ch, addr, otpCode);
+    setIsProcessing(false);
+    if (result.status === 'found') {
+      addNotification(t('cabinet_welcome_back'), 'success');
+      setAuthMode('idle');
+      setLoginEmail('');
+      setLoginPassword('');
+      setLoginPhone('');
+      resetLoginOtp();
+      void refreshTotpStatus();
+    } else if (result.status === 'mfa') {
+      setLoginMfa({ factorId: result.factorId, challengeId: result.challengeId });
+      addNotification(t('auth_totp_step_hint'), 'info');
+    } else if (result.status === 'no_profile') {
+      addNotification(t('auth_otp_no_profile'), 'error');
+    } else {
+      addNotification(result.errorMessage || t('auth_otp_otp_invalid'), 'error');
+    }
+  }, [loginMethod, loginEmail, normalizedOtpPhone, otpCode, verifySignInOtp, addNotification, t, refreshTotpStatus, resetLoginOtp]);
+
+  const switchLoginMethod = (m: 'password' | 'email_otp' | 'phone_otp') => {
+    setLoginMethod(m);
+    resetLoginOtp();
+    setLoginPassword('');
+  };
+
+  const handleLoginTotp = useCallback(async () => {
+    if (!loginMfa) return;
+    setIsProcessing(true);
+    const { error } = await completeTotpVerification(loginMfa.factorId, loginMfa.challengeId, loginTotpCode);
+    setIsProcessing(false);
+    if (error) {
+      addNotification(error.message || t('auth_magic_link_code_invalid'), 'error');
+      return;
+    }
+    addNotification(t('cabinet_welcome_back'), 'success');
+    setAuthMode('idle');
+    setLoginMfa(null);
+    setLoginTotpCode('');
+    setLoginEmail('');
+    setLoginPassword('');
+    setLoginPhone('');
+    resetLoginOtp();
+    void refreshTotpStatus();
+  }, [loginMfa, loginTotpCode, completeTotpVerification, addNotification, t, refreshTotpStatus, resetLoginOtp]);
+
+  const startTotpEnroll = useCallback(async () => {
+    setIsProcessing(true);
+    setTotpEnroll(null);
+    setTotpConfirmCode('');
+
+    const { data: factorList, error: listErr } = await supabase.auth.mfa.listFactors();
+    if (listErr) {
+      setIsProcessing(false);
+      addNotification(listErr.message || t('cabinet_create_error'), 'error');
+      return;
+    }
+
+    const all = factorList?.all ?? [];
+    if (all.some(f => f.factor_type === 'totp' && f.status === 'verified')) {
+      setIsProcessing(false);
+      addNotification(t('cabinet_totp_already_active'), 'info');
+      void refreshTotpStatus();
+      return;
+    }
+
+    for (const f of all) {
+      if (f.factor_type === 'totp' && f.status === 'unverified') {
+        const { error: uErr } = await supabase.auth.mfa.unenroll({ factorId: f.id });
+        if (uErr) {
+          setIsProcessing(false);
+          addNotification(uErr.message || t('cabinet_create_error'), 'error');
+          return;
+        }
+      }
+    }
+
+    const { data, error } = await supabase.auth.mfa.enroll({
+      factorType: 'totp',
+      friendlyName: 'Google Authenticator',
+      issuer: 'GREEN LIGHT',
+    });
+    setIsProcessing(false);
+    if (error || !data?.totp?.qr_code) {
+      addNotification(error?.message || t('cabinet_create_error'), 'error');
+      return;
+    }
+    setTotpEnroll({ factorId: data.id, qrSvg: data.totp.qr_code });
+  }, [addNotification, t, refreshTotpStatus]);
+
+  const confirmTotpEnroll = useCallback(async () => {
+    if (!totpEnroll) return;
+    setIsProcessing(true);
+    const { error } = await supabase.auth.mfa.challengeAndVerify({
+      factorId: totpEnroll.factorId,
+      code: totpConfirmCode.replace(/\s/g, ''),
+    });
+    setIsProcessing(false);
+    if (error) {
+      addNotification(error.message || t('auth_magic_link_code_invalid'), 'error');
+      return;
+    }
+    setTotpEnroll(null);
+    setTotpConfirmCode('');
+    addNotification(t('cabinet_totp_done'), 'success');
+    void refreshTotpStatus();
+  }, [totpEnroll, totpConfirmCode, addNotification, t, refreshTotpStatus]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reg.first_name || !reg.email) { addNotification(t('cabinet_fields_required'), 'error'); return; }
+    if (!reg.password || reg.password.length < 8) { addNotification(t('cabinet_password_too_short'), 'error'); return; }
+    if (reg.password !== reg.password_confirm) { addNotification(t('cabinet_password_mismatch'), 'error'); return; }
     setIsProcessing(true);
     try {
+      const { password, password_confirm: _pc, ...rest } = reg;
       await registerClient({
-        ...reg,
+        ...rest,
         email: reg.email.trim(),
+        password,
       });
       addNotification(t('cabinet_profile_created'), 'success');
       setAuthMode('idle');
+      setReg(r => ({ ...r, password: '', password_confirm: '' }));
     } catch (err: any) {
-      addNotification(err.message || t('cabinet_create_error'), 'error');
+      const msg = String(err?.message || err || '');
+      if (msg.includes('password_too_short') || msg.includes('P0001')) {
+        addNotification(t('cabinet_password_too_short'), 'error');
+      } else if (msg.includes('duplicate') || msg.includes('23505') || msg.includes('unique')) {
+        addNotification(t('cabinet_email_exists'), 'error');
+      } else {
+        addNotification(msg || t('cabinet_create_error'), 'error');
+      }
     }
     setIsProcessing(false);
   };
@@ -102,7 +350,7 @@ export const ClientCabinet: React.FC = () => {
       processing:         { label: t('status_processing'),          cls: 'bg-blue-50 text-blue-500' },
       confirmed:          { label: t('status_confirmed'),          cls: 'bg-emerald-50 text-emerald-600' },
       cancelled:          { label: t('status_cancelled'),         cls: 'bg-rose-50 text-rose-500' },
-      delivered:          { label: t('status_delivered'),            cls: 'bg-slate-100 text-slate-500' },
+      delivered:          { label: t('status_delivered'),            cls: 'bg-slate-100 text-slate-600' },
     };
     return map[s] || { label: s || '—', cls: 'bg-slate-50 text-slate-400' };
   };
@@ -110,135 +358,6 @@ export const ClientCabinet: React.FC = () => {
   if (isLoadingUser) return (
     <div className="flex items-center justify-center py-40">
       <Loader2 size={32} className="animate-spin text-emerald-500" />
-    </div>
-  );
-
-  if (!currentUser) return (
-    <div className="max-w-[480px] mx-auto py-16 px-6 animate-in fade-in zoom-in-95 duration-500">
-      <div className="bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-2xl space-y-8">
-        {authMode !== 'idle' && (
-          <button onClick={() => setAuthMode('idle')}
-            className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-black uppercase text-[9px] tracking-widest transition-all">
-            <ChevronLeft size={14} /> {t('cancel')}
-          </button>
-        )}
-        <div className="text-center space-y-3">
-          <div className="w-16 h-16 bg-emerald-500/10 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto">
-            {authMode === 'idle' ? <User size={28} /> : authMode === 'login' ? <KeyRound size={28} /> : <UserPlus size={28} />}
-          </div>
-          <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">
-            {authMode === 'idle' ? t('cabinet_account_title') : authMode === 'login' ? t('cabinet_btn_login') : t('cabinet_btn_register')}
-          </h2>
-          {authMode === 'idle' && (
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest max-w-xs mx-auto leading-relaxed">
-              {t('cabinet_login_prompt')}
-            </p>
-          )}
-        </div>
-
-        {authMode === 'idle' ? (
-          <div className="space-y-3">
-            <button onClick={() => setAuthMode('login')}
-              className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-xl">
-              <LogIn size={18} /> {t('cabinet_btn_login')}
-            </button>
-            <button onClick={() => setAuthMode('register')}
-              className="w-full bg-emerald-500 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-400 transition-all flex items-center justify-center gap-3 shadow-xl">
-              <UserPlus size={18} /> {t('cabinet_btn_register')}
-            </button>
-          </div>
-        ) : authMode === 'login' ? (
-          <div className="space-y-4">
-            <div className="relative group">
-              <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors" size={16} />
-              <input value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
-                onKeyPress={e => e.key === 'Enter' && handleLogin()}
-                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all"
-                placeholder="din@email.dk" type="email" />
-            </div>
-            <p className="text-[9px] text-slate-400 text-center font-bold tracking-wide">
-              {t('cabinet_find_profile_hint')}
-            </p>
-            <button onClick={handleLogin} disabled={isProcessing}
-              className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50">
-              {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <><LogIn size={18} /> {t('cabinet_find_profile')}</>}
-            </button>
-            <button onClick={() => setAuthMode('register')}
-              className="w-full text-slate-400 text-[9px] font-black uppercase tracking-widest hover:text-slate-900 transition-all py-2">
-              {t('cabinet_new_customer')}
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={handleRegister} className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
-              {(['private', 'business'] as const).map(ct => (
-                <button key={ct} type="button" onClick={() => setReg(r => ({ ...r, client_type: ct }))}
-                  className={`py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest border-2 transition-all ${reg.client_type === ct ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-400 border-slate-100 hover:border-slate-300'}`}>
-                  {ct === 'private' ? `👤 ${t('cabinet_type_private')}` : `🏢 ${t('cabinet_type_business')}`}
-                </button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-                <input 
-                  required 
-                  value={reg.first_name}
-                  onChange={e => setReg(prev => ({ ...prev, first_name: e.target.value }))}
-                  placeholder={t('cabinet_placeholder_first_name')}
-                  className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" 
-                />
-                <input 
-                  value={reg.last_name}
-                  onChange={e => setReg(prev => ({ ...prev, last_name: e.target.value }))}
-                  placeholder={t('cabinet_placeholder_last_name')}
-                  className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" 
-                />
-            </div>
-
-            <input required type="email" value={reg.email}
-              onChange={e => setReg(prev => ({ ...prev, email: e.target.value }))}
-              placeholder={t('cabinet_placeholder_email')}
-              className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
-
-            <input value={reg.phone} onChange={e => setReg(prev => ({ ...prev, phone: e.target.value }))}
-              placeholder={t('cabinet_placeholder_phone')}
-              className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
-
-            {reg.client_type === 'business' && (
-              <div className="space-y-3">
-                <input value={reg.company_name} onChange={e => setReg(prev => ({ ...prev, company_name: e.target.value }))}
-                  placeholder={t('cabinet_placeholder_company')}
-                  className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
-                <input value={reg.vat_number} onChange={e => setReg(prev => ({ ...prev, vat_number: e.target.value }))}
-                  placeholder={t('cabinet_placeholder_vat')}
-                  className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
-              </div>
-            )}
-
-            <div className="grid grid-cols-3 gap-2">
-              <input value={reg.street} onChange={e => setReg(prev => ({ ...prev, street: e.target.value }))}
-                placeholder={t('field_street_short')} className="col-span-2 bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
-              <input value={reg.house_number} onChange={e => setReg(prev => ({ ...prev, house_number: e.target.value }))}
-                placeholder={t('field_house_short')} className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <input value={reg.postal_code} onChange={e => setReg(prev => ({ ...prev, postal_code: e.target.value }))}
-                placeholder={t('field_postal_short')} className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
-              <input value={reg.city} onChange={e => setReg(prev => ({ ...prev, city: e.target.value }))}
-                placeholder={t('field_city_short')} className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
-            </div>
-
-            <button type="submit" disabled={isProcessing}
-              className="w-full bg-emerald-500 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl mt-2 flex items-center justify-center gap-3">
-              {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <><UserPlus size={18} /> {t('cabinet_btn_register')}</>}
-            </button>
-            <button type="button" onClick={() => setAuthMode('login')}
-              className="w-full text-slate-400 text-[9px] font-black uppercase tracking-widest hover:text-slate-900 transition-all py-2">
-              {t('cabinet_have_profile')}
-            </button>
-          </form>
-        )}
-      </div>
     </div>
   );
 
@@ -341,11 +460,11 @@ export const ClientCabinet: React.FC = () => {
                   </button>
                 ) : (
                   <>
-                    <button onClick={() => setAuthMode('login')}
+                    <button type="button" onClick={goProfileLogin}
                       className="w-full bg-emerald-500 text-white py-3 rounded-2xl font-black uppercase text-[9px] tracking-widest hover:bg-emerald-400 transition-all flex items-center justify-center gap-2">
                       <LogIn size={14} /> {t('cabinet_btn_login')}
                     </button>
-                    <button onClick={() => setAuthMode('register')}
+                    <button type="button" onClick={goProfileRegister}
                       className="w-full bg-white/5 text-white py-3 rounded-2xl font-black uppercase text-[9px] tracking-widest hover:bg-white/10 transition-all border border-white/10">
                       {t('cabinet_btn_register')}
                     </button>
@@ -464,36 +583,348 @@ export const ClientCabinet: React.FC = () => {
                     </div>
                   ) : null}
 
+                  {hasSbSession && (
+                    <div className="p-6 rounded-2xl border border-slate-200 bg-slate-50 space-y-4">
+                      <div className="flex items-center gap-3">
+                        <ShieldCheck size={22} className="text-emerald-600" />
+                        <div>
+                          <div className="text-[10px] font-black text-slate-900 uppercase tracking-tight">{t('cabinet_totp_title')}</div>
+                          <div className={`text-[9px] font-bold uppercase tracking-widest mt-0.5 ${totpOn ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {totpOn ? t('cabinet_totp_status_on') : t('cabinet_totp_status_off')}
+                          </div>
+                        </div>
+                      </div>
+                      {!totpOn && !totpEnroll && (
+                        <button type="button" onClick={startTotpEnroll} disabled={isProcessing}
+                          className="w-full py-3 rounded-xl bg-slate-900 text-white font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-colors disabled:opacity-50">
+                          {t('cabinet_totp_setup')}
+                        </button>
+                      )}
+                      {totpEnroll && (
+                        <div className="space-y-3">
+                          <p className="text-[10px] text-slate-600 font-bold">{t('cabinet_totp_scan')}</p>
+                          <div className="bg-white p-4 rounded-xl border border-slate-100 flex justify-center">
+                            <img
+                              src={
+                                totpEnroll.qrSvg.startsWith('data:')
+                                  ? totpEnroll.qrSvg
+                                  : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(totpEnroll.qrSvg)}`
+                              }
+                              alt="QR"
+                              className="w-40 h-40"
+                            />
+                          </div>
+                          <input
+                            value={totpConfirmCode}
+                            onChange={e => setTotpConfirmCode(e.target.value)}
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            placeholder={t('cabinet_totp_confirm_placeholder')}
+                            className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm font-bold tracking-widest outline-none focus:border-emerald-400"
+                          />
+                          <div className="flex gap-2">
+                            <button type="button" onClick={confirmTotpEnroll} disabled={isProcessing}
+                              className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-black text-[10px] uppercase tracking-widest disabled:opacity-50">
+                              {t('cabinet_totp_confirm_btn')}
+                            </button>
+                            <button type="button" onClick={() => { setTotpEnroll(null); setTotpConfirmCode(''); }}
+                              className="px-4 py-3 rounded-xl border border-slate-200 text-[10px] font-black uppercase text-slate-500">
+                              {t('cancel')}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <button onClick={goToCatalog}
                     className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase text-[9px] tracking-widest hover:bg-emerald-500 transition-all flex items-center gap-3 shadow-xl">
                     <Zap size={14} />{t('cabinet_btn_products')} <ArrowRight size={14} />
                   </button>
                 </>
               ) : (
-                <div className="flex flex-col items-center justify-center py-20 text-center space-y-6">
-                  <div className="w-24 h-24 bg-slate-50 rounded-[2rem] flex items-center justify-center">
-                    <User size={48} className="text-slate-200" />
-                  </div>
-                  <div>
-                    <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">{t('cabinet_account_title')}</h2>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-3 max-w-xs mx-auto leading-relaxed">
-                      {t('cabinet_login_prompt')}
-                    </p>
-                  </div>
-                  <div className="flex gap-3 flex-wrap justify-center">
-                    <button onClick={() => setAuthMode('login')}
-                      className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase text-[9px] tracking-widest hover:bg-emerald-500 transition-all shadow-xl flex items-center gap-2">
-                      <LogIn size={14} /> {t('cabinet_btn_login')}
+                <div className="max-w-[480px] mx-auto space-y-8 py-4">
+                  {authMode !== 'idle' && (
+                    <button type="button" onClick={() => setAuthMode('idle')}
+                      className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-black uppercase text-[9px] tracking-widest transition-all">
+                      <ChevronLeft size={14} /> {t('cancel')}
                     </button>
-                    <button onClick={() => setAuthMode('register')}
-                      className="bg-emerald-500 text-white px-8 py-4 rounded-2xl font-black uppercase text-[9px] tracking-widest hover:bg-emerald-400 transition-all flex items-center gap-2">
-                      <UserPlus size={14} /> {t('cabinet_btn_register')}
-                    </button>
-                    <button onClick={goToCatalog}
-                      className="bg-slate-50 text-slate-600 px-8 py-4 rounded-2xl font-black uppercase text-[9px] tracking-widest hover:bg-slate-100 transition-all flex items-center gap-2">
-                      <ShoppingBag size={14} /> {t('cabinet_btn_products')}
-                    </button>
+                  )}
+                  <div className="text-center space-y-3">
+                    <div className="w-16 h-16 bg-emerald-500/10 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto">
+                      {authMode === 'idle' ? <User size={28} /> : authMode === 'login' ? <KeyRound size={28} /> : <UserPlus size={28} />}
+                    </div>
+                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">
+                      {authMode === 'idle' ? t('cabinet_account_title') : authMode === 'login' ? t('cabinet_btn_login') : t('cabinet_btn_register')}
+                    </h2>
+                    {authMode === 'idle' && (
+                      <p className="text-[11px] text-slate-600 font-bold max-w-md mx-auto leading-relaxed normal-case">
+                        {t('cabinet_gate_intro')}
+                      </p>
+                    )}
                   </div>
+
+                  {authMode === 'idle' ? (
+                    <div className="space-y-3">
+                      <button type="button" onClick={() => setAuthMode('login')}
+                        className="w-full bg-slate-900 text-white py-5 px-4 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-500 transition-all flex flex-col items-center gap-2 shadow-xl">
+                        <span className="flex items-center justify-center gap-3">
+                          <LogIn size={18} /> {t('cabinet_btn_login')}
+                        </span>
+                        <span className="text-[9px] font-bold text-white/75 normal-case tracking-normal max-w-[300px] text-center leading-snug">
+                          {t('cabinet_gate_login_sub')}
+                        </span>
+                      </button>
+                      <button type="button" onClick={() => setAuthMode('register')}
+                        className="w-full bg-emerald-500 text-white py-5 px-4 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-400 transition-all flex flex-col items-center gap-2 shadow-xl">
+                        <span className="flex items-center justify-center gap-3">
+                          <UserPlus size={18} /> {t('cabinet_btn_register')}
+                        </span>
+                        <span className="text-[9px] font-bold text-white/90 normal-case tracking-normal max-w-[300px] text-center leading-snug">
+                          {t('cabinet_gate_register_sub')}
+                        </span>
+                      </button>
+                      <button type="button" onClick={goToCatalog}
+                        className="w-full bg-slate-50 text-slate-600 py-4 rounded-2xl font-black uppercase text-[9px] tracking-widest hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
+                        <ShoppingBag size={14} /> {t('cabinet_btn_products')}
+                      </button>
+                    </div>
+                  ) : authMode === 'login' ? (
+                    <div className="space-y-4">
+                      {!loginMfa && (
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => switchLoginMethod('email_otp')}
+                            className={`flex-1 flex flex-col items-center gap-1 py-3 px-1 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${
+                              loginMethod === 'email_otp' ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                            }`}
+                          >
+                            <Mail size={14} />
+                            {t('auth_otp_tab_email')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => switchLoginMethod('phone_otp')}
+                            className={`flex-1 flex flex-col items-center gap-1 py-3 px-1 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${
+                              loginMethod === 'phone_otp' ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                            }`}
+                          >
+                            <Smartphone size={14} />
+                            {t('auth_otp_tab_phone')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => switchLoginMethod('password')}
+                            className={`flex-1 flex flex-col items-center gap-1 py-3 px-1 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${
+                              loginMethod === 'password' ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                            }`}
+                          >
+                            <KeyRound size={14} />
+                            {t('auth_otp_tab_password')}
+                          </button>
+                        </div>
+                      )}
+
+                      {loginMfa ? (
+                        <>
+                          <div className="space-y-2">
+                            <p className="text-[10px] font-bold text-slate-600">{t('auth_totp_step_hint')}</p>
+                            <input
+                              value={loginTotpCode}
+                              onChange={e => setLoginTotpCode(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && handleLoginTotp()}
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              placeholder={t('auth_totp_code_label')}
+                              className="w-full bg-emerald-50 border-2 border-emerald-200 rounded-2xl px-4 py-4 text-sm font-bold tracking-widest outline-none focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                          <button type="button" onClick={handleLoginTotp} disabled={isProcessing}
+                            className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50">
+                            {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <><ShieldCheck size={18} /> {t('auth_totp_verify')}</>}
+                          </button>
+                          <button type="button" onClick={() => { setLoginMfa(null); setLoginTotpCode(''); }}
+                            className="w-full text-slate-400 text-[9px] font-black uppercase tracking-widest hover:text-slate-900 py-2">
+                            {t('auth_totp_back')}
+                          </button>
+                        </>
+                      ) : loginMethod === 'password' ? (
+                        <>
+                          <div className="relative group">
+                            <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors" size={16} />
+                            <input value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                              className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all"
+                              placeholder="din@email.dk" type="email" autoComplete="username" />
+                          </div>
+                          <div className="relative group">
+                            <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors" size={16} />
+                            <input value={loginPassword} onChange={e => setLoginPassword(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                              className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all"
+                              placeholder={t('cabinet_password')} type="password" autoComplete="current-password" />
+                          </div>
+                          <p className="text-[9px] text-slate-400 text-center font-bold tracking-wide leading-relaxed">
+                            {t('cabinet_login_password_hint')}
+                          </p>
+                          <button type="button" onClick={handleLogin} disabled={isProcessing}
+                            className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50">
+                            {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <><LogIn size={18} /> {t('cabinet_btn_login')}</>}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {loginMethod === 'email_otp' ? (
+                            <div className="relative group">
+                              <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors" size={16} />
+                              <input
+                                value={loginEmail}
+                                onChange={e => setLoginEmail(e.target.value)}
+                                disabled={otpSent}
+                                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all disabled:opacity-50"
+                                placeholder="din@email.dk"
+                                type="email"
+                                autoComplete="username"
+                              />
+                            </div>
+                          ) : (
+                            <div className="relative group">
+                              <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors" size={16} />
+                              <input
+                                value={loginPhone}
+                                onChange={e => setLoginPhone(e.target.value)}
+                                disabled={otpSent}
+                                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all disabled:opacity-50"
+                                placeholder={t('auth_otp_phone_placeholder')}
+                                type="tel"
+                                autoComplete="tel"
+                              />
+                              <p className="text-[9px] text-slate-400 font-bold mt-2 pl-1 leading-relaxed">{t('auth_otp_phone_hint')}</p>
+                            </div>
+                          )}
+                          {otpSent && (
+                            <input
+                              value={otpCode}
+                              onChange={e => setOtpCode(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && handleVerifyLoginOtp()}
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              placeholder={t('auth_otp_code_placeholder')}
+                              className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold tracking-widest outline-none focus:border-emerald-400 transition-all"
+                            />
+                          )}
+                          <p className="text-[9px] text-slate-400 text-center font-bold tracking-wide leading-relaxed">
+                            {t('auth_checkout_otp_totp_note')}
+                          </p>
+                          {otpSent ? (
+                            <button type="button" onClick={handleVerifyLoginOtp} disabled={isProcessing}
+                              className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50">
+                              {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <><ShieldCheck size={18} /> {t('auth_otp_verify_code')}</>}
+                            </button>
+                          ) : (
+                            <button type="button" onClick={handleSendLoginOtp} disabled={isProcessing}
+                              className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50">
+                              {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <><LogIn size={18} /> {t('auth_otp_send_code')}</>}
+                            </button>
+                          )}
+                          {otpSent && (
+                            <button type="button" onClick={() => resetLoginOtp()}
+                              className="w-full text-slate-400 text-[9px] font-black uppercase tracking-widest hover:text-slate-900 py-2">
+                              {t('auth_otp_change_recipient')}
+                            </button>
+                          )}
+                        </>
+                      )}
+
+                      <button type="button" onClick={() => setAuthMode('register')}
+                        className="w-full text-slate-400 text-[9px] font-black uppercase tracking-widest hover:text-slate-900 transition-all py-2">
+                        {t('cabinet_new_customer')}
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleRegister} className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        {(['private', 'business'] as const).map(ct => (
+                          <button key={ct} type="button" onClick={() => setReg(r => ({ ...r, client_type: ct }))}
+                            className={`py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest border-2 transition-all ${reg.client_type === ct ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-400 border-slate-100 hover:border-slate-300'}`}>
+                            {ct === 'private' ? `👤 ${t('cabinet_type_private')}` : `🏢 ${t('cabinet_type_business')}`}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <input
+                          required
+                          value={reg.first_name}
+                          onChange={e => setReg(prev => ({ ...prev, first_name: e.target.value }))}
+                          placeholder={t('cabinet_placeholder_first_name')}
+                          className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all"
+                        />
+                        <input
+                          value={reg.last_name}
+                          onChange={e => setReg(prev => ({ ...prev, last_name: e.target.value }))}
+                          placeholder={t('cabinet_placeholder_last_name')}
+                          className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all"
+                        />
+                      </div>
+
+                      <input required type="email" value={reg.email}
+                        onChange={e => setReg(prev => ({ ...prev, email: e.target.value }))}
+                        placeholder={t('cabinet_placeholder_email')}
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all"
+                        autoComplete="username" />
+
+                      <input required type="password" value={reg.password}
+                        onChange={e => setReg(prev => ({ ...prev, password: e.target.value }))}
+                        placeholder={t('cabinet_password')}
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all"
+                        autoComplete="new-password" minLength={8} />
+                      <input required type="password" value={reg.password_confirm}
+                        onChange={e => setReg(prev => ({ ...prev, password_confirm: e.target.value }))}
+                        placeholder={t('cabinet_password_confirm')}
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all"
+                        autoComplete="new-password" minLength={8} />
+                      <p className="text-[9px] text-slate-400 font-bold tracking-wide">{t('cabinet_password_hint')}</p>
+
+                      <input value={reg.phone} onChange={e => setReg(prev => ({ ...prev, phone: e.target.value }))}
+                        placeholder={t('cabinet_placeholder_phone')}
+                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
+
+                      {reg.client_type === 'business' && (
+                        <div className="space-y-3">
+                          <input value={reg.company_name} onChange={e => setReg(prev => ({ ...prev, company_name: e.target.value }))}
+                            placeholder={t('cabinet_placeholder_company')}
+                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
+                          <input value={reg.vat_number} onChange={e => setReg(prev => ({ ...prev, vat_number: e.target.value }))}
+                            placeholder={t('cabinet_placeholder_vat')}
+                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <input value={reg.street} onChange={e => setReg(prev => ({ ...prev, street: e.target.value }))}
+                          placeholder={t('field_street_short')} className="col-span-2 bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
+                        <input value={reg.house_number} onChange={e => setReg(prev => ({ ...prev, house_number: e.target.value }))}
+                          placeholder={t('field_house_short')} className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input value={reg.postal_code} onChange={e => setReg(prev => ({ ...prev, postal_code: e.target.value }))}
+                          placeholder={t('field_postal_short')} className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
+                        <input value={reg.city} onChange={e => setReg(prev => ({ ...prev, city: e.target.value }))}
+                          placeholder={t('field_city_short')} className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all" />
+                      </div>
+
+                      <button type="submit" disabled={isProcessing}
+                        className="w-full bg-emerald-500 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-400 transition-all shadow-xl mt-2 flex items-center justify-center gap-3">
+                        {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <><UserPlus size={18} /> {t('cabinet_btn_register')}</>}
+                      </button>
+                      <button type="button" onClick={() => setAuthMode('login')}
+                        className="w-full text-slate-400 text-[9px] font-black uppercase tracking-widest hover:text-slate-900 transition-all py-2">
+                        {t('cabinet_have_profile')}
+                      </button>
+                    </form>
+                  )}
                 </div>
               )}
             </div>
@@ -559,7 +990,7 @@ export const ClientCabinet: React.FC = () => {
               {!currentUser ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center space-y-4">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('cabinet_login_for_history')}</p>
-                  <button onClick={() => setAuthMode('login')}
+                  <button type="button" onClick={goProfileLogin}
                     className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase text-[9px] tracking-widest hover:bg-emerald-500 transition-all flex items-center gap-2">
                     <LogIn size={14} /> {t('cabinet_btn_login')}
                   </button>

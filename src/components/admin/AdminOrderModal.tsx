@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Package, Download, Mail, Phone, MapPin, Truck, Users, MessageSquare,
   Building2, Activity, Save, Loader2, Trash2 } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
@@ -8,8 +8,10 @@ import { supabase } from '../../services/supabase';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { sendStatusChangeEmail, OrderStatus } from '../../services/emailService';
+import { escapeHtml } from '../../utils/messageTemplate';
 import { ORDER_STATUSES, OrderStatusEdit } from './adminTypes';
 import { AdminMarketingFunnelPanel } from './AdminMarketingFunnelPanel';
+import { AdminOrderCorrespondence } from './AdminOrderCorrespondence';
 
 interface AdminOrderModalProps {
   order: any;
@@ -19,16 +21,71 @@ interface AdminOrderModalProps {
   onDeleted?: (orderId: string) => void;
 }
 
+const STATUS_ICONS: Record<OrderStatus, string> = {
+  accepted: '✅',
+  in_progress: '🔧',
+  awaiting_transport: '📦',
+  in_transit: '🚚',
+  delivered: '📬',
+  cancelled: '❌',
+};
+
+const STATUS_LABEL_KEYS: Record<OrderStatus, string> = {
+  accepted: 'admin_status_accepted',
+  in_progress: 'admin_status_in_progress',
+  awaiting_transport: 'admin_status_awaiting',
+  in_transit: 'admin_status_in_transit',
+  delivered: 'admin_status_delivered',
+  cancelled: 'admin_status_cancelled',
+};
+
+function buildStatusEmailCorrespondenceSubject(
+  t: (key: string) => string,
+  orderNo: string,
+  status: OrderStatus,
+): string {
+  return `${STATUS_ICONS[status]} #${orderNo} — ${t(STATUS_LABEL_KEYS[status])}`;
+}
+
+function buildStatusEmailCorrespondenceHtml(
+  t: (key: string) => string,
+  status: OrderStatus,
+  shippingDate?: string,
+  arrivalDate?: string,
+): string {
+  const label = t(STATUS_LABEL_KEYS[status]);
+  const intro = escapeHtml(t('admin_order_corr_status_email_log_intro'));
+  let html = `<p style="margin:0 0 10px;font-size:12px;color:#64748b;line-height:1.5">${intro}</p>`;
+  html += `<p style="margin:0 0 8px;font-size:14px;color:#111827"><strong>${escapeHtml(t('admin_col_status'))}</strong> ${STATUS_ICONS[status]} ${escapeHtml(label)}</p>`;
+  if (shippingDate?.trim()) {
+    html += `<p style="margin:0 0 4px;font-size:13px;color:#374151"><strong>${escapeHtml(t('cabinet_shipped_label'))}:</strong> ${escapeHtml(shippingDate.trim())}</p>`;
+  }
+  if (arrivalDate?.trim()) {
+    html += `<p style="margin:0;font-size:13px;color:#374151"><strong>${escapeHtml(t('cabinet_arrival_label'))}:</strong> ${escapeHtml(arrivalDate.trim())}</p>`;
+  }
+  return html;
+}
+
 export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onClose, onUpdated, onDeleted }) => {
   const { addNotification } = useNotification();
   const { t, language } = useLanguage();
   const localeStr = language === 'da' ? 'da-DK' : language === 'no' ? 'nb-NO' : language === 'se' ? 'sv-SE' : 'en-GB';
   const [isSaving, setIsSaving] = useState(false);
+  /** Bumps after a status-email row is logged so correspondence thread refetches */
+  const [correspondenceRefreshKey, setCorrespondenceRefreshKey] = useState(0);
   const [statusEdit, setStatusEdit] = useState<OrderStatusEdit>({
     status: o.order_status || 'accepted',
     shipping_date: o.shipping_date?.slice(0, 10) || '',
     arrival_date: o.arrival_date?.slice(0, 10) || '',
   });
+
+  useEffect(() => {
+    setStatusEdit({
+      status: o.order_status || 'accepted',
+      shipping_date: o.shipping_date?.slice(0, 10) || '',
+      arrival_date: o.arrival_date?.slice(0, 10) || '',
+    });
+  }, [o.id, o.order_status, o.shipping_date, o.arrival_date]);
 
   const items: any[] = Array.isArray(o.items) ? o.items : [];
   const addr     = [o.street, o.house_number].filter(Boolean).join(' ');
@@ -42,114 +99,194 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
   const totalExVat = Number(o.total_price) || 0;
   const totalIncVat = totalExVat * (1 + VAT_RATE);
 
+  const orderIdForRpc = String(o?.id ?? '').trim();
+
   const saveStatus = async () => {
+    const adminKey = (import.meta.env.VITE_ADMIN_PASSWORD as string | undefined)?.trim();
+    if (!adminKey) {
+      addNotification(t('admin_calc_no_admin_key'), 'error');
+      return;
+    }
+    if (!orderIdForRpc) {
+      addNotification(t('admin_order_corr_bad_order_id'), 'error');
+      return;
+    }
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from('orders')
-        .update({
-          order_status: statusEdit.status,
-          shipping_date: statusEdit.shipping_date || null,
-          arrival_date: statusEdit.arrival_date || null,
-        })
-        .eq('id', o.id);
+      const { error } = await supabase.rpc('admin_update_order_status', {
+        p_key: adminKey,
+        p_order_id: orderIdForRpc,
+        p_order_status: statusEdit.status,
+        p_shipping_date: statusEdit.shipping_date || null,
+        p_arrival_date: statusEdit.arrival_date || null,
+      });
       if (error) {
-        addNotification(`Fejl: ${error.message}`, 'error');
+        addNotification(`${t('admin_order_status_save_error')}: ${error.message}`, 'error');
         return;
       }
-      onUpdated({ ...o,
-        order_status:  statusEdit.status,
-        shipping_date: statusEdit.shipping_date || o.shipping_date,
-        arrival_date:  statusEdit.arrival_date  || o.arrival_date,
+      onUpdated({
+        ...o,
+        order_status: statusEdit.status,
+        shipping_date: statusEdit.shipping_date ? statusEdit.shipping_date : null,
+        arrival_date: statusEdit.arrival_date ? statusEdit.arrival_date : null,
       });
-      await sendStatusChangeEmail({
-        customerName:  `${o.first_name || ''} ${o.last_name || ''}`.trim() || o.customer_name || '',
-        customerEmail: o.customer_email,
-        orderNo,
-        newStatus:     statusEdit.status as OrderStatus,
-        shippingDate:  statusEdit.shipping_date || undefined,
-        arrivalDate:   statusEdit.arrival_date  || undefined,
-        lang:          o.lang || 'da',
-      });
+      addNotification(t('admin_order_status_saved_toast'), 'success');
+    } finally {
+      setIsSaving(false);
+    }
 
-      // ── Push notification to client ────────────────────────────────────────
+    void (async () => {
+      const adminKeyLog = (import.meta.env.VITE_ADMIN_PASSWORD as string | undefined)?.trim();
+      try {
+        const emailRes = await sendStatusChangeEmail({
+          customerName: `${o.first_name || ''} ${o.last_name || ''}`.trim() || o.customer_name || '',
+          customerEmail: o.customer_email,
+          orderNo,
+          newStatus: statusEdit.status as OrderStatus,
+          shippingDate: statusEdit.shipping_date || undefined,
+          arrivalDate: statusEdit.arrival_date || undefined,
+          lang: o.lang || 'da',
+        });
+        if (emailRes.ok && adminKeyLog && orderIdForRpc) {
+          const cx = String(o.customer_email ?? '').trim();
+          if (cx) {
+            const { error: logCorrErr } = await supabase.rpc('admin_log_correspondence', {
+              p_key: adminKeyLog,
+              p_inquiry_id: null,
+              p_order_id: orderIdForRpc,
+              p_template_id: null,
+              p_locale: String(o.lang || 'da'),
+              p_to_email: cx,
+              p_subject: buildStatusEmailCorrespondenceSubject(t, orderNo, statusEdit.status as OrderStatus),
+              p_body: buildStatusEmailCorrespondenceHtml(
+                t,
+                statusEdit.status as OrderStatus,
+                statusEdit.shipping_date || undefined,
+                statusEdit.arrival_date || undefined,
+              ),
+            });
+            if (logCorrErr) console.warn('[status correspondence log]', logCorrErr.message);
+            else setCorrespondenceRefreshKey((n) => n + 1);
+          }
+        }
+      } catch {
+        /* non-blocking */
+      }
       if (o.client_id) {
         try {
           await supabase.functions.invoke('send-push', {
             body: {
-              type:      'status_update',
-              clientId:  o.client_id,
+              type: 'status_update',
+              clientId: o.client_id,
               orderNo,
               newStatus: statusEdit.status,
             },
           });
-        } catch { /* push not critical */ }
+        } catch {
+          /* push not critical */
+        }
       }
-
-      addNotification('Status updated ✓', 'success');
-    } finally { setIsSaving(false); }
+    })();
   };
 
   const cancelOrder = async () => {
     if (statusEdit.status === 'cancelled') return;
     const ok = window.confirm(t('admin_order_cancel_confirm'));
     if (!ok) return;
+    const adminKey = (import.meta.env.VITE_ADMIN_PASSWORD as string | undefined)?.trim();
+    if (!adminKey) {
+      addNotification(t('admin_calc_no_admin_key'), 'error');
+      return;
+    }
+    if (!orderIdForRpc) {
+      addNotification(t('admin_order_corr_bad_order_id'), 'error');
+      return;
+    }
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from('orders')
-        .update({
-          order_status: 'cancelled',
-          shipping_date: null,
-          arrival_date: null,
-        })
-        .eq('id', o.id);
+      const { error } = await supabase.rpc('admin_update_order_status', {
+        p_key: adminKey,
+        p_order_id: orderIdForRpc,
+        p_order_status: 'cancelled',
+        p_shipping_date: null,
+        p_arrival_date: null,
+      });
       if (error) {
-        addNotification(`Fejl: ${error.message}`, 'error');
+        addNotification(`${t('admin_order_status_save_error')}: ${error.message}`, 'error');
         return;
       }
 
       setStatusEdit(prev => ({ ...prev, status: 'cancelled' }));
-      onUpdated({ ...o, order_status: 'cancelled' });
+      onUpdated({ ...o, order_status: 'cancelled', shipping_date: null, arrival_date: null });
+      addNotification(t('admin_order_cancelled_toast'), 'success');
+    } finally {
+      setIsSaving(false);
+    }
 
-      await sendStatusChangeEmail({
-        customerName:  `${o.first_name || ''} ${o.last_name || ''}`.trim() || o.customer_name || '',
-        customerEmail: o.customer_email,
-        orderNo,
-        newStatus:     'cancelled' as OrderStatus,
-        lang:          o.lang || 'da',
-      });
-
+    void (async () => {
+      const adminKeyLog = (import.meta.env.VITE_ADMIN_PASSWORD as string | undefined)?.trim();
+      try {
+        const emailRes = await sendStatusChangeEmail({
+          customerName: `${o.first_name || ''} ${o.last_name || ''}`.trim() || o.customer_name || '',
+          customerEmail: o.customer_email,
+          orderNo,
+          newStatus: 'cancelled' as OrderStatus,
+          lang: o.lang || 'da',
+        });
+        if (emailRes.ok && adminKeyLog && orderIdForRpc) {
+          const cx = String(o.customer_email ?? '').trim();
+          if (cx) {
+            const { error: logCorrErr } = await supabase.rpc('admin_log_correspondence', {
+              p_key: adminKeyLog,
+              p_inquiry_id: null,
+              p_order_id: orderIdForRpc,
+              p_template_id: null,
+              p_locale: String(o.lang || 'da'),
+              p_to_email: cx,
+              p_subject: buildStatusEmailCorrespondenceSubject(t, orderNo, 'cancelled'),
+              p_body: buildStatusEmailCorrespondenceHtml(t, 'cancelled'),
+            });
+            if (logCorrErr) console.warn('[status correspondence log]', logCorrErr.message);
+            else setCorrespondenceRefreshKey((n) => n + 1);
+          }
+        }
+      } catch {
+        /* non-blocking */
+      }
       if (o.client_id) {
         try {
           await supabase.functions.invoke('send-push', {
             body: {
-              type:      'status_update',
-              clientId:  o.client_id,
+              type: 'status_update',
+              clientId: o.client_id,
               orderNo,
               newStatus: 'cancelled',
             },
           });
-        } catch { /* push not critical */ }
+        } catch {
+          /* push not critical */
+        }
       }
-
-      addNotification(t('admin_order_cancelled_toast'), 'success');
-    } finally { setIsSaving(false); }
+    })();
   };
 
   /** Permanent remove from DB — icon-only, same style as product row trash */
   const deleteOrderPermanently = async () => {
     if (!window.confirm(t('admin_order_delete_confirm'))) return;
-    const adminKey = import.meta.env.VITE_ADMIN_PASSWORD as string | undefined;
+    const adminKey = (import.meta.env.VITE_ADMIN_PASSWORD as string | undefined)?.trim();
     if (!adminKey) {
       addNotification(t('admin_order_delete_no_key'), 'error');
+      return;
+    }
+    if (!orderIdForRpc) {
+      addNotification(t('admin_order_corr_bad_order_id'), 'error');
       return;
     }
     setIsSaving(true);
     try {
       const { error } = await supabase.rpc('admin_delete_order', {
         p_key: adminKey,
-        p_order_id: String(o.id),
+        p_order_id: orderIdForRpc,
       });
       if (error) {
         addNotification(`${t('admin_order_delete_fail')}: ${error.message}`, 'error');
@@ -236,8 +373,17 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
   };
 
   return (
-    <div className="fixed inset-0 z-[10002] flex items-center justify-center overflow-y-auto overscroll-contain px-4 py-6 sm:py-10 bg-slate-900/95 backdrop-blur-md animate-fade-in text-left">
-      <div className="bg-white w-full max-w-[min(100%,62.4rem)] rounded-[2.5rem] shadow-3xl relative border border-slate-100 flex flex-col max-h-[68.85vh] min-h-0 overflow-hidden">
+    <div
+      role="presentation"
+      className="fixed inset-0 z-[10002] flex items-center justify-center overflow-y-auto overscroll-contain px-4 py-6 sm:py-10 bg-slate-900/95 backdrop-blur-md animate-fade-in text-left"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="bg-white w-full max-w-[min(100%,62.4rem)] rounded-[2.5rem] shadow-3xl relative border border-slate-100 flex flex-col max-h-[68.85vh] min-h-0 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
 
         {/* Header */}
         <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
@@ -250,15 +396,19 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={cancelOrder}
+              type="button"
+              onClick={() => void cancelOrder()}
               disabled={isSaving || statusEdit.status === 'cancelled'}
               className="flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg disabled:opacity-40 disabled:pointer-events-none"
               title={t('admin_order_cancel_button')}
             >
               <Trash2 size={14} /> {t('admin_order_cancel_button')}
             </button>
-            <button onClick={exportWord}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg">
+            <button
+              type="button"
+              onClick={() => void exportWord()}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg"
+            >
               <Download size={14} /> Word
             </button>
             <button
@@ -270,7 +420,7 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
             >
               <Trash2 size={14} />
             </button>
-            <button onClick={onClose} className="p-2.5 hover:bg-slate-200 rounded-xl transition-all text-slate-400"><X size={20} /></button>
+            <button type="button" onClick={onClose} className="p-2.5 hover:bg-slate-200 rounded-xl transition-all text-slate-400"><X size={20} /></button>
           </div>
         </div>
 
@@ -351,6 +501,12 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
             </div>
           )}
 
+          <AdminOrderCorrespondence
+            key={String(o.id ?? '')}
+            order={o as Record<string, unknown>}
+            correspondenceRefreshKey={correspondenceRefreshKey}
+          />
+
           <AdminMarketingFunnelPanel
             customerEmail={o.customer_email || ''}
             customerName={`${o.first_name || ''} ${o.last_name || ''}`.trim() || o.customer_name || ''}
@@ -368,7 +524,7 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
                   onClick={() => setStatusEdit(prev => ({ ...prev, status: s.key }))}
                   className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 text-left transition-all ${statusEdit.status === s.key ? s.color + ' border-current font-black' : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'}`}>
                   <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusEdit.status === s.key ? s.dot : 'bg-slate-200'}`} />
-                  <span className="text-[10px] font-bold uppercase tracking-wider leading-tight">{({accepted: t('admin_status_accepted'), in_progress: t('admin_status_in_progress'), awaiting_transport: t('admin_status_awaiting'), in_transit: t('admin_status_in_transit'), cancelled: t('admin_status_cancelled')} as Record<string,string>)[s.key] || s.label}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider leading-tight">{({accepted: t('admin_status_accepted'), in_progress: t('admin_status_in_progress'), awaiting_transport: t('admin_status_awaiting'), in_transit: t('admin_status_in_transit'), delivered: t('admin_status_delivered'), cancelled: t('admin_status_cancelled')} as Record<string,string>)[s.key] || s.label}</span>
                 </button>
               ))}
             </div>
@@ -386,8 +542,12 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-[11px] font-bold outline-none focus:border-emerald-400 transition-all" />
               </div>
             </div>
-            <button onClick={saveStatus} disabled={isSaving}
-              className="w-full py-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+            <button
+              type="button"
+              onClick={() => void saveStatus()}
+              disabled={isSaving}
+              className="w-full py-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
               {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               Gem status
             </button>

@@ -21,8 +21,8 @@ export const OrderSuccessPage: React.FC<{ onBackToCatalog: () => void }> = ({ on
       .single()
       .then(({ data }) => {
         if (data) setOrderSummary(data);
-        // після завантаження очищаємо query, щоб при оновленні не робити повторний success-flow
-        window.history.replaceState({}, '', window.location.pathname);
+        // Keep view + id so SPA router still shows success after replaceState (payment return URL).
+        window.history.replaceState({}, '', `/?view=success&id=${encodeURIComponent(id)}`);
       });
   }, []);
 

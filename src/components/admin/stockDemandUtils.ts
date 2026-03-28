@@ -16,6 +16,7 @@ export function orderCountsTowardStockDemand(order: {
   const st = String(order.status || '').toLowerCase();
   const os = String(order.order_status || '').toLowerCase();
   if (os === 'cancelled' || st === 'cancelled') return false;
+  if (os === 'in_transit' || os === 'delivered') return false;
   if (['delivered', 'expired', 'failed', 'refunded', 'shipped'].includes(st)) return false;
   return true;
 }

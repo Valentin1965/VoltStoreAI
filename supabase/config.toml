@@ -1,0 +1,19 @@
+# Supabase CLI (https://supabase.com/docs/guides/cli/config)
+# Lets `supabase functions deploy` target the right project.
+
+project_id = "xvduslroirsujnglcnos"
+
+# Browser invokes these with the anon key only (no logged-in user session).
+# If the dashboard shows CORS errors with no Access-Control-Allow-Origin, the API gateway
+# may be rejecting the request (e.g. JWT) before your Deno code runs — redeploy with:
+#   supabase functions deploy send-email --no-verify-jwt
+#   supabase functions deploy send-push --no-verify-jwt
+#   supabase functions deploy send-funnel-email --no-verify-jwt
+[functions.send-email]
+verify_jwt = false
+
+[functions.send-funnel-email]
+verify_jwt = false
+
+[functions.send-push]
+verify_jwt = false

@@ -8,11 +8,16 @@ import {
 import { AppView } from '../../types';
 import { useCart } from '../../contexts/CartContext';
 import { useLanguage, Language, CurrencyCode } from '../../contexts/LanguageContext';
+import type { SiteCountry } from '../../routing/siteCountry';
 
 interface LayoutProps {
   children: React.ReactNode;
   currentView: AppView;
   setView: (view: AppView) => void;
+  /** Country prefix from URL (/dk, /se, /no); null on legacy /?view=… transactional pages */
+  siteCountry?: SiteCountry | null;
+  /** When set, header / menu cart opens the quick drawer instead of navigating to the cart page */
+  onCartOpen?: () => void;
 }
 
 const GreenLightLogo = () => (
@@ -29,7 +34,7 @@ const GreenLightLogo = () => (
   </svg>
 );
 
-export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, siteCountry = null, onCartOpen }) => {
   const { totalItems } = useCart();
   const { 
     t, language, setLanguage, 
@@ -44,20 +49,25 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
   const navItems = [
     { id: AppView.ABOUT, label: t('nav_about'), icon: Info },
     { id: AppView.CATALOG, label: t('nav_catalog'), icon: LayoutGrid },
+    { id: AppView.CONTACT, label: t('nav_contact'), icon: Phone },
     { id: AppView.CALCULATOR, label: t('nav_architect'), icon: Calculator },
     { id: AppView.SERVICE, label: t('nav_mounting_services'), icon: Wrench },
   ];
 
   const languages: { code: Language; label: string }[] = [
-    { code: 'en', label: 'EN' }, { code: 'da', label: 'DA' },
-    { code: 'no', label: 'NO' }, { code: 'se', label: 'SE' }
+    { code: 'en', label: 'EN' },
+    { code: 'da', label: 'DA' },
+    { code: 'no', label: 'NO' },
+    { code: 'se', label: 'SE' },
   ];
 
   const currencies: CurrencyCode[] = ['EUR', 'DKK', 'NOK', 'SEK'];
   const showBack =
     currentView === AppView.CART ||
     currentView === AppView.ADMIN ||
-    currentView === AppView.CABINET;
+    currentView === AppView.CABINET ||
+    currentView === AppView.CHECKOUT ||
+    currentView === AppView.CONTACT;
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50" translate="no">
@@ -72,7 +82,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
                   if (window.history.length > 1) {
                     window.history.back();
                   } else {
-                    setView(AppView.CATALOG);
+                    setView(siteCountry ? AppView.ABOUT : AppView.CATALOG);
                   }
                 }}
                 className="lg:hidden min-w-[40px] min-h-[40px] flex items-center justify-center p-2 text-slate-600 hover:bg-slate-100 active:bg-slate-200 rounded-xl transition-colors touch-manipulation"
@@ -134,7 +144,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
                 <ShieldAlert size={15} />
               </button>
               <button onClick={() => setView(AppView.CABINET)} className="p-2.5 md:p-3 rounded-xl bg-slate-900 text-white hover:bg-emerald-600 transition-all shadow-lg"><User size={18} /></button>
-              <button onClick={() => setView(AppView.CART)} className="relative p-2.5 md:p-3 rounded-xl bg-slate-900 text-white hover:bg-emerald-600 transition-all shadow-lg group">
+              <button
+                type="button"
+                onClick={() => (onCartOpen ? onCartOpen() : setView(AppView.CART))}
+                className="relative p-2.5 md:p-3 rounded-xl bg-slate-900 text-white hover:bg-emerald-600 transition-all shadow-lg group"
+              >
                 <ShoppingCart size={18} />
                 {totalItems > 0 && <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-[9px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">{totalItems}</span>}
               </button>
@@ -168,7 +182,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => { setView(item.id); setIsMobileMenuOpen(false); }}
+                    onClick={() => {
+                      if (item.id === AppView.CART && onCartOpen) {
+                        onCartOpen();
+                        setIsMobileMenuOpen(false);
+                        return;
+                      }
+                      setView(item.id);
+                      setIsMobileMenuOpen(false);
+                    }}
                     className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${
                       currentView === item.id ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600 hover:bg-slate-50'
                     }`}
@@ -231,7 +253,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
         </div>
       )}
 
-      <main className={`flex-1 w-full relative max-md:pt-24 ${currentView === AppView.ABOUT ? "" : "max-w-7xl mx-auto py-8 md:py-12 px-4"}`}>
+      <main className={`flex-1 w-full relative max-md:pt-24 ${currentView === AppView.ABOUT || currentView === AppView.CONTACT ? "" : "max-w-7xl mx-auto py-8 md:py-12 px-4"}`}>
         {children}
       </main>
 
@@ -253,6 +275,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
             <div className="flex flex-col gap-1.5 md:items-center text-slate-400 font-black uppercase text-[8px] tracking-widest">
               <button onClick={() => setView(AppView.CATALOG)} className="hover:text-emerald-500 transition-colors">{t('nav_catalog')}</button>
               <button onClick={() => setView(AppView.ABOUT)} className="hover:text-emerald-500 transition-colors">{t('nav_about')}</button>
+              <button onClick={() => setView(AppView.CONTACT)} className="hover:text-emerald-500 transition-colors">{t('nav_contact')}</button>
               <button onClick={() => setIsPrivacyModalOpen(true)} className="hover:text-emerald-500 transition-colors">{t('footer_privacy')}</button>
               <button onClick={() => setIsTermsModalOpen(true)} className="hover:text-emerald-500 transition-colors">{t('footer_terms')}</button>
             </div>

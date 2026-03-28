@@ -1,8 +1,16 @@
 // Supabase Edge Function — send-email  (multilingual: da / en / no / se)
-// Deploy: supabase functions deploy send-email
-// Set secret: supabase secrets set RESEND_API_KEY=re_xxxxxx
+//
+// DEPLOY (secrets live in SUPABASE, not Vercel):
+//   supabase link --project-ref xvduslroirsujnglcnos
+//   supabase secrets set RESEND_API_KEY=re_xxxxxx
+//   supabase functions deploy send-email
+//
+// Optional: RESEND_FROM="Green Light <noreply@your-verified-domain.dk>"
+// Test from browser console after deploy:
+//   supabase.functions.invoke('send-email', { body: { type: '_health' } })
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { corsHeadersFor } from '../_shared/cors.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
 // Business rules:
@@ -16,19 +24,6 @@ const COMPANY_NAME   = 'Green Light Scandinavia';
 const FROM           = Deno.env.get('RESEND_FROM') ?? `${COMPANY_NAME} <onboarding@resend.dev>`;
 // Optional global override (kept for backwards compatibility). For per-email reply-to we set it below.
 const DEFAULT_REPLY_TO = Deno.env.get('RESEND_REPLY_TO') ?? '';
-
-const ALLOWED_ORIGINS = ['https://glsolargroup.dk', 'https://www.glsolargroup.dk'];
-
-function getCorsHeaders(req: Request): Record<string, string> {
-  const origin  = req.headers.get('origin') ?? '';
-  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
-  return {
-    'Access-Control-Allow-Origin':  allowed,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Vary': 'Origin',
-  };
-}
 
 // ── Translations ──────────────────────────────────────────────────────────────
 
@@ -126,7 +121,7 @@ function getLang(raw: unknown): Lang {
 
 // ── Status metadata ───────────────────────────────────────────────────────────
 
-type SK = 'accepted' | 'in_progress' | 'awaiting_transport' | 'in_transit' | 'cancelled';
+type SK = 'accepted' | 'in_progress' | 'awaiting_transport' | 'in_transit' | 'delivered' | 'cancelled';
 
 const SM: Record<SK, { icon: string; color: string; bg: string; label: Record<Lang,string>; msg: Record<Lang,string> }> = {
   accepted: {
@@ -255,7 +250,7 @@ function buildStatusHTML(data: any): string {
   const lang = getLang(data.lang);
   const sk   = (data.newStatus ?? 'accepted') as SK;
   const meta = SM[sk] ?? SM.accepted;
-  const steps: SK[] = ['accepted','in_progress','awaiting_transport','in_transit','cancelled'];
+  const steps: SK[] = ['accepted','in_progress','awaiting_transport','in_transit','delivered','cancelled'];
   const idx  = steps.indexOf(sk);
 
   const dateBlock = (data.shippingDate||data.arrivalDate) ? `
@@ -305,69 +300,215 @@ function buildStatusHTML(data: any): string {
 </div></body></html>`;
 }
 
+/** Admin template mail: inner HTML from client (already paragraph-styled). */
+function buildCustomEmailHTML(innerHtml: string, lang: Lang): string {
+  const inner =
+    innerHtml && innerHtml.trim() !== ''
+      ? innerHtml
+      : '<p style="margin:0;font-size:14px;color:#374151">(empty)</p>';
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif">
+<div style="max-width:580px;margin:32px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+  <div style="background:#0f172a;padding:24px 32px">
+    <div style="font-size:18px;font-weight:900;color:#10b981">GREEN LIGHT SCANDINAVIA</div>
+    <div style="font-size:10px;color:#6b7280;margin-top:3px">sales@glsolargroup.dk · +45 61 48 52 19</div>
+  </div>
+  <div style="padding:28px 32px">
+    ${inner}
+    <p style="margin-top:24px;font-size:12px;color:#6b7280;line-height:1.6">${tr('questions',lang)} <a href="mailto:sales@glsolargroup.dk" style="color:#10b981;font-weight:700">sales@glsolargroup.dk</a> ${tr('q_or',lang)} <a href="tel:+4561485219" style="color:#10b981;font-weight:700">+45 61 48 52 19</a>.</p>
+  </div>
+  <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 32px;text-align:center">
+    <div style="font-size:10px;color:#9ca3af">Green Light Scandinavia · Katmosevej 16, 8800 Viborg, Denmark</div>
+  </div>
+</div></body></html>`;
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: getCorsHeaders(req) });
-  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: getCorsHeaders(req) });
-  if (!RESEND_API_KEY) return new Response(
-    JSON.stringify({ error: 'RESEND_API_KEY not set' }),
-    { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
-  );
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeadersFor(req) });
+  }
+  if (req.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405, headers: corsHeadersFor(req) });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+      status: 400,
+      headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' },
+    });
+  }
+
+  const type = body.type as string | undefined;
+  const { type: _t, ...data } = body;
+
+  // Diagnostic without calling Resend (works even when RESEND_API_KEY is missing).
+  if (type === '_health') {
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        resendKeyConfigured: Boolean(RESEND_API_KEY),
+        fromPreview: FROM.replace(/<[^>]+>/, '<…>'),
+      }),
+      { status: 200, headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' } },
+    );
+  }
+
+  if (!RESEND_API_KEY) {
+    console.error('[send-email] Missing RESEND_API_KEY — set: supabase secrets set RESEND_API_KEY=re_xxx');
+    return new Response(
+      JSON.stringify({
+        error: 'RESEND_API_KEY not set',
+        hint: 'Run: supabase secrets set RESEND_API_KEY=re_... then redeploy send-email',
+      }),
+      { status: 500, headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' } },
+    );
+  }
 
   try {
-    const body = await req.json();
-    const { type, ...data } = body;
-    const lang = getLang(data.lang);
+    const lang = getLang((data as { lang?: string }).lang);
 
-    const send = async (to: string, subject: string, html: string, replyTo?: string) => {
+    /** Optional `auditCustom` adds structured logs for admin “custom template” sends (Supabase → Resend). */
+    const send = async (
+      to: string,
+      subject: string,
+      html: string,
+      replyTo?: string,
+      auditCustom?: 'custom',
+    ) => {
+      const toList = Array.isArray(to) ? to : [to];
+      if (auditCustom === 'custom') {
+        const primary = toList[0] ?? '';
+        const domain = primary.includes('@') ? (primary.split('@').pop() ?? '?') : '?';
+        console.log(
+          '[send-email] type=custom: invoking external Resend (POST https://api.resend.com/emails)',
+          JSON.stringify({
+            recipientDomain: domain,
+            subjectLength: subject.length,
+            htmlByteLength: new TextEncoder().encode(html).length,
+            fromLabel: FROM.replace(/<[^>]+>/g, '').trim(),
+          }),
+        );
+      }
       const r = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${RESEND_API_KEY}` },
         body: JSON.stringify({
           from: FROM,
-          to,
+          to: toList,
           subject,
           html,
           ...(replyTo ? { reply_to: replyTo } : (DEFAULT_REPLY_TO ? { reply_to: DEFAULT_REPLY_TO } : {})),
         }),
       });
-      if (!r.ok) throw new Error(`Resend ${r.status}: ${await r.text()}`);
+      if (!r.ok) {
+        const detail = await r.text();
+        console.error(
+          '[send-email] Resend HTTP error',
+          auditCustom === 'custom' ? 'type=custom' : 'send',
+          r.status,
+          detail.slice(0, 1200),
+        );
+        throw new Error(`Resend ${r.status}: ${detail}`);
+      }
+      if (auditCustom === 'custom') {
+        const raw = await r.text();
+        try {
+          const j = JSON.parse(raw) as { id?: string };
+          console.log(
+            '[send-email] type=custom: Resend API accepted message',
+            JSON.stringify({
+              httpStatus: r.status,
+              resendEmailId: j.id ?? null,
+              note: 'Spam folder / final inbox are decided by recipient MX + filters, not by this function.',
+            }),
+          );
+        } catch {
+          console.log('[send-email] type=custom: Resend OK (body not JSON)', raw.slice(0, 400));
+        }
+      }
     };
 
     if (type === 'order') {
-      await Promise.all([
-        // Admin notification about new order → SALES
-        send(
+      const d = data as Record<string, unknown>;
+      const salesResult = await send(
+        SALES_EMAIL,
+        `Ny ordre #${d.orderNo} — ${d.customerName}`,
+        buildOrderHTML(d, true),
+        SALES_EMAIL,
+      ).then(() => ({ ok: true as const })).catch((e: Error) => ({ ok: false as const, step: 'sales', message: e.message }));
+
+      const cxEmail = String(d.customerEmail ?? '').trim();
+      let customerResult: { ok: true } | { ok: false; step: string; message: string } = { ok: true };
+      if (cxEmail) {
+        customerResult = await send(
+          cxEmail,
+          tr('subj_order', lang, { no: String(d.orderNo), co: COMPANY_NAME }),
+          buildOrderHTML(d, false),
           SALES_EMAIL,
-          `Ny ordre #${data.orderNo} — ${data.customerName}`,
-          buildOrderHTML(data, true),
-          SALES_EMAIL,
-        ),
-        // Customer confirmation → reply to SALES (cart/orders flow)
-        send(data.customerEmail, tr('subj_order', lang, { no: data.orderNo, co: COMPANY_NAME }),
-             buildOrderHTML(data, false),
-             SALES_EMAIL),
-      ]);
+        ).then(() => ({ ok: true as const })).catch((e: Error) => ({ ok: false as const, step: 'customer', message: e.message }));
+      } else {
+        customerResult = { ok: false, step: 'customer', message: 'Missing customerEmail' };
+      }
+
+      if (!salesResult.ok && !customerResult.ok) {
+        throw new Error(
+          `Both sends failed. sales: ${'message' in salesResult ? salesResult.message : 'ok'}; customer: ${customerResult.message}`,
+        );
+      }
+      if (!salesResult.ok) console.error('[send-email] Sales notify failed:', salesResult);
+      if (!customerResult.ok) console.warn('[send-email] Customer confirmation failed:', customerResult);
     } else if (type === 'status') {
-      const meta = SM[(data.newStatus??'accepted') as SK] ?? SM.accepted;
+      const sd = data as Record<string, unknown>;
+      const meta = SM[(String(sd.newStatus ?? 'accepted')) as SK] ?? SM.accepted;
+      const cx = String(sd.customerEmail ?? '').trim();
+      if (!cx) {
+        return new Response(JSON.stringify({ error: 'Missing customerEmail' }), {
+          status: 400,
+          headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' },
+        });
+      }
       await send(
-        data.customerEmail,
-        `${meta.icon} ${tr('label_order',lang)} #${data.orderNo} — ${meta.label[lang]}`,
-        buildStatusHTML(data),
-        SALES_EMAIL
+        cx,
+        `${meta.icon} ${tr('label_order', lang)} #${sd.orderNo} — ${meta.label[lang]}`,
+        buildStatusHTML(sd),
+        SALES_EMAIL,
       );
+    } else if (type === 'custom') {
+      console.log('[send-email] type=custom: payload received (will validate then call Resend if ok)');
+      const cd = data as Record<string, unknown>;
+      const cx = String(cd.customerEmail ?? '').trim();
+      const subject = String(cd.subject ?? '').trim();
+      const htmlBody = String(cd.htmlBody ?? '');
+      const L = getLang(cd.lang);
+      if (!cx) {
+        return new Response(JSON.stringify({ error: 'Missing customerEmail' }), {
+          status: 400,
+          headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' },
+        });
+      }
+      if (!subject) {
+        return new Response(JSON.stringify({ error: 'Missing subject' }), {
+          status: 400,
+          headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' },
+        });
+      }
+      await send(cx, subject, buildCustomEmailHTML(htmlBody, L), SALES_EMAIL, 'custom');
     } else {
       return new Response(JSON.stringify({ error: `Unknown type: ${type}` }),
-        { status: 400, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } });
+        { status: 400, headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' } });
     }
 
     return new Response(JSON.stringify({ ok: true }),
-      { headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } });
+      { headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' } });
 
   } catch (err: any) {
     console.error('[send-email]', err);
     return new Response(JSON.stringify({ error: err.message }),
-      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } });
+      { status: 500, headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' } });
   }
 });

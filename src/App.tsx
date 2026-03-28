@@ -1,19 +1,35 @@
-import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
-import ReactGA from "react-ga4";
+import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy, useLayoutEffect } from 'react';
+import ReactGA from 'react-ga4';
+import { BrowserRouter, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { Layout } from './components/layout/Layout';
 import { CatalogSection } from './components/catalog/CatalogSection';
 import { CartPage } from './components/cart/CartPage';
 import { AboutPage } from './components/about/AboutPage';
+import { ContactPage } from './components/pages/ContactPage';
 import { ProductsProvider } from './contexts/ProductsContext';
 import { safeStorage } from './utils/storage';
 import { CartProvider } from './contexts/CartContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { CompareProvider } from './contexts/CompareContext';
-import { LanguageProvider } from './contexts/LanguageContext';
+import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { UserProvider } from './contexts/UserContext';
+import { CartDrawer } from './components/cart/CartDrawer';
+import { CheckoutSignInModal } from './components/auth/CheckoutSignInModal';
 import { AppView } from './types';
 import { useUser } from './contexts/UserContext';
 import { useCart } from './contexts/CartContext';
+import {
+  CATALOG_SLUG_TO_CATEGORY,
+  countryCurrency,
+  countryHtmlLang,
+  countryLanguage,
+  getRememberedSiteCountry,
+  isSiteCountry,
+  rememberSiteCountry,
+  type SiteCountry,
+} from './routing/siteCountry';
+import { syncHreflangAndCanonical } from './seo/hreflang';
+import { syncDocumentSeo } from './seo/syncDocumentSeo';
 
 const CheckoutPage = lazy(() => import('./components/checkout/CheckoutPage').then(m => ({ default: m.CheckoutPage })));
 const OrderSuccessPage = lazy(() => import('./components/checkout/OrderSuccessPage').then(m => ({ default: m.OrderSuccessPage })));
@@ -94,13 +110,137 @@ export class ErrorBoundary extends React.Component<
   }
 }
 
+function appViewToLegacyQuery(view: AppView): string | null {
+  const map: Partial<Record<AppView, string>> = {
+    [AppView.CATALOG]: 'catalog',
+    [AppView.CART]: 'cart',
+    [AppView.CALCULATOR]: 'calculator',
+    [AppView.ABOUT]: 'about',
+    [AppView.SERVICE]: 'service',
+    [AppView.CHECKOUT]: 'checkout',
+    [AppView.SUCCESS]: 'success',
+  };
+  return map[view] ?? null;
+}
+
 const AppContent: React.FC = () => {
-  const [currentView, setCurrentView] = useState<AppView>(AppView.ABOUT);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { pathname, search } = location;
+  const { setLanguage, setCurrency, language } = useLanguage();
+
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
+  const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const [checkoutSignInOpen, setCheckoutSignInOpen] = useState(false);
   const { currentUser } = useUser();
   const { applyDiscount, setCartUser } = useCart();
 
-  // ── Cart bridge: migrate cart + apply discount when login/logout ─────────
+  const routeParsed = useMemo(() => {
+    const segments = pathname.split('/').filter(Boolean);
+    let siteCountry: SiteCountry | null = null;
+    let pageSegments: string[] = segments;
+    if (segments[0] && isSiteCountry(segments[0])) {
+      siteCountry = segments[0];
+      pageSegments = segments.slice(1);
+    }
+    return { siteCountry, pageSegments, segments };
+  }, [pathname]);
+
+  const { siteCountry, pageSegments, segments } = routeParsed;
+
+  const viewQ = useMemo(() => new URLSearchParams(search).get('view'), [search]);
+  const idQ = useMemo(() => new URLSearchParams(search).get('id'), [search]);
+  const statusQ = useMemo(() => new URLSearchParams(search).get('status'), [search]);
+
+  const transactionalFromQuery =
+    viewQ === 'admin' ||
+    viewQ === 'cabinet' ||
+    (viewQ === 'success' && !!idQ) ||
+    (!!idQ && !!statusQ);
+
+  const { currentView, catalogSlug, invalidPath, invalidCountry } = useMemo(() => {
+    if (transactionalFromQuery) {
+      if (viewQ === 'admin') return { currentView: AppView.ADMIN, catalogSlug: null as string | null, invalidPath: false, invalidCountry: null as SiteCountry | null };
+      if (viewQ === 'cabinet') return { currentView: AppView.CABINET, catalogSlug: null, invalidPath: false, invalidCountry: null };
+      if (viewQ === 'success' || (!!idQ && !!statusQ)) return { currentView: AppView.SUCCESS, catalogSlug: null, invalidPath: false, invalidCountry: null };
+    }
+
+    if (siteCountry) {
+      const p = pageSegments[0] || 'about';
+      if (p === 'contact') return { currentView: AppView.CONTACT, catalogSlug: null, invalidPath: false, invalidCountry: null };
+      if (p === 'cart') return { currentView: AppView.CART, catalogSlug: null, invalidPath: false, invalidCountry: null };
+      if (p === 'checkout') return { currentView: AppView.CHECKOUT, catalogSlug: null, invalidPath: false, invalidCountry: null };
+      if (p === 'calculator') return { currentView: AppView.CALCULATOR, catalogSlug: null, invalidPath: false, invalidCountry: null };
+      if (p === 'service') return { currentView: AppView.SERVICE, catalogSlug: null, invalidPath: false, invalidCountry: null };
+      if (p === 'catalog') return { currentView: AppView.CATALOG, catalogSlug: null, invalidPath: false, invalidCountry: null };
+      if (CATALOG_SLUG_TO_CATEGORY[p]) return { currentView: AppView.CATALOG, catalogSlug: p, invalidPath: false, invalidCountry: null };
+      if (p === 'about' || p === 'home') return { currentView: AppView.ABOUT, catalogSlug: null, invalidPath: false, invalidCountry: null };
+      if (pageSegments.length === 0) return { currentView: AppView.ABOUT, catalogSlug: null, invalidPath: false, invalidCountry: null };
+      return { currentView: AppView.ABOUT, catalogSlug: null, invalidPath: true, invalidCountry: siteCountry };
+    }
+
+    const legacyMap: Record<string, AppView> = {
+      catalog: AppView.CATALOG,
+      cart: AppView.CART,
+      calculator: AppView.CALCULATOR,
+      about: AppView.ABOUT,
+      service: AppView.SERVICE,
+      wishlist: AppView.CATALOG,
+      admin: AppView.ADMIN,
+      cabinet: AppView.CABINET,
+      checkout: AppView.CHECKOUT,
+      success: AppView.SUCCESS,
+    };
+    if (viewQ && legacyMap[viewQ]) {
+      return { currentView: legacyMap[viewQ], catalogSlug: null, invalidPath: false, invalidCountry: null };
+    }
+    if (segments.length > 0 && !isSiteCountry(segments[0])) {
+      return { currentView: AppView.ABOUT, catalogSlug: null, invalidPath: true, invalidCountry: null };
+    }
+    return { currentView: AppView.ABOUT, catalogSlug: null, invalidPath: false, invalidCountry: null };
+  }, [transactionalFromQuery, viewQ, idQ, statusQ, siteCountry, pageSegments, segments]);
+
+  useLayoutEffect(() => {
+    if (transactionalFromQuery && pathname !== '/') {
+      navigate({ pathname: '/', search: location.search }, { replace: true });
+    }
+  }, [transactionalFromQuery, pathname, navigate, location.search]);
+
+  useLayoutEffect(() => {
+    if (pathname === '/catalog' || pathname === '/catalog/') {
+      navigate('/dk/catalog', { replace: true });
+    }
+  }, [pathname, navigate]);
+
+  useLayoutEffect(() => {
+    if (pathname !== '/' && pathname !== '') return;
+    if (transactionalFromQuery) return;
+    if (viewQ) return;
+    navigate('/dk', { replace: true });
+  }, [pathname, transactionalFromQuery, viewQ, navigate]);
+
+  useEffect(() => {
+    if (siteCountry) {
+      rememberSiteCountry(siteCountry);
+      setLanguage(countryLanguage[siteCountry]);
+      setCurrency(countryCurrency[siteCountry]);
+      document.documentElement.lang = countryHtmlLang[siteCountry];
+    }
+  }, [siteCountry, setLanguage, setCurrency]);
+
+  useEffect(() => {
+    const stored = safeStorage.getItem('voltstore_admin_auth_v5');
+    if (stored) {
+      const expiry = Number(stored);
+      const isValid = expiry > 0 && Date.now() < expiry;
+      if (isValid) {
+        setIsAdminAuthenticated(true);
+      } else {
+        safeStorage.removeItem('voltstore_admin_auth_v5');
+      }
+    }
+  }, []);
+
   useEffect(() => {
     setCartUser(currentUser?.id ?? null);
   }, [currentUser?.id, setCartUser]);
@@ -109,45 +249,92 @@ const AppContent: React.FC = () => {
     applyDiscount(currentUser?.discount ?? 0);
   }, [currentUser?.discount, applyDiscount]);
 
-  useEffect(() => {
-    const stored = safeStorage.getItem('voltstore_admin_auth_v5');
-    if (stored) {
-      const expiry = Number(stored);
-      // Only accept new timestamp format — reject old 'true' string sessions
-      const isValid = expiry > 0 && Date.now() < expiry;
-      if (isValid) {
-        setIsAdminAuthenticated(true);
-      } else {
-        // Expired or old format — force re-login
-        safeStorage.removeItem('voltstore_admin_auth_v5');
+  const setView = useCallback(
+    (view: AppView) => {
+      if (view === AppView.ADMIN) {
+        navigate('/?view=admin');
+        return;
       }
-    }
-  }, []);
+      if (view === AppView.CABINET) {
+        navigate('/?view=cabinet');
+        return;
+      }
+      if (view === AppView.SUCCESS) {
+        navigate('/?view=success');
+        return;
+      }
 
-  const handleSetView = useCallback((view: AppView) => {
-    setCurrentView(view);
-    // оновлюємо URL, щоб кнопка "Назад" на мобільних повертала між екранами, а не викидала з сайту
-    const params = new URLSearchParams(window.location.search);
-    const slugMap: Record<AppView, string> = {
-      [AppView.CATALOG]: 'catalog',
-      [AppView.CART]: 'cart',
-      [AppView.CALCULATOR]: 'calculator',
-      [AppView.ABOUT]: 'about',
-      [AppView.SERVICE]: 'service',
-      [AppView.ADMIN]: 'admin',
-      [AppView.CABINET]: 'cabinet',
-      [AppView.CHECKOUT]: 'checkout',
-      [AppView.SUCCESS]: 'success',
+      const c: SiteCountry = siteCountry ?? getRememberedSiteCountry() ?? 'dk';
+
+      switch (view) {
+        case AppView.ABOUT:
+          navigate(`/${c}/about`);
+          return;
+        case AppView.CONTACT:
+          navigate(`/${c}/contact`);
+          return;
+        case AppView.CATALOG:
+          navigate(`/${c}/catalog`);
+          return;
+        case AppView.CART:
+          navigate(`/${c}/cart`);
+          return;
+        case AppView.CHECKOUT:
+          navigate(`/${c}/checkout`);
+          return;
+        case AppView.CALCULATOR:
+          navigate(`/${c}/calculator`);
+          return;
+        case AppView.SERVICE:
+          navigate(`/${c}/service`);
+          return;
+        default: {
+          const slug = appViewToLegacyQuery(view);
+          if (slug) navigate({ pathname: '/', search: `view=${slug}` });
+        }
+      }
+    },
+    [navigate, siteCountry],
+  );
+
+  useEffect(() => {
+    const stringToView: Record<string, AppView> = {
+      catalog: AppView.CATALOG,
+      cart: AppView.CART,
+      calculator: AppView.CALCULATOR,
+      about: AppView.ABOUT,
+      service: AppView.SERVICE,
+      admin: AppView.ADMIN,
+      cabinet: AppView.CABINET,
+      checkout: AppView.CHECKOUT,
+      success: AppView.SUCCESS,
+      contact: AppView.CONTACT,
     };
-    const slug = slugMap[view];
-    if (slug) {
-      params.set('view', slug);
-      const qs = params.toString();
-      const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
-      window.history.pushState({ view: slug }, '', url);
-    }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<AppView | string>).detail;
+      if (detail === 'about' || detail === AppView.ABOUT) setView(AppView.ABOUT);
+      else if (typeof detail === 'string' && stringToView[detail]) setView(stringToView[detail]);
+      else if (typeof detail === 'string' && (Object.values(AppView) as string[]).includes(detail)) {
+        setView(detail as AppView);
+      } else if (detail) setView(detail as AppView);
+    };
+    window.addEventListener('changeView', handler as EventListener);
+    return () => window.removeEventListener('changeView', handler as EventListener);
+  }, [setView]);
+
+  useEffect(() => {
+    const goFullCart = () => {
+      setCartDrawerOpen(false);
+      setView(AppView.CART);
+    };
+    const openSignIn = () => setCheckoutSignInOpen(true);
+    window.addEventListener('gls-nav-cart-full', goFullCart as EventListener);
+    window.addEventListener('gls-open-checkout-sign-in', openSignIn as EventListener);
+    return () => {
+      window.removeEventListener('gls-nav-cart-full', goFullCart as EventListener);
+      window.removeEventListener('gls-open-checkout-sign-in', openSignIn as EventListener);
+    };
+  }, [setView]);
 
   const handleAdminSuccess = useCallback(() => {
     setIsAdminAuthenticated(true);
@@ -156,100 +343,73 @@ const AppContent: React.FC = () => {
   const handleAdminLogout = useCallback(() => {
     safeStorage.removeItem('voltstore_admin_auth_v5');
     setIsAdminAuthenticated(false);
-    handleSetView(AppView.ABOUT);
-  }, [handleSetView]);
+    setView(AppView.ABOUT);
+  }, [setView]);
 
   useEffect(() => {
-    ReactGA.send({ hitType: "pageview", page: currentView, title: currentView });
+    ReactGA.send({ hitType: 'pageview', page: pathname + search, title: String(currentView) });
+  }, [pathname, search, currentView]);
+
+  useEffect(() => {
+    syncHreflangAndCanonical({
+      pathname,
+      search,
+      siteCountry,
+      transactional: transactionalFromQuery,
+    });
+  }, [pathname, search, siteCountry, transactionalFromQuery]);
+
+  useEffect(() => {
+    syncDocumentSeo({
+      language,
+      siteCountry,
+      pathname,
+      search,
+      currentView,
+      catalogSlug,
+      transactional: transactionalFromQuery,
+    });
+  }, [language, siteCountry, pathname, search, currentView, catalogSlug, transactionalFromQuery]);
+
+  useEffect(() => {
+    if (currentView !== AppView.CART) return;
+    import('./components/checkout/CheckoutPage');
   }, [currentView]);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('id') && params.get('status')) {
-      handleSetView(AppView.SUCCESS);
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-    // Open required view from URL (?view=catalog&product=ID)
-      const viewParam = params.get('view');
-      if (viewParam) {
-        const viewMap: Record<string, AppView> = {
-          catalog: AppView.CATALOG,
-          cart: AppView.CART,
-          calculator: AppView.CALCULATOR,
-          about: AppView.ABOUT,
-          service: AppView.SERVICE,
-          wishlist: AppView.CATALOG,
-          admin: AppView.ADMIN,
-          cabinet: AppView.CABINET,
-          checkout: AppView.CHECKOUT,
-          success: AppView.SUCCESS,
-        };
-        if (viewMap[viewParam]) {
-          setCurrentView(viewMap[viewParam]);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-      }
-    const handleViewChange = (e: any) => { if (e.detail) handleSetView(e.detail as AppView); };
-    const handlePopState = () => {
-      const p = new URLSearchParams(window.location.search);
-      const viewParam = p.get('view') || 'about';
-      const viewMap: Record<string, AppView> = {
-        catalog: AppView.CATALOG,
-        cart: AppView.CART,
-        calculator: AppView.CALCULATOR,
-        about: AppView.ABOUT,
-        service: AppView.SERVICE,
-        wishlist: AppView.CATALOG,
-        admin: AppView.ADMIN,
-        cabinet: AppView.CABINET,
-        checkout: AppView.CHECKOUT,
-        success: AppView.SUCCESS,
-      };
-      const v = viewMap[viewParam] ?? AppView.ABOUT;
-      setCurrentView(v);
-      if (viewParam === 'wishlist') {
-        const p = new URLSearchParams(window.location.search);
-        p.set('view', 'catalog');
-        const qs = p.toString();
-        window.history.replaceState({}, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
-      }
-    };
-    window.addEventListener('changeView', handleViewChange);
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('changeView', handleViewChange);
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [handleSetView]);
-
-  // Prefetch checkout bundle when user is on Cart (reduces visible loading)
-  useEffect(() => {
-    if (currentView === AppView.CART) {
-      import('./components/checkout/CheckoutPage');
-    }
-  }, [currentView]);
+  const catalogNavigate = useCallback(() => {
+    const c: SiteCountry = siteCountry ?? getRememberedSiteCountry() ?? 'dk';
+    navigate(`/${c}/catalog`);
+  }, [navigate, siteCountry]);
 
   const renderedView = useMemo(() => {
     switch (currentView) {
-      case AppView.CATALOG: return <CatalogSection />;
-      case AppView.CART: return <CartPage onCheckout={() => handleSetView(AppView.CHECKOUT)} />;
+      case AppView.CATALOG:
+        return <CatalogSection catalogSlug={catalogSlug} />;
+      case AppView.CART:
+        return <CartPage onCheckout={() => setView(AppView.CHECKOUT)} />;
       case AppView.CHECKOUT:
         return (
           <Suspense fallback={<PageLoader />}>
             <CheckoutPage
-              onBackToCart={() => handleSetView(AppView.CART)}
-              onOrderSuccess={() => handleSetView(AppView.SUCCESS)}
-              setView={handleSetView}
+              onBackToCart={() => setView(AppView.CART)}
+              onOrderSuccess={(orderId) => {
+                if (orderId) {
+                  navigate(`/?view=success&id=${encodeURIComponent(orderId)}`);
+                } else {
+                  navigate('/?view=success');
+                }
+              }}
+              setView={setView}
             />
           </Suspense>
         );
       case AppView.SUCCESS:
         return (
           <Suspense fallback={<PageLoader />}>
-            <OrderSuccessPage onBackToCatalog={() => handleSetView(AppView.CATALOG)} />
+            <OrderSuccessPage onBackToCatalog={catalogNavigate} />
           </Suspense>
         );
-      case AppView.ADMIN: 
+      case AppView.ADMIN:
         if (!isAdminAuthenticated) {
           return (
             <Suspense fallback={<PageLoader />}>
@@ -274,61 +434,89 @@ const AppContent: React.FC = () => {
             <ServicePage />
           </Suspense>
         );
-      case AppView.ABOUT: return <AboutPage onNavigateToCatalog={handleSetView} />;
+      case AppView.CONTACT:
+        return <ContactPage />;
+      case AppView.ABOUT:
+        return <AboutPage onNavigateToCatalog={setView} />;
       case AppView.CABINET:
         return (
-          <CabinetErrorBoundary key="cabinet" onGoHome={() => handleSetView(AppView.ABOUT)}>
+          <CabinetErrorBoundary key="cabinet" onGoHome={() => setView(AppView.ABOUT)}>
             <Suspense fallback={<PageLoader />}>
               <ClientCabinet />
             </Suspense>
           </CabinetErrorBoundary>
         );
-      default: return <AboutPage onNavigateToCatalog={handleSetView} />;
+      default:
+        return <AboutPage onNavigateToCatalog={setView} />;
     }
-  }, [currentView, isAdminAuthenticated, handleAdminLogout, handleSetView, handleAdminSuccess]);
+  }, [currentView, catalogSlug, isAdminAuthenticated, handleAdminLogout, setView, handleAdminSuccess, catalogNavigate]);
+
+  if (invalidPath && invalidCountry) {
+    return <Navigate to={`/${invalidCountry}/about`} replace />;
+  }
+  if (invalidPath) {
+    return <Navigate to="/dk" replace />;
+  }
 
   return (
-    <div 
-      id="app-shell" 
-      className="min-h-screen relative notranslate" 
-      translate="no" 
-      suppressHydrationWarning={true}
-    >
-      <Layout currentView={currentView} setView={handleSetView}>
-        <div id="app-main-content" className="min-h-[70vh] relative notranslate" translate="no">
-          <ErrorBoundary key={currentView} onRecover={() => handleSetView(AppView.ABOUT)}>
-            {renderedView}
-            <Suspense fallback={null}>
-              <LiveAssistant />
-            </Suspense>
-          </ErrorBoundary>
-        </div>
-      </Layout>
-    </div>
+    <>
+      <div
+        id="app-shell"
+        className="min-h-screen relative notranslate"
+        translate="no"
+        suppressHydrationWarning={true}
+      >
+        <Layout currentView={currentView} setView={setView} siteCountry={siteCountry} onCartOpen={() => setCartDrawerOpen(true)}>
+          <div id="app-main-content" className="min-h-[70vh] relative notranslate" translate="no">
+            <ErrorBoundary key={String(currentView)} onRecover={() => setView(AppView.ABOUT)}>
+              {renderedView}
+              <Suspense fallback={null}>
+                <LiveAssistant />
+              </Suspense>
+            </ErrorBoundary>
+          </div>
+        </Layout>
+      </div>
+      <CartDrawer
+        isOpen={cartDrawerOpen}
+        onClose={() => setCartDrawerOpen(false)}
+        onCheckout={() => setView(AppView.CHECKOUT)}
+        onSignInToOrder={() => setCheckoutSignInOpen(true)}
+        onGuestCheckout={() => setView(AppView.CHECKOUT)}
+      />
+      <CheckoutSignInModal isOpen={checkoutSignInOpen} onClose={() => setCheckoutSignInOpen(false)} siteCountry={siteCountry} />
+    </>
   );
 };
 
 const App: React.FC = () => {
   return (
-    <div 
-      id="app-providers-root" 
-      className="notranslate" 
-      translate="no" 
+    <div
+      id="app-providers-root"
+      className="notranslate"
+      translate="no"
       suppressHydrationWarning={true}
     >
-      <NotificationProvider>
-        <LanguageProvider>
-          <UserProvider>
-            <ProductsProvider>
-              <CartProvider>
-                <CompareProvider>
-                  <AppContent />
-                </CompareProvider>
-              </CartProvider>
-            </ProductsProvider>
-          </UserProvider>
-        </LanguageProvider>
-      </NotificationProvider>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
+        <NotificationProvider>
+          <LanguageProvider>
+            <UserProvider>
+              <ProductsProvider>
+                <CartProvider>
+                  <CompareProvider>
+                    <AppContent />
+                  </CompareProvider>
+                </CartProvider>
+              </ProductsProvider>
+            </UserProvider>
+          </LanguageProvider>
+        </NotificationProvider>
+      </BrowserRouter>
     </div>
   );
 };

@@ -14,7 +14,7 @@ import { Category, Order, ProductSpec, KitComponent } from '../../types';
 import { supabase } from '../../services/supabase';
 import { saveAs } from 'file-saver';
 import { DbStatus } from './DbStatus';
-import { categoryToTable, emptyLoc, IMAGE_FALLBACK, AdminTab, ModalTab } from './adminTypes';
+import { categoryToTable, emptyLoc, IMAGE_FALLBACK, AdminTab, ModalTab, ORDER_STATUSES, isAdminOrderListCompletedStatus } from './adminTypes';
 import { AdminOrderModal }            from './AdminOrderModal';
 import { AdminClientHistoryModal, AdminInspectUserModal } from './AdminClientModal';
 import { AdminProductModal }          from './AdminProductModal';
@@ -23,6 +23,27 @@ import { AdminDashboard }            from './AdminDashboard';
 import { AdminCalculatorLogs }       from './AdminCalculatorLogs';
 import { AdminStockDemandModal }     from './AdminStockDemandModal';
 import { AdminMountingSystemsPanel } from './AdminMountingSystemsPanel';
+import { AdminMessageTemplatesPanel } from './AdminMessageTemplatesPanel';
+
+function fulfillmentStatusLabel(t: (key: string) => string, raw?: string): string {
+  const s = (raw || 'accepted').trim();
+  const keyMap: Record<string, string> = {
+    accepted: 'admin_status_accepted',
+    in_progress: 'admin_status_in_progress',
+    awaiting_transport: 'admin_status_awaiting',
+    in_transit: 'admin_status_in_transit',
+    delivered: 'admin_status_delivered',
+    cancelled: 'admin_status_cancelled',
+  };
+  return t(keyMap[s] || 'admin_status_accepted');
+}
+
+function fulfillmentStatusClasses(raw?: string): string {
+  const s = (raw || 'accepted').trim();
+  const row = ORDER_STATUSES.find((x) => x.key === s);
+  const base = 'text-[8px] font-black uppercase px-2.5 py-1 rounded-full border inline-block';
+  return row ? `${base} ${row.color}` : `${base} bg-slate-100 text-slate-600 border-slate-200`;
+}
 
 // ── ProductRow ──────────────────────────────────────────────────────────
 const ProductRow = React.memo(({ product, onEdit, onDelete, formatPrice: _formatPrice, getLoc, t }: any) => (
@@ -80,6 +101,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
         case 'mounting': return t('admin_tab_mounting');
         case 'clients': return t('admin_tab_clients');
         case 'calculator': return t('admin_tab_calculator');
+        case 'messages': return t('admin_tab_messages');
         default: return String(tab);
       }
     },
@@ -95,7 +117,10 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
   const ORDERS_PER_PAGE = 25;
   const [ordersPage, setOrdersPage]               = useState(0);
   const [ordersSearch, setOrdersSearch]           = useState('');
-  const [ordersStatusFilter, setOrdersStatusFilter] = useState('all');
+  /** `active` = hide `delivered` fulfilment (see adminTypes ADMIN_ORDER_LIST_COMPLETED_KEYS); DB unchanged */
+  const [ordersStatusFilter, setOrdersStatusFilter] = useState('active');
+  /** Lowercase email; empty = all clients */
+  const [ordersClientEmail, setOrdersClientEmail] = useState('');
 
   // UI modals
   const [isModalOpen, setIsModalOpen]           = useState(false);
@@ -151,10 +176,37 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
   }), [allProducts, adminCategoryFilter, adminManufacturerFilter]);
 
   // ── Orders: filter + paginate ──────────────────────────────────────────────
+  const orderClientOptions = useMemo(() => {
+    const byEmail = new Map<string, string>();
+    const clientByEmail = new Map(
+      (dbClients || []).map((c: any) => [String(c.email || '').trim().toLowerCase(), c]),
+    );
+    for (const o of orders) {
+      const em = String((o as any).customer_email || '').trim().toLowerCase();
+      if (!em || !em.includes('@')) continue;
+      if (byEmail.has(em)) continue;
+      const c = clientByEmail.get(em);
+      const nameFromOrder = String((o as any).customer_name || '').trim();
+      const nameFromClient = c ? [c.first_name, c.last_name].filter(Boolean).join(' ').trim() : '';
+      const name = nameFromClient || nameFromOrder;
+      byEmail.set(em, name ? `${name} — ${em}` : em);
+    }
+    return Array.from(byEmail.entries()).sort((a, b) => a[1].localeCompare(b[1], undefined, { sensitivity: 'base' }));
+  }, [orders, dbClients]);
+
   const filteredOrders = useMemo(() => {
     const q = ordersSearch.toLowerCase().trim();
     return orders.filter(o => {
-      if (ordersStatusFilter !== 'all' && (o as any).order_status !== ordersStatusFilter) return false;
+      const os = String((o as any).order_status || 'accepted').trim();
+      if (ordersStatusFilter === 'active') {
+        if (isAdminOrderListCompletedStatus(os)) return false;
+      } else if (ordersStatusFilter !== 'all' && os !== ordersStatusFilter) {
+        return false;
+      }
+      if (ordersClientEmail) {
+        const em = String((o as any).customer_email || '').trim().toLowerCase();
+        if (em !== ordersClientEmail) return false;
+      }
       if (!q) return true;
       return (
         o.customer_name?.toLowerCase().includes(q) ||
@@ -162,21 +214,36 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
         (o as any).order_number?.toLowerCase().includes(q)
       );
     });
-  }, [orders, ordersSearch, ordersStatusFilter]);
+  }, [orders, ordersSearch, ordersStatusFilter, ordersClientEmail]);
 
   const totalOrderPages  = Math.ceil(filteredOrders.length / ORDERS_PER_PAGE);
   const paginatedOrders  = filteredOrders.slice(ordersPage * ORDERS_PER_PAGE, (ordersPage + 1) * ORDERS_PER_PAGE);
 
+  useEffect(() => {
+    if (totalOrderPages < 1) {
+      if (ordersPage !== 0) setOrdersPage(0);
+      return;
+    }
+    if (ordersPage > totalOrderPages - 1) setOrdersPage(totalOrderPages - 1);
+  }, [totalOrderPages, ordersPage]);
+
   // ── Data fetchers ─────────────────────────────────────────────────────
   const fetchOrders = useCallback(async () => {
+    const adminKey = (import.meta.env.VITE_ADMIN_PASSWORD as string | undefined)?.trim();
+    if (!adminKey) {
+      setIsLoadingOrders(false);
+      return;
+    }
     setIsLoadingOrders(true);
     try {
-      const adminKey = import.meta.env.VITE_ADMIN_PASSWORD;
       const { data, error } = await supabase.rpc('admin_get_orders', { p_key: adminKey });
       if (error) throw error;
-      setOrders(data || []);
-    } catch (err: any) { addNotification(err.message, 'error'); }
-    finally { setIsLoadingOrders(false); }
+      setOrders((data as Order[]) || []);
+    } catch (err: any) {
+      addNotification(err.message, 'error');
+    } finally {
+      setIsLoadingOrders(false);
+    }
   }, [addNotification]);
 
   const fetchDbClients = useCallback(async () => {
@@ -196,7 +263,9 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
   useEffect(() => {
     if (!isMounted) return;
     if (activeTab === 'dashboard' || activeTab === 'orders') fetchOrders();
-    if (activeTab === 'clients' || activeTab === 'dashboard')  fetchDbClients();
+    if (activeTab === 'clients' || activeTab === 'dashboard' || activeTab === 'orders' || activeTab === 'messages') {
+      void fetchDbClients();
+    }
   }, [activeTab, isMounted, fetchOrders, fetchDbClients]);
 
   // ── New orders badge (polling, no WebSocket) ─────────────────────────
@@ -212,7 +281,8 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
 
     const tick = async () => {
       try {
-        const adminKey = import.meta.env.VITE_ADMIN_PASSWORD;
+        const adminKey = (import.meta.env.VITE_ADMIN_PASSWORD as string | undefined)?.trim();
+        if (!adminKey) return;
         const { data, error } = await supabase.rpc('admin_get_orders', { p_key: adminKey });
         if (error) throw error;
         if (cancelled) return;
@@ -243,6 +313,25 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
       window.clearInterval(id);
     };
   }, [isMounted]);
+
+  /** Keep open order modal in sync when orders[] is refetched (tab switch, polling). */
+  useEffect(() => {
+    setSelectedOrder((prev) => {
+      if (!prev?.id) return prev;
+      const fresh = orders.find((o) => String(o.id) === String(prev.id));
+      if (!fresh) return prev;
+      const s = (x: unknown) => (x == null ? '' : String(x));
+      const fo = fresh as Record<string, unknown>;
+      if (
+        s(fo.order_status) === s(prev.order_status) &&
+        s(fo.shipping_date) === s(prev.shipping_date) &&
+        s(fo.arrival_date) === s(prev.arrival_date)
+      ) {
+        return prev;
+      }
+      return fresh;
+    });
+  }, [orders]);
 
   // ── CSV export ────────────────────────────────────────────────────────
   const exportOrdersCSV = useCallback(() => {
@@ -365,23 +454,35 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
             <p className="text-slate-400 text-[9px] font-black uppercase tracking-[0.3em] mt-2">{t('admin_header_subtitle')}</p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 bg-white/5 p-2 rounded-[2rem]">
-          {(['dashboard', 'products', 'orders', 'kits', 'mounting', 'clients', 'calculator'] as const).map(tab => (
-            <button key={tab} onClick={() => { setActiveTab(tab); if (tab === 'orders') setNewOrdersCount(0); }}
-              className={`relative px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-400 hover:text-white'}`}>
-              {tab === 'calculator' ? (
-                <span className="inline-flex items-center gap-1.5"><Calculator size={12} /> {t('admin_tab_calculator')}</span>
-              ) : (
-                adminMainTabLabel(tab)
-              )}
-              {tab === 'orders' && newOrdersCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center px-1 animate-pulse">
-                  {newOrdersCount}
-                </span>
-              )}
-            </button>
-          ))}
-          <div className="w-[1px] h-8 bg-white/10 mx-2 hidden sm:block" />
+        <div className="flex flex-col gap-3 w-full min-w-0 lg:flex-row lg:flex-wrap lg:items-center lg:justify-end">
+          <div
+            className="flex flex-nowrap gap-2 overflow-x-auto overflow-y-hidden max-w-full min-w-0 rounded-[2rem] bg-white/5 p-2 [scrollbar-width:thin] touch-pan-x"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
+            {(['dashboard', 'products', 'orders', 'kits', 'mounting', 'clients', 'messages', 'calculator'] as const).map(tab => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => { setActiveTab(tab); if (tab === 'orders') setNewOrdersCount(0); }}
+                className={`relative shrink-0 px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-400 hover:text-white'}`}
+              >
+                {tab === 'calculator' ? (
+                  <span className="inline-flex items-center gap-1.5"><Calculator size={12} /> {t('admin_tab_calculator')}</span>
+                ) : tab === 'messages' ? (
+                  <span className="inline-flex items-center gap-1.5"><MessageSquare size={12} /> {t('admin_tab_messages')}</span>
+                ) : (
+                  adminMainTabLabel(tab)
+                )}
+                {tab === 'orders' && newOrdersCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center px-1 animate-pulse">
+                    {newOrdersCount}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="w-[1px] h-8 bg-white/10 mx-1 hidden sm:block" />
           <button onClick={() => setIsRatesModalOpen(true)} className="px-6 py-3 bg-white/10 text-amber-400 hover:bg-white/20 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all border border-amber-500/30">
             <TrendingUp size={14} className="inline mr-2" /> {t('admin_btn_rates')}
           </button>
@@ -392,6 +493,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
             <Plus size={14} /> {t('admin_btn_new_asset')}
           </button>
           <button onClick={onLogout} className="p-3 text-rose-400 hover:bg-rose-50 rounded-2xl transition-all"><LogOut size={18} /></button>
+          </div>
         </div>
       </div>
 
@@ -408,6 +510,12 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
 
       {activeTab === 'calculator' && <AdminCalculatorLogs />}
 
+      {activeTab === 'messages' && (
+        <div className="px-4 md:px-8 pb-20">
+          <AdminMessageTemplatesPanel />
+        </div>
+      )}
+
       {activeTab === 'mounting' && (
         <div className="px-4 md:px-8 pb-20">
           <AdminMountingSystemsPanel />
@@ -415,7 +523,7 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
       )}
 
       {/* ── Registry table ───────────────────────────────────────────── */}
-      <div style={{ display: activeTab === 'dashboard' || activeTab === 'calculator' || activeTab === 'mounting' ? 'none' : undefined }}>
+      <div style={{ display: activeTab === 'dashboard' || activeTab === 'calculator' || activeTab === 'mounting' || activeTab === 'messages' ? 'none' : undefined }}>
         <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-slate-50/30">
           <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">
             <Activity size={18} className="text-emerald-500" /> {adminMainTabLabel(activeTab)} {t('admin_registry_suffix')}
@@ -448,11 +556,25 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
               <select value={ordersStatusFilter}
                 onChange={e => { setOrdersStatusFilter(e.target.value); setOrdersPage(0); }}
                 className="bg-white border border-slate-200 rounded-xl py-2 px-3 text-[10px] font-black uppercase outline-none focus:border-emerald-500 transition-all cursor-pointer">
+                <option value="active">{t('admin_orders_filter_open')}</option>
                 <option value="all">{t('admin_status_all')}</option>
                 <option value="accepted">{t('admin_status_accepted')}</option>
                 <option value="in_progress">{t('admin_status_in_progress')}</option>
                 <option value="awaiting_transport">{t('admin_status_awaiting')}</option>
                 <option value="in_transit">{t('admin_status_in_transit')}</option>
+                <option value="delivered">{t('admin_status_delivered')}</option>
+                <option value="cancelled">{t('admin_status_cancelled')}</option>
+              </select>
+              <select
+                value={ordersClientEmail}
+                onChange={(e) => { setOrdersClientEmail(e.target.value); setOrdersPage(0); }}
+                className="bg-white border border-slate-200 rounded-xl py-2 px-3 text-[10px] font-bold outline-none focus:border-emerald-500 transition-all cursor-pointer min-w-[10rem] max-w-[min(100%,20rem)] truncate"
+                title={t('admin_orders_filter_client')}
+              >
+                <option value="">{t('admin_orders_all_clients')}</option>
+                {orderClientOptions.map(([email, label]) => (
+                  <option key={email} value={email}>{label}</option>
+                ))}
               </select>
               <button onClick={fetchOrders} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
                 <RefreshCcw size={12} /> {t('admin_btn_refresh')}
@@ -541,7 +663,9 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                       <tr><td colSpan={5} className="p-10 text-center"><Loader2 size={24} className="animate-spin inline text-emerald-500" /></td></tr>
                     ) : paginatedOrders.length === 0 ? (
                       <tr><td colSpan={5} className="p-10 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest">
-                        {ordersSearch || ordersStatusFilter !== 'all' ? t('admin_orders_empty_filtered') : t('admin_no_orders_yet')}
+                        {filteredOrders.length === 0
+                          ? (orders.length === 0 ? t('admin_no_orders_yet') : t('admin_orders_empty_filtered'))
+                          : t('admin_orders_empty_filtered')}
                       </td></tr>
                     ) : paginatedOrders.map(order => (
                       <tr key={order.id} onClick={() => setSelectedOrder(order)}
@@ -566,16 +690,12 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
                         </td>
                         <td className="p-6 text-center font-black text-xs text-slate-700">{formatPrice(order.total_price)}</td>
                         <td className="p-6 text-center">
-                          <span className={`status-badge ${order.status === 'paid' ? 'status-paid' : 'status-pending'}`}>{order.status}</span>
-                          {(order as any).order_status && (order as any).order_status !== 'accepted' && (
-                            <div className="mt-1 text-[8px] font-black uppercase text-slate-400">
-                              {(order as any).order_status === 'in_progress'
-                                ? t('admin_status_in_progress')
-                                : (order as any).order_status === 'awaiting_transport'
-                                  ? t('admin_status_awaiting')
-                                  : (order as any).order_status === 'cancelled'
-                                    ? t('admin_status_cancelled')
-                                    : t('admin_status_in_transit')}
+                          <span className={fulfillmentStatusClasses((order as any).order_status)}>
+                            {fulfillmentStatusLabel(t, (order as any).order_status)}
+                          </span>
+                          {order.status && String(order.status).toLowerCase() !== 'paid' && (
+                            <div className="mt-1 text-[7px] font-bold text-slate-400 uppercase tracking-tight">
+                              {order.status}
                             </div>
                           )}
                         </td>
@@ -642,7 +762,15 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
         <AdminOrderModal
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
-          onUpdated={updated => setSelectedOrder(updated)}
+          onUpdated={updated => {
+            setSelectedOrder(updated);
+            setOrders(prev =>
+              prev.map(row =>
+                String(row.id) === String((updated as Order).id) ? { ...row, ...(updated as object) } : row,
+              ),
+            );
+            void fetchOrders();
+          }}
           onDeleted={id => {
             setSelectedOrder(null);
             setOrders(prev => prev.filter((row: any) => String(row.id) !== String(id)));
@@ -664,6 +792,8 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
           client={selectedClient}
           history={clientHistory}
           isLoading={isLoadingClientHistory}
+          allClients={dbClients}
+          onSwitchClient={openClientHistory}
           onClose={() => { setSelectedClient(null); setClientHistory([]); }}
           onClientDeleted={(id) => {
             setDbClients((prev) => prev.filter((c: any) => String(c.id) !== String(id)));

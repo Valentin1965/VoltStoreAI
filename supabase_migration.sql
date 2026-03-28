@@ -93,6 +93,11 @@ ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS delivery_phone     text,
   ADD COLUMN IF NOT EXISTS delivery_same_as_billing boolean DEFAULT true;
 
+-- Optional note from checkout (required for admin "import checkout message as inquiry")
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS customer_message text;
+-- If admin_get_orders is a custom RPC, include customer_message in its SELECT so the order modal shows the note.
+
 -- Index for fast client lookup
 CREATE INDEX IF NOT EXISTS idx_orders_client_id ON public.orders(client_id);
 CREATE INDEX IF NOT EXISTS idx_orders_customer_email ON public.orders(customer_email);
@@ -105,10 +110,18 @@ CREATE INDEX IF NOT EXISTS idx_clients_email ON public.clients(email);
 -- ──────────────────────────────────────────
 
 ALTER TABLE public.orders
-  ADD COLUMN IF NOT EXISTS order_status text DEFAULT 'accepted'
-    CHECK (order_status IN ('accepted', 'in_progress', 'awaiting_transport', 'in_transit')),
+  ADD COLUMN IF NOT EXISTS order_status text DEFAULT 'accepted',
   ADD COLUMN IF NOT EXISTS shipping_date date,
   ADD COLUMN IF NOT EXISTS arrival_date  date;
+
+-- Replace narrow CHECK (must include cancelled); safe to re-run after DROP
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_order_status_check;
+ALTER TABLE public.orders ADD CONSTRAINT orders_order_status_check CHECK (
+  order_status IS NULL
+  OR order_status IN (
+    'accepted', 'in_progress', 'awaiting_transport', 'in_transit', 'delivered', 'cancelled'
+  )
+);
 
 -- Index for filtering by order status
 CREATE INDEX IF NOT EXISTS idx_orders_order_status ON public.orders(order_status);
@@ -352,6 +365,10 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 
 ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
 
+-- Ідемпотентно: повторний запуск міграції без помилки 42710
+DROP POLICY IF EXISTS "push_insert" ON public.push_subscriptions;
+DROP POLICY IF EXISTS "push_delete" ON public.push_subscriptions;
+
 -- Будь-хто може вставити свою підписку (реєстрація push)
 CREATE POLICY "push_insert" ON push_subscriptions FOR INSERT WITH CHECK (true);
 -- Видалення — тільки власної (через endpoint)
@@ -525,6 +542,92 @@ GRANT EXECUTE ON FUNCTION admin_delete_order(text, text) TO anon, authenticated;
 
 
 -- ════════════════════════════════════════════════════════════════════════════
+-- Admin: update order fulfilment status (browser uses anon key — bypasses orders RLS)
+-- ════════════════════════════════════════════════════════════════════════════
+-- CREATE OR REPLACE не може перейменувати параметри (було p_status → p_order_status): 42P13
+DROP FUNCTION IF EXISTS public.admin_update_order_status(text, uuid, text, date, date);
+
+CREATE OR REPLACE FUNCTION public.admin_update_order_status(
+  p_key text,
+  p_order_id uuid,
+  p_order_status text,
+  p_shipping_date date,
+  p_arrival_date date
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  n int;
+  st text := btrim(COALESCE(p_order_status, ''));
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.app_config WHERE key = 'admin_key' AND value = p_key
+  ) THEN
+    RAISE EXCEPTION 'admin_update_order_status: Unauthorized';
+  END IF;
+  IF p_order_id IS NULL THEN
+    RAISE EXCEPTION 'admin_update_order_status: order id required';
+  END IF;
+  IF st = '' THEN
+    RAISE EXCEPTION 'admin_update_order_status: status required';
+  END IF;
+  IF st NOT IN (
+    'accepted', 'in_progress', 'awaiting_transport', 'in_transit', 'delivered', 'cancelled'
+  ) THEN
+    RAISE EXCEPTION 'admin_update_order_status: invalid status';
+  END IF;
+
+  PERFORM set_config('row_security', 'off', true);
+
+  UPDATE public.orders SET
+    order_status = st,
+    shipping_date = p_shipping_date,
+    arrival_date = p_arrival_date
+  WHERE id = p_order_id;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  IF n = 0 THEN
+    RAISE EXCEPTION 'admin_update_order_status: order not found';
+  END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.admin_update_order_status(text, uuid, text, date, date) TO anon, authenticated;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- Admin: list orders — full table row (order_status, customer_message, …) + RLS bypass
+-- Replace any older admin_get_orders that omitted columns or hit RLS.
+-- ════════════════════════════════════════════════════════════════════════════
+
+DROP FUNCTION IF EXISTS public.admin_get_orders(text);
+
+CREATE OR REPLACE FUNCTION public.admin_get_orders(p_key text)
+RETURNS SETOF public.orders
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.app_config WHERE key = 'admin_key' AND value = p_key
+  ) THEN
+    RAISE EXCEPTION 'admin_get_orders: Unauthorized';
+  END IF;
+  PERFORM set_config('row_security', 'off', true);
+  RETURN QUERY
+    SELECT o.*
+    FROM public.orders o
+    ORDER BY o.created_at DESC NULLS LAST;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.admin_get_orders(text) TO anon, authenticated;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
 -- Admin: delete calculator log row (admin panel)
 -- ════════════════════════════════════════════════════════════════════════════
 
@@ -613,3 +716,439 @@ DROP POLICY IF EXISTS "mounting_systems_update_authenticated" ON public.mounting
 CREATE POLICY "mounting_systems_update_authenticated" ON public.mounting_systems FOR UPDATE USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS "mounting_systems_delete_authenticated" ON public.mounting_systems;
 CREATE POLICY "mounting_systems_delete_authenticated" ON public.mounting_systems FOR DELETE USING (true);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- MOLLIE: store payment id on order (api/create-payment.ts updates this)
+-- Without this column, the API returns 500 after creating a Mollie payment.
+-- ════════════════════════════════════════════════════════════════════════════
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS mollie_id text;
+CREATE INDEX IF NOT EXISTS idx_orders_mollie_id ON public.orders (mollie_id) WHERE mollie_id IS NOT NULL;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CLIENT CABINET: email + password (full copy: supabase/sql_client_password_auth.sql)
+-- ════════════════════════════════════════════════════════════════════════════
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS password_hash text;
+COMMENT ON COLUMN public.clients.password_hash IS 'bcrypt hash; NULL = legacy, first login sets password';
+
+CREATE OR REPLACE FUNCTION public.get_client_by_id(p_id uuid)
+RETURNS SETOF clients LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE r clients%ROWTYPE;
+BEGIN
+  SELECT * INTO r FROM public.clients WHERE id = p_id;
+  IF NOT FOUND THEN RETURN; END IF;
+  r.password_hash := NULL;
+  RETURN QUERY SELECT r.*;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.login_client_with_password(p_email text, p_password text)
+RETURNS SETOF clients LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE r clients%ROWTYPE;
+BEGIN
+  IF p_password IS NULL OR length(trim(p_password)) < 1 THEN RETURN; END IF;
+  SELECT * INTO r FROM public.clients WHERE lower(trim(email)) = lower(trim(p_email)) LIMIT 1;
+  IF NOT FOUND THEN RETURN; END IF;
+  IF r.password_hash IS NULL THEN
+    UPDATE public.clients SET password_hash = extensions.crypt(trim(p_password), extensions.gen_salt('bf')) WHERE id = r.id;
+    SELECT * INTO r FROM public.clients WHERE id = r.id;
+    r.password_hash := NULL;
+    RETURN QUERY SELECT r.*;
+    RETURN;
+  END IF;
+  IF r.password_hash = extensions.crypt(trim(p_password), r.password_hash) THEN
+    r.password_hash := NULL;
+    RETURN QUERY SELECT r.*;
+  END IF;
+  RETURN;
+END;
+$$;
+
+DROP FUNCTION IF EXISTS public.register_client(text, text, text, text, text, text, text, text, text, text, text, text);
+
+CREATE OR REPLACE FUNCTION public.register_client(
+  p_first_name text, p_last_name text, p_email text, p_phone text DEFAULT '', p_client_type text DEFAULT 'private',
+  p_company text DEFAULT '', p_vat text DEFAULT '', p_country text DEFAULT 'Danmark', p_city text DEFAULT '',
+  p_street text DEFAULT '', p_house text DEFAULT '', p_postal text DEFAULT '', p_password text DEFAULT NULL
+) RETURNS SETOF clients LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE new_row clients%ROWTYPE; ct text;
+BEGIN
+  IF p_password IS NULL OR length(trim(p_password)) < 8 THEN
+    RAISE EXCEPTION 'password_too_short' USING ERRCODE = 'P0001';
+  END IF;
+  ct := CASE WHEN lower(trim(coalesce(p_client_type, 'private'))) = 'business' THEN 'business' ELSE 'private' END;
+  INSERT INTO public.clients (
+    email, client_type, first_name, last_name, phone, company_name, vat_number, country, city, street, house_number, postal_code, password_hash
+  ) VALUES (
+    lower(trim(p_email)), ct, trim(p_first_name), trim(coalesce(p_last_name, '')),
+    NULLIF(trim(coalesce(p_phone, '')), ''), NULLIF(trim(coalesce(p_company, '')), ''), NULLIF(trim(coalesce(p_vat, '')), ''),
+    NULLIF(trim(coalesce(p_country, '')), ''), NULLIF(trim(coalesce(p_city, '')), ''), NULLIF(trim(coalesce(p_street, '')), ''),
+    NULLIF(trim(coalesce(p_house, '')), ''), NULLIF(trim(coalesce(p_postal, '')), ''),
+    extensions.crypt(trim(p_password), extensions.gen_salt('bf'))
+  ) RETURNING * INTO new_row;
+  new_row.password_hash := NULL;
+  RETURN QUERY SELECT new_row.*;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.login_client_by_email(p_email text)
+RETURNS SETOF clients LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ BEGIN RETURN; END; $$;
+
+GRANT EXECUTE ON FUNCTION public.get_client_by_id(uuid) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.login_client_with_password(text, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.register_client(text, text, text, text, text, text, text, text, text, text, text, text, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.login_client_by_email(text) TO anon, authenticated;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- Message templates + correspondence (duplicate of supabase/sql_message_correspondence.sql)
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS public.message_templates (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  code text NOT NULL UNIQUE,
+  title_internal text NOT NULL DEFAULT '',
+  subject_da text NOT NULL DEFAULT '',
+  subject_en text NOT NULL DEFAULT '',
+  subject_no text NOT NULL DEFAULT '',
+  subject_se text NOT NULL DEFAULT '',
+  body_da text NOT NULL DEFAULT '',
+  body_en text NOT NULL DEFAULT '',
+  body_no text NOT NULL DEFAULT '',
+  body_se text NOT NULL DEFAULT '',
+  is_active boolean NOT NULL DEFAULT true,
+  sort_order int NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_message_templates_active_sort ON public.message_templates (is_active, sort_order, code);
+
+CREATE TABLE IF NOT EXISTS public.customer_inquiries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id uuid REFERENCES public.orders(id) ON DELETE SET NULL,
+  client_id uuid REFERENCES public.clients(id) ON DELETE SET NULL,
+  channel text NOT NULL DEFAULT 'manual',
+  from_email text,
+  subject text,
+  body text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_customer_inquiries_order ON public.customer_inquiries(order_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_customer_inquiries_order_checkout
+  ON public.customer_inquiries (order_id)
+  WHERE channel = 'checkout_message' AND order_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS public.correspondence_messages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  inquiry_id uuid REFERENCES public.customer_inquiries(id) ON DELETE SET NULL,
+  order_id uuid REFERENCES public.orders(id) ON DELETE SET NULL,
+  template_id uuid REFERENCES public.message_templates(id) ON DELETE SET NULL,
+  locale text NOT NULL DEFAULT 'da',
+  to_email text NOT NULL,
+  subject_sent text NOT NULL,
+  body_sent text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_correspondence_order ON public.correspondence_messages(order_id);
+CREATE INDEX IF NOT EXISTS idx_correspondence_inquiry ON public.correspondence_messages(inquiry_id);
+
+ALTER TABLE public.message_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customer_inquiries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.correspondence_messages ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.admin_get_message_templates(p_key text)
+RETURNS SETOF public.message_templates
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.app_config WHERE key = 'admin_key' AND value = p_key) THEN
+    RAISE EXCEPTION 'admin_get_message_templates: Unauthorized';
+  END IF;
+  RETURN QUERY
+    SELECT * FROM public.message_templates
+    ORDER BY sort_order ASC, code ASC;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_upsert_message_template(
+  p_key text,
+  p_id uuid,
+  p_code text,
+  p_title_internal text,
+  p_subject_da text, p_subject_en text, p_subject_no text, p_subject_se text,
+  p_body_da text, p_body_en text, p_body_no text, p_body_se text,
+  p_is_active boolean,
+  p_sort_order int
+) RETURNS public.message_templates
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  r public.message_templates%ROWTYPE;
+  c text := lower(trim(regexp_replace(COALESCE(p_code, ''), '\s+', '_', 'g')));
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.app_config WHERE key = 'admin_key' AND value = p_key) THEN
+    RAISE EXCEPTION 'admin_upsert_message_template: Unauthorized';
+  END IF;
+  IF c = '' THEN
+    RAISE EXCEPTION 'admin_upsert_message_template: code required';
+  END IF;
+  IF p_id IS NULL THEN
+    INSERT INTO public.message_templates (
+      code, title_internal,
+      subject_da, subject_en, subject_no, subject_se,
+      body_da, body_en, body_no, body_se,
+      is_active, sort_order
+    ) VALUES (
+      c, COALESCE(p_title_internal, ''),
+      COALESCE(p_subject_da, ''), COALESCE(p_subject_en, ''), COALESCE(p_subject_no, ''), COALESCE(p_subject_se, ''),
+      COALESCE(p_body_da, ''), COALESCE(p_body_en, ''), COALESCE(p_body_no, ''), COALESCE(p_body_se, ''),
+      COALESCE(p_is_active, true), COALESCE(p_sort_order, 0)
+    ) RETURNING * INTO r;
+    RETURN r;
+  END IF;
+  UPDATE public.message_templates SET
+    code = c,
+    title_internal = COALESCE(p_title_internal, ''),
+    subject_da = COALESCE(p_subject_da, ''),
+    subject_en = COALESCE(p_subject_en, ''),
+    subject_no = COALESCE(p_subject_no, ''),
+    subject_se = COALESCE(p_subject_se, ''),
+    body_da = COALESCE(p_body_da, ''),
+    body_en = COALESCE(p_body_en, ''),
+    body_no = COALESCE(p_body_no, ''),
+    body_se = COALESCE(p_body_se, ''),
+    is_active = COALESCE(p_is_active, true),
+    sort_order = COALESCE(p_sort_order, 0),
+    updated_at = now()
+  WHERE id = p_id
+  RETURNING * INTO r;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'admin_upsert_message_template: template not found';
+  END IF;
+  RETURN r;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_delete_message_template(p_key text, p_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.app_config WHERE key = 'admin_key' AND value = p_key) THEN
+    RAISE EXCEPTION 'admin_delete_message_template: Unauthorized';
+  END IF;
+  DELETE FROM public.message_templates WHERE id = p_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_get_inquiries_for_order(p_key text, p_order_id uuid)
+RETURNS SETOF public.customer_inquiries
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.app_config WHERE key = 'admin_key' AND value = p_key) THEN
+    RAISE EXCEPTION 'admin_get_inquiries_for_order: Unauthorized';
+  END IF;
+  PERFORM set_config('row_security', 'off', true);
+  RETURN QUERY
+    SELECT * FROM public.customer_inquiries
+    WHERE order_id = p_order_id
+    ORDER BY created_at ASC;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_create_inquiry(
+  p_key text,
+  p_order_id uuid,
+  p_client_id uuid,
+  p_channel text,
+  p_from_email text,
+  p_subject text,
+  p_body text
+) RETURNS public.customer_inquiries
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE r public.customer_inquiries%ROWTYPE;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.app_config WHERE key = 'admin_key' AND value = p_key) THEN
+    RAISE EXCEPTION 'admin_create_inquiry: Unauthorized';
+  END IF;
+  PERFORM set_config('row_security', 'off', true);
+  INSERT INTO public.customer_inquiries (order_id, client_id, channel, from_email, subject, body)
+  VALUES (
+    p_order_id,
+    p_client_id,
+    COALESCE(NULLIF(trim(p_channel), ''), 'manual'),
+    NULLIF(trim(COALESCE(p_from_email, '')), ''),
+    NULLIF(trim(COALESCE(p_subject, '')), ''),
+    COALESCE(p_body, '')
+  )
+  RETURNING * INTO r;
+  RETURN r;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_import_checkout_inquiry(p_key text, p_order_id uuid)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_id uuid;
+  o record;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.app_config WHERE key = 'admin_key' AND value = p_key) THEN
+    RAISE EXCEPTION 'admin_import_checkout_inquiry: Unauthorized';
+  END IF;
+  PERFORM set_config('row_security', 'off', true);
+  SELECT id INTO v_id FROM public.customer_inquiries
+  WHERE order_id = p_order_id AND channel = 'checkout_message' LIMIT 1;
+  IF v_id IS NOT NULL THEN
+    RETURN v_id;
+  END IF;
+  SELECT id, client_id, customer_email, customer_message INTO o
+  FROM public.orders WHERE id = p_order_id;
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+  IF o.customer_message IS NULL OR trim(o.customer_message) = '' THEN
+    RETURN NULL;
+  END IF;
+  INSERT INTO public.customer_inquiries (order_id, client_id, channel, from_email, subject, body)
+  VALUES (
+    o.id,
+    o.client_id,
+    'checkout_message',
+    NULLIF(trim(o.customer_email), ''),
+    'Checkout message',
+    o.customer_message
+  )
+  RETURNING id INTO v_id;
+  RETURN v_id;
+EXCEPTION
+  WHEN unique_violation THEN
+    SELECT ci.id INTO v_id FROM public.customer_inquiries ci
+    WHERE ci.order_id = p_order_id AND ci.channel = 'checkout_message' LIMIT 1;
+    RETURN v_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_log_correspondence(
+  p_key text,
+  p_inquiry_id uuid,
+  p_order_id uuid,
+  p_template_id uuid,
+  p_locale text,
+  p_to_email text,
+  p_subject text,
+  p_body text
+) RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE v_id uuid;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.app_config WHERE key = 'admin_key' AND value = p_key) THEN
+    RAISE EXCEPTION 'admin_log_correspondence: Unauthorized';
+  END IF;
+  PERFORM set_config('row_security', 'off', true);
+  INSERT INTO public.correspondence_messages (
+    inquiry_id, order_id, template_id, locale, to_email, subject_sent, body_sent
+  ) VALUES (
+    p_inquiry_id,
+    p_order_id,
+    p_template_id,
+    COALESCE(NULLIF(trim(p_locale), ''), 'da'),
+    trim(p_to_email),
+    p_subject,
+    p_body
+  )
+  RETURNING id INTO v_id;
+  RETURN v_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_get_correspondence_for_order(p_key text, p_order_id uuid)
+RETURNS SETOF public.correspondence_messages
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.app_config WHERE key = 'admin_key' AND value = p_key) THEN
+    RAISE EXCEPTION 'admin_get_correspondence_for_order: Unauthorized';
+  END IF;
+  PERFORM set_config('row_security', 'off', true);
+  RETURN QUERY
+    SELECT * FROM public.correspondence_messages
+    WHERE order_id = p_order_id
+    ORDER BY created_at DESC;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.admin_get_message_templates(text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_upsert_message_template(text, uuid, text, text, text, text, text, text, text, text, text, text, boolean, int) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_delete_message_template(text, uuid) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_get_inquiries_for_order(text, uuid) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_create_inquiry(text, uuid, uuid, text, text, text, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_import_checkout_inquiry(text, uuid) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_log_correspondence(text, uuid, uuid, uuid, text, text, text, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_get_correspondence_for_order(text, uuid) TO anon, authenticated;
+
+INSERT INTO public.message_templates (code, title_internal, subject_da, subject_en, subject_no, subject_se, body_da, body_en, body_no, body_se, sort_order)
+VALUES
+(
+  'order_followup',
+  'Opfølgning på ordre',
+  'Angående din ordre #{{orderNo}} — Green Light Scandinavia',
+  'Regarding your order #{{orderNo}} — Green Light Scandinavia',
+  'Vedrørende din ordre #{{orderNo}} — Green Light Scandinavia',
+  'Angående din order #{{orderNo}} — Green Light Scandinavia',
+  E'Hej {{customerName}},\n\nTak for din henvendelse vedr. ordre #{{orderNo}}.\n\n{{extraNote}}\n\nMed venlig hilsen\nGreen Light Scandinavia\nsales@glsolargroup.dk · +45 61 48 52 19',
+  E'Hello {{customerName}},\n\nThank you for your message regarding order #{{orderNo}}.\n\n{{extraNote}}\n\nKind regards\nGreen Light Scandinavia\nsales@glsolargroup.dk · +45 61 48 52 19',
+  E'Hei {{customerName}},\n\nTakk for din henvendelse vedr. ordre #{{orderNo}}.\n\n{{extraNote}}\n\nMed vennlig hilsen\nGreen Light Scandinavia\nsales@glsolargroup.dk · +45 61 48 52 19',
+  E'Hej {{customerName}},\n\nTack för ditt meddelande angående order #{{orderNo}}.\n\n{{extraNote}}\n\nVänliga hälsningar\nGreen Light Scandinavia\nsales@glsolargroup.dk · +45 61 48 52 19',
+  10
+),
+(
+  'shipping_info_request',
+  'Anmodning om leveringsinfo',
+  'Vi har brug for flere oplysninger — ordre #{{orderNo}}',
+  'We need a few more details — order #{{orderNo}}',
+  'Vi trenger litt mer informasjon — ordre #{{orderNo}}',
+  'Vi behöver lite mer information — order #{{orderNo}}',
+  E'Hej {{customerName}},\n\nFor at vi kan sende ordre #{{orderNo}}, mangler vi følgende:\n\n{{extraNote}}\n\nVenligst svar på denne e-mail.\n\nGreen Light Scandinavia',
+  E'Hello {{customerName}},\n\nTo ship order #{{orderNo}}, we still need:\n\n{{extraNote}}\n\nPlease reply to this email.\n\nGreen Light Scandinavia',
+  E'Hei {{customerName}},\n\nFor å sende ordre #{{orderNo}}, trenger vi:\n\n{{extraNote}}\n\nVennligst svar på denne e-posten.\n\nGreen Light Scandinavia',
+  E'Hej {{customerName}},\n\nFör att skicka order #{{orderNo}} behöver vi:\n\n{{extraNote}}\n\nSvara gärna på detta e-postmeddelande.\n\nGreen Light Scandinavia',
+  20
+)
+ON CONFLICT (code) DO NOTHING;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- Patch: order_status value `delivered` (terminal — admin list hides by default)
+-- Run once in SQL Editor if the CHECK / RPC above were applied before this value existed.
+-- ════════════════════════════════════════════════════════════════════════════
+-- ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_order_status_check;
+-- ALTER TABLE public.orders ADD CONSTRAINT orders_order_status_check CHECK (
+--   order_status IS NULL
+--   OR order_status IN (
+--     'accepted', 'in_progress', 'awaiting_transport', 'in_transit', 'delivered', 'cancelled'
+--   )
+-- );
+-- Then re-run CREATE OR REPLACE for public.admin_update_order_status (see earlier in this file).

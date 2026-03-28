@@ -89,6 +89,18 @@ export const CartPage: React.FC<CartPageProps> = ({ onCheckout }) => {
               </div>
               <ArrowRight className="ml-auto text-slate-200 group-hover:translate-x-1 transition-transform" size={24} />
             </button>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('gls-open-checkout-sign-in'))}
+              className="group p-6 rounded-3xl border-2 border-emerald-200 bg-emerald-50/50 hover:border-emerald-500 transition-all flex items-center gap-6 text-left w-full"
+            >
+              <div className="w-14 h-14 bg-emerald-600 text-white rounded-2xl flex items-center justify-center shrink-0"><UserCheck size={28} /></div>
+              <div>
+                <div className="text-base font-black text-slate-900 uppercase tracking-tight">{t('cart_sign_in_to_order')}</div>
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{t('auth_checkout_subtitle')}</div>
+              </div>
+              <ArrowRight className="ml-auto text-emerald-400 group-hover:translate-x-1 transition-transform" size={24} />
+            </button>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button onClick={() => window.dispatchEvent(new CustomEvent('changeView', { detail: AppView.CABINET }))} className="group p-6 rounded-3xl border-2 border-slate-100 hover:border-blue-500 transition-all flex flex-col gap-3 text-left">
                 <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center"><UserCheck size={22} /></div>
@@ -430,9 +442,20 @@ export const CartPage: React.FC<CartPageProps> = ({ onCheckout }) => {
                 Download Word (.docx)
               </button>
 
+              {!currentUser && (
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('gls-open-checkout-sign-in'))}
+                  className="w-full bg-white text-slate-900 py-5 rounded-3xl font-black text-xs uppercase tracking-widest transition-all border-2 border-emerald-400 flex items-center justify-center gap-3 hover:bg-emerald-50 active:scale-95"
+                >
+                  <UserCheck size={20} className="text-emerald-600" />
+                  {t('cart_sign_in_to_order')}
+                </button>
+              )}
+
               <button onClick={handlePlaceOrder}
                 className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-6 rounded-3xl font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 active:scale-95">
-                {t('cart_checkout_btn')} <ArrowRight size={20} />
+                {currentUser ? t('cart_checkout_btn') : t('cart_guest_checkout')} <ArrowRight size={20} />
               </button>
             </div>
           </div>

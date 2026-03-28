@@ -14,5 +14,11 @@ Disallow: /cart
 Disallow: /checkout
 Disallow: /api/
 
+# Transactional / auth query routes (SPA)
+Disallow: /*?view=admin
+Disallow: /*?view=cabinet
+Disallow: /*?view=checkout
+Disallow: /*?view=success
+
 # Вказати шлях до карти сайту для ВАШОГО НОВОГО ДОМЕНУ
 Sitemap: https://www.glsolargroup.dk/sitemap.xml

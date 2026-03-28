@@ -20,10 +20,27 @@ export const ORDER_STATUSES = [
   { key: 'in_progress',        label: 'I arbejde',          color: 'bg-amber-50 border-amber-200 text-amber-700',    dot: 'bg-amber-500' },
   { key: 'awaiting_transport', label: 'Afventer transport', color: 'bg-purple-50 border-purple-200 text-purple-700', dot: 'bg-purple-500' },
   { key: 'in_transit',         label: 'I transit',          color: 'bg-emerald-50 border-emerald-200 text-emerald-700', dot: 'bg-emerald-500' },
+  { key: 'delivered',          label: 'Leveret',            color: 'bg-slate-100 border-slate-200 text-slate-700',     dot: 'bg-slate-500' },
   { key: 'cancelled',          label: 'Annulleret',         color: 'bg-rose-50 border-rose-200 text-rose-700',        dot: 'bg-rose-500' },
 ] as const;
 
-export type AdminTab = 'dashboard' | 'orders' | 'kits' | 'products' | 'mounting' | 'clients' | 'calculator';
+/** Fulfilment keys treated as “done” for the default admin orders list (rows stay in DB). */
+export const ADMIN_ORDER_LIST_COMPLETED_KEYS = ['delivered'] as const;
+
+export function isAdminOrderListCompletedStatus(raw?: string | null): boolean {
+  const s = String(raw ?? 'accepted').trim().toLowerCase();
+  return (ADMIN_ORDER_LIST_COMPLETED_KEYS as readonly string[]).includes(s);
+}
+
+export type AdminTab =
+  | 'dashboard'
+  | 'orders'
+  | 'kits'
+  | 'products'
+  | 'mounting'
+  | 'clients'
+  | 'calculator'
+  | 'messages';
 export type ModalTab = 'main' | 'media' | 'specs' | 'kit_builder';
 
 export interface OrderStatusEdit {

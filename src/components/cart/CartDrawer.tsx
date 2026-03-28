@@ -2,7 +2,8 @@
 import React from 'react';
 import { useCart } from '../../contexts/CartContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight } from 'lucide-react';
+import { useUser } from '../../contexts/UserContext';
+import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight, LogIn } from 'lucide-react';
 import { LocalizedText } from '../../types';
 import { DualPrice } from '../PriceDisplay';
 
@@ -18,14 +19,24 @@ const useLocalizedText = () => {
 interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Signed-in user → go to checkout */
   onCheckout: () => void;
+  onSignInToOrder: () => void;
+  onGuestCheckout: () => void;
 }
 
 const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?q=80&w=400&auto=format&fit=crop';
 
-export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onCheckout }) => {
+export const CartDrawer: React.FC<CartDrawerProps> = ({
+  isOpen,
+  onClose,
+  onCheckout,
+  onSignInToOrder,
+  onGuestCheckout,
+}) => {
   const { items, updateQuantity, removeItem, totalPrice, totalItems } = useCart();
-  const { t, formatPrice } = useLanguage();
+  const { t } = useLanguage();
+  const { currentUser } = useUser();
   const getLoc = useLocalizedText();
 
   const getSafeImage = (img: string | null | undefined) => {
@@ -129,17 +140,45 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onCheck
         </div>
 
         {items.length > 0 && (
-          <div className="p-8 bg-slate-50 border-t border-slate-100 space-y-6">
+          <div className="p-8 bg-slate-50 border-t border-slate-100 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('cart_total_value')}</span>
               <DualPrice priceExVat={totalPrice} align="right" className="text-xl" />
             </div>
-            <button 
-              onClick={() => { onClose(); onCheckout(); }}
-              className="w-full bg-slate-900 hover:bg-yellow-400 text-white hover:text-yellow-950 py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 group active:scale-95"
+            {currentUser ? (
+              <button
+                type="button"
+                onClick={() => { onClose(); onCheckout(); }}
+                className="w-full bg-slate-900 hover:bg-yellow-400 text-white hover:text-yellow-950 py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 group active:scale-95"
+              >
+                {t('cart_checkout_btn')}
+                <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => { onClose(); onSignInToOrder(); }}
+                  className="w-full bg-slate-900 hover:bg-emerald-500 text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 group active:scale-95"
+                >
+                  <LogIn size={18} />
+                  {t('cart_sign_in_to_order')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { onClose(); onGuestCheckout(); }}
+                  className="w-full py-4 rounded-[2rem] font-black text-[10px] uppercase tracking-widest border-2 border-slate-200 text-slate-600 hover:border-slate-900 hover:text-slate-900 transition-all"
+                >
+                  {t('cart_guest_checkout')}
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => { onClose(); window.dispatchEvent(new CustomEvent('gls-nav-cart-full')); }}
+              className="w-full text-center text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-700"
             >
-              {t('cart_checkout_btn')}
-              <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+              {t('cart_open_full')}
             </button>
           </div>
         )}

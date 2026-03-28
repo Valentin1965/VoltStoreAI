@@ -11,8 +11,10 @@ export const isSupabaseConfigured = true; // always true — fallback guarantees
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
-  }
+    persistSession: true,
+    autoRefreshToken: true,
+    /** Magic link (PKCE) — exchange tokens from redirect URL on /:country/checkout */
+    detectSessionInUrl: true,
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+  },
 });

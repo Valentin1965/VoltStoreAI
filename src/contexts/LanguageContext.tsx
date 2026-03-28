@@ -80,7 +80,9 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   useEffect(() => {
-    document.documentElement.lang = language;
+    const htmlLang: Record<Language, string> = { da: 'da', en: 'en', no: 'nb', se: 'sv' };
+    document.documentElement.lang =
+      htmlLang[language] ?? 'da';
   }, [language]);
 
   const setCurrency = useCallback((curr: CurrencyCode) => {
@@ -119,15 +121,21 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const t = useCallback((key: TranslationKey | string): string => {
-    const currentSet = translations[language] || translations['da'];
-    return (currentSet as any)[key] || (translations['da'] as any)[key] || key;
+    const currentSet = translations[language] || translations.da;
+    return (currentSet as Record<string, string>)[key] ?? (translations.da as Record<string, string>)[key] ?? key;
   }, [language]);
 
   const getLoc = useCallback((text: LocalizedText | null | undefined): string => {
     if (!text) return "";
     let s: string;
     if (typeof text === 'string') s = text;
-    else s = (text as any)[language] || (text as any)['da'] || (text as any)['en'] || Object.values(text as any)[0] || "";
+    else
+      s =
+        (text as any)[language] ||
+        (text as any).en ||
+        (text as any).da ||
+        Object.values(text as any)[0] ||
+        '';
     return s.trim().replace(/,+$/, "");
   }, [language]);
 

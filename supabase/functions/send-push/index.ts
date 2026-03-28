@@ -12,19 +12,13 @@
 import { serve }        from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import webpush          from 'npm:web-push@3.6.7';
+import { corsHeadersFor } from '../_shared/cors.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')              ?? '';
 const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const VAPID_PRIVATE = Deno.env.get('VAPID_PRIVATE_KEY')        ?? '';
 const VAPID_PUBLIC  = Deno.env.get('VAPID_PUBLIC_KEY')         ?? '';
 const VAPID_SUBJECT = 'mailto:sales@glsolargroup.dk';
-
-// ── CORS — allow all origins (function is protected by admin key / client_id) ─
-const corsHeaders = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
 
 // ── Configure web-push ────────────────────────────────────────────────────────
 if (VAPID_PUBLIC && VAPID_PRIVATE) {
@@ -55,13 +49,13 @@ async function sendOne(sub: Sub, payload: object): Promise<'ok' | 'expired' | 'e
 // ── Handler ───────────────────────────────────────────────────────────────────
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeadersFor(req) });
   }
 
   if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
     return new Response(
       JSON.stringify({ error: 'VAPID keys not configured. Set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY in Supabase secrets.' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' } }
     );
   }
 
@@ -108,6 +102,8 @@ serve(async (req: Request) => {
         in_progress:        '🔧 Din ordre behandles nu',
         awaiting_transport: '📦 Ordre klar til afhentning',
         in_transit:         '🚚 Din ordre er på vej!',
+        delivered:          '📬 Din ordre er leveret',
+        cancelled:          '❌ Ordre annulleret',
         accepted:           '✅ Ordre modtaget',
         paid:               '💳 Betaling bekræftet',
       };
@@ -155,14 +151,14 @@ serve(async (req: Request) => {
 
     return new Response(
       JSON.stringify({ ok: true, total: subs.length, sent, failed, expired: expiredIds.length }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' } }
     );
 
   } catch (err: any) {
     console.error('[send-push]', err);
     return new Response(
       JSON.stringify({ error: err.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeadersFor(req), 'Content-Type': 'application/json' } }
     );
   }
 });

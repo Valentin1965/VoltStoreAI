@@ -18,12 +18,21 @@ interface ClientHistoryModalProps {
   history: any[];
   isLoading: boolean;
   onClose: () => void;
+  /** Full client list — switch without closing modal */
+  allClients?: any[];
+  onSwitchClient?: (client: any) => void;
   /** After successful delete from registry — refresh list in parent */
   onClientDeleted?: (clientId: string) => void;
 }
 
 export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
-  client: c, history: clientHistory, isLoading: isLoadingClientHistory, onClose, onClientDeleted,
+  client: c,
+  history: clientHistory,
+  isLoading: isLoadingClientHistory,
+  onClose,
+  allClients = [],
+  onSwitchClient,
+  onClientDeleted,
 }) => {
   const { t, language } = useLanguage();
   const { addNotification } = useNotification();
@@ -37,6 +46,7 @@ export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
   const statusLabel = (o: any) => {
     const map: Record<string, { label: string; cls: string }> = {
       in_transit:         { label: t('status_in_transit'),          cls: 'text-emerald-600 bg-emerald-50' },
+      delivered:          { label: t('status_delivered'),           cls: 'text-slate-600 bg-slate-100' },
       awaiting_transport: { label: t('status_awaiting_transport'), cls: 'text-purple-600 bg-purple-50' },
       in_progress:        { label: t('status_in_progress'),          cls: 'text-amber-600 bg-amber-50' },
       accepted:           { label: t('status_accepted'),           cls: 'text-blue-600 bg-blue-50' },
@@ -155,8 +165,17 @@ export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[10003] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-md animate-fade-in text-left">
-      <div className="bg-white w-full max-w-3xl rounded-[2.5rem] shadow-3xl flex flex-col max-h-[90vh] overflow-hidden border border-slate-100">
+    <div
+      role="presentation"
+      className="fixed inset-0 z-[10003] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-md animate-fade-in text-left"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="bg-white w-full max-w-3xl rounded-[2.5rem] shadow-3xl flex flex-col max-h-[90vh] overflow-hidden border border-slate-100"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
           <div className="flex items-center gap-4">
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg ${c.client_type === 'business' ? 'bg-blue-500' : 'bg-emerald-500'}`}>
@@ -182,9 +201,29 @@ export const AdminClientHistoryModal: React.FC<ClientHistoryModalProps> = ({
               className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg">
               <Download size={14} /> Word
             </button>
-            <button onClick={onClose} className="p-2.5 hover:bg-slate-200 rounded-xl transition-all text-slate-400"><X size={20} /></button>
+            <button type="button" onClick={onClose} className="p-2.5 hover:bg-slate-200 rounded-xl transition-all text-slate-400"><X size={20} /></button>
           </div>
         </div>
+
+        {allClients.length > 0 && onSwitchClient && (
+          <div className="px-8 py-3 border-b border-slate-100 bg-white shrink-0">
+            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">{t('admin_client_switch')}</label>
+            <select
+              value={String(c.id)}
+              onChange={(e) => {
+                const next = allClients.find((cl: any) => String(cl.id) === e.target.value);
+                if (next) onSwitchClient(next);
+              }}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-[11px] font-bold text-slate-800 outline-none focus:border-emerald-400 cursor-pointer"
+            >
+              {allClients.map((cl: any) => (
+                <option key={cl.id} value={cl.id}>
+                  {[cl.first_name, cl.last_name].filter(Boolean).join(' ') || cl.email} — {cl.email}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="overflow-y-auto p-8 space-y-6">
           {/* Info chips */}
@@ -341,8 +380,17 @@ export const AdminInspectUserModal: React.FC<InspectUserModalProps> = ({ client,
   };
 
   return (
-    <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-md animate-fade-in text-left">
-      <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-3xl relative border-2 border-slate-950 flex flex-col animate-modal-in overflow-hidden">
+    <div
+      role="presentation"
+      className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-md animate-fade-in text-left"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="bg-white w-full max-w-2xl rounded-[3rem] shadow-3xl relative border-2 border-slate-950 flex flex-col animate-modal-in overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="px-10 py-8 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
           <div className="flex items-center gap-4">
             <div className="bg-slate-900 p-2.5 rounded-2xl text-emerald-500 shadow-lg"><UserCheck size={20} /></div>

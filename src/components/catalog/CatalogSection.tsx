@@ -14,6 +14,7 @@ import {
   Link2, CheckCheck, ListPlus, Trash2, CheckCircle2
 } from 'lucide-react';
 import { Product, Category, KitComponent, KitPart } from '../../types';
+import { CATALOG_SLUG_TO_CATEGORY } from '../../routing/siteCountry';
 import { Marker } from '../MarkerComponent.tsx';
 import { DualPrice } from '../PriceDisplay';
 import { DocExportButton } from '../DocExportButton';
@@ -236,7 +237,7 @@ const CategorySpecs: React.FC<{ product: Product }> = ({ product }) => {
   }
 };
 
-export const CatalogSection: React.FC = () => {
+export const CatalogSection: React.FC<{ catalogSlug?: string | null }> = ({ catalogSlug = null }) => {
   const { t, getLoc } = useLanguage();
   const productsContext = useProducts();
 
@@ -277,6 +278,16 @@ export const CatalogSection: React.FC = () => {
   // Kit modal: selected optional add-on components (is_base=false)
   const [kitSelectedAddons, setKitSelectedAddons] = useState<Record<string, number>>({});
   const [catalogSelection, setCatalogSelection] = useState<CatalogSelectionLine[]>([]);
+
+  useEffect(() => {
+    if (!setSelectedCategory) return;
+    if (!catalogSlug) {
+      setSelectedCategory('All');
+      return;
+    }
+    const cat = CATALOG_SLUG_TO_CATEGORY[catalogSlug];
+    if (cat) setSelectedCategory(cat);
+  }, [catalogSlug, setSelectedCategory]);
 
   const addLineToCatalogSelection = useCallback(
     (product: Product, unitPrice: number, parts?: KitPart[]) => {

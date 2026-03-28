@@ -1,11 +1,10 @@
 /**
- * Brand assets for calculator PDF (html2canvas): company symbol from public/icon.svg
- * as inline SVG (no CORS). Unique gradient id per page for valid HTML.
+ * Site header logo for calculator PDF (html2canvas): same bulb mark as Layout GreenLightLogo,
+ * inline SVG (no CORS). Unique gradient id per page for valid HTML.
  */
 export function getGlsPdfBrandMarkSvg(pageNum: number): string {
   const gid = `glsPdfBulbGrad${pageNum}`;
   return `<svg class="pdf-brand-symbol" width="52" height="52" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <rect width="100" height="100" rx="24" fill="#0f172a"/>
   <path d="M50 85C50 90.5228 45.5228 95 40 95H60C54.4772 95 50 90.5228 50 85Z" fill="#065F46"/>
   <path d="M50 10C30 10 15 25 15 45C15 65 35 75 40 85H60C65 75 85 65 85 45C85 25 70 10 50 10Z" fill="url(#${gid})"/>
   <path d="M50 70C50 70 48 50 40 40C32 30 20 28 20 28C20 28 30 35 35 48C40 61 42 75 42 75" fill="white" fill-opacity="0.9"/>

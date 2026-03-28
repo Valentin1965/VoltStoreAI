@@ -11,18 +11,50 @@ import { supabase } from './supabase';
 //
 // Remove VITE_RESEND_API_KEY from Vercel — it's no longer needed.
 
-async function callEdge(payload: Record<string, unknown>): Promise<void> {
+/** Result of invoking the send-email edge function (order / status / custom). */
+export type SendEmailEdgeResult = { ok: true } | { ok: false; error: string };
+
+async function callEdge(payload: Record<string, unknown>): Promise<SendEmailEdgeResult> {
   try {
-    const { error } = await supabase.functions.invoke('send-email', {
+    const { data, error } = await supabase.functions.invoke<{ ok?: boolean; error?: string }>('send-email', {
       body: payload,
     });
     if (error) {
-      console.error('[Email] Edge function error', error.message || error);
-    } else {
-      console.log('[Email] Sent via edge function, type:', payload.type);
+      const errObj = error as Error & { context?: { body?: string } };
+      let msg = errObj.message || String(error);
+      try {
+        const raw = errObj.context?.body;
+        if (raw && typeof raw === 'string') {
+          const parsed = JSON.parse(raw) as { error?: string };
+          if (parsed?.error) msg = parsed.error;
+        }
+      } catch {
+        /* keep msg */
+      }
+      // Non-2xx bodies are sometimes returned in `data` instead of context.body
+      if (data && typeof data === 'object' && data !== null) {
+        const d = data as { error?: string };
+        if (d.error && String(d.error).trim()) msg = String(d.error);
+      }
+      console.error('[Email] Edge function error', msg, data ?? '(no body)');
+      return { ok: false, error: msg };
     }
+    const body = data && typeof data === 'object' && data !== null ? (data as { ok?: unknown; error?: unknown }) : null;
+    const errMsg = body?.error != null && String(body.error).trim() !== '' ? String(body.error) : '';
+    if (errMsg) {
+      return { ok: false, error: errMsg };
+    }
+    // Do not require `ok === true`: some gateways/SDKs return 2xx with `{}` or `{ ok: null }`;
+    // treating `ok !== true` as failure broke real sends. Only fail on explicit `ok: false`.
+    if (body && body.ok === false) {
+      return { ok: false, error: 'send-email rejected the request' };
+    }
+    console.log('[Email] Sent via edge function, type:', payload.type);
+    return { ok: true };
   } catch (err) {
-    console.error('[Email] Network error calling edge function:', err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[Email] Network error calling edge function:', msg);
+    return { ok: false, error: msg };
   }
 }
 
@@ -63,14 +95,15 @@ export interface OrderEmailData {
 }
 
 export async function sendOrderEmails(data: OrderEmailData): Promise<void> {
-  await callEdge({ type: 'order', ...data });
+  const r = await callEdge({ type: 'order', ...data });
+  if (!r.ok) console.error('[Email] Order email failed:', r.error);
 }
 
 // ─────────────────────────────────────────────
 // STATUS CHANGE EMAIL
 // ─────────────────────────────────────────────
 
-export type OrderStatus = 'accepted' | 'in_progress' | 'awaiting_transport' | 'in_transit' | 'cancelled';
+export type OrderStatus = 'accepted' | 'in_progress' | 'awaiting_transport' | 'in_transit' | 'delivered' | 'cancelled';
 
 export interface StatusChangeEmailData {
   customerName: string;
@@ -83,8 +116,32 @@ export interface StatusChangeEmailData {
   lang?: string;
 }
 
-export async function sendStatusChangeEmail(data: StatusChangeEmailData): Promise<void> {
-  await callEdge({ type: 'status', ...data });
+export async function sendStatusChangeEmail(data: StatusChangeEmailData): Promise<SendEmailEdgeResult> {
+  const r = await callEdge({ type: 'status', ...data });
+  if (!r.ok) console.error('[Email] Status email failed:', r.error);
+  return r;
+}
+
+// ─────────────────────────────────────────────
+// Admin: custom template email (HTML body built on client)
+// ─────────────────────────────────────────────
+
+export interface CustomEmailPayload {
+  customerEmail: string;
+  subject: string;
+  /** Inner HTML (paragraphs); edge function wraps with branded shell */
+  htmlBody: string;
+  lang?: string;
+}
+
+export async function sendCustomCustomerEmail(data: CustomEmailPayload): Promise<SendEmailEdgeResult> {
+  return callEdge({
+    type: 'custom',
+    customerEmail: data.customerEmail.trim(),
+    subject: data.subject,
+    htmlBody: data.htmlBody,
+    lang: data.lang ?? 'da',
+  });
 }
 
 // ─────────────────────────────────────────────

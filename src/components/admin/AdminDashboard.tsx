@@ -90,6 +90,8 @@ export const AdminDashboard: React.FC<Props> = ({ orders, dbClients, isLoadingOr
     in_progress:        'bg-amber-500',
     awaiting_transport: 'bg-purple-500',
     in_transit:         'bg-emerald-500',
+    delivered:          'bg-slate-500',
+    cancelled:          'bg-rose-500',
     processing:         'bg-slate-400',
     paid:               'bg-green-500',
   };
@@ -99,6 +101,8 @@ export const AdminDashboard: React.FC<Props> = ({ orders, dbClients, isLoadingOr
     in_progress:        t('admin_status_in_progress'),
     awaiting_transport: t('admin_status_awaiting'),
     in_transit:         t('admin_status_in_transit'),
+    delivered:          t('admin_status_delivered'),
+    cancelled:          t('admin_status_cancelled'),
     processing:         t('status_processing'),
     paid:               t('status_confirmed'),
   };
@@ -312,10 +316,14 @@ export const AdminDashboard: React.FC<Props> = ({ orders, dbClients, isLoadingOr
 
           {!import.meta.env.VITE_VAPID_PUBLIC_KEY && push.status !== 'unsupported' && (
             <div className="bg-amber-900/40 border border-amber-700 rounded-2xl p-4 space-y-1">
-              <p className="text-[10px] font-black text-amber-400 uppercase tracking-wide">⚙ VAPID key missing</p>
+              <p className="text-[10px] font-black text-amber-400 uppercase tracking-wide">
+                {t('admin_push_vapid_title')}
+              </p>
               <p className="text-[9px] text-slate-400 font-bold leading-relaxed">
-                Run: <code className="bg-slate-800 px-1 rounded">npx web-push generate-vapid-keys</code><br />
-                Add <code className="bg-slate-800 px-1 rounded">VITE_VAPID_PUBLIC_KEY</code> in Vercel.
+                {t('admin_push_vapid_run')}{' '}
+                <code className="bg-slate-800 px-1 rounded">npx web-push generate-vapid-keys</code>
+                <br />
+                {t('admin_push_vapid_vercel')}
               </p>
             </div>
           )}
@@ -350,7 +358,13 @@ export const AdminDashboard: React.FC<Props> = ({ orders, dbClients, isLoadingOr
                       'border-slate-600 text-slate-400 hover:bg-slate-800'
                     }`}>
                     {isTesting ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-                    {isTesting ? 'Sender...' : testResult === 'ok' ? '✓ Sendt!' : testResult === 'error' ? '✗ Fejl' : 'Test push'}
+                    {isTesting
+                      ? t('admin_push_test_sending')
+                      : testResult === 'ok'
+                        ? t('admin_push_test_ok')
+                        : testResult === 'error'
+                          ? t('admin_push_test_error')
+                          : t('admin_push_test_button')}
                   </button>
                 </div>
               ) : (
@@ -364,7 +378,7 @@ export const AdminDashboard: React.FC<Props> = ({ orders, dbClients, isLoadingOr
           )}
 
           <div className="pt-2 border-t border-slate-800 text-[8px] text-slate-600 font-bold leading-relaxed">
-            Deploy: <code>supabase functions deploy send-push</code>
+            {t('admin_push_deploy_label')} <code>supabase functions deploy send-push</code>
           </div>
         </div>
       </div>

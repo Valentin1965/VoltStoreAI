@@ -4,6 +4,8 @@ import { supabase } from './supabase';
 export type CalculatorRequestPayload = {
   monthlyKwh: number;
   backupHours: number;
+  /** Calculator region key (e.g. denmark, sweden_south, sweden_north, norway_south, norway_north) */
+  country?: string;
   notes?: string;
   /** Derived fields at time of calculation */
   dailyKwh?: number;
