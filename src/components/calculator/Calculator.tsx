@@ -16,19 +16,16 @@ import {
   Settings,
   CheckCircle,
   HelpCircle,
-  TrendingUp,
   DollarSign,
-  Calendar,
   BarChart3,
   PieChart as PieChartIcon,
-  Activity,
   Loader2,
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line,
   PieChart as RechartsPieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, AreaChart, Area,
+  ResponsiveContainer,
 } from 'recharts';
 import { getGlsPdfBrandMarkSvg, GLS_PDF_TOPBAR_BRAND_CSS } from './calculatorPdfHeader';
 
@@ -78,11 +75,7 @@ type CalculatorResult = {
   recommendedSolarPanels: number; estimatedCost: number; notes: string;
 };
 
-type ElectricityPriceData = { hour: string; price: number; date: string; };
-type DailyPriceData = { date: string; avgPrice: number; minPrice: number; maxPrice: number; };
-
 // ─── Regional corrections (calculator limited to DK / SE / NO) ───────────────
-/** Nord Pool-style area for labels; `energiPriceArea` overrides API filter when EDS omits the zone (e.g. NO4). */
 type RegionCorrection = {
   name: string;
   solarFactor: number;
@@ -93,7 +86,6 @@ type RegionCorrection = {
   winterOutputPercent: number;
   label: string;
   priceZone: string | null;
-  energiPriceArea?: string;
 };
 
 const SCANDINAVIA_CORRECTIONS: {
@@ -121,12 +113,10 @@ const SCANDINAVIA_CORRECTIONS: {
     name: 'Norway (South)', solarFactor: 0.75, batteryBuffer: 1.25, tiltBase: 45, tiltOffset: 0,
     panelOutputKwhPerDay: 1.0, winterOutputPercent: 20, label: '🇳🇴 Norway (South)', priceZone: 'NO2',
   },
-  /** Nord Pool north = NO4. Energi Data Service Elspotprices publishes no NO4 — API queries use NO2. */
   norway_north: {
     name: 'Norway (North)', solarFactor: 0.55, batteryBuffer: 1.35, tiltBase: 55, tiltOffset: 15,
     panelOutputKwhPerDay: 0.7, winterOutputPercent: 10, label: '🇳🇴 Norway (North)',
     priceZone: 'NO4',
-    energiPriceArea: 'NO2',
   },
 };
 
@@ -137,101 +127,6 @@ const normalizeSavedCountryKey = (ck: string): CountryKey => {
   if (ck === 'sweden') return 'sweden_south';
   if (ck in SCANDINAVIA_CORRECTIONS) return ck as CountryKey;
   return 'denmark';
-};
-
-const getEnergiApiPriceArea = (country: CountryKey): string | null => {
-  const r = SCANDINAVIA_CORRECTIONS[country];
-  if (!r) return null;
-  return r.energiPriceArea ?? r.priceZone;
-};
-
-// ─── Energi Data Service API ─────────────────────────────────────────────────
-// Dev/Cdn: Vite middleware or Vercel /api/energi-dataset-elspotprices → api.energidataservice.dk/dataset/Elspotprices
-const ENERGI_BASE = '/api/energi-dataset-elspotprices';
-
-/** yyyy-MM-dd in Europe/Copenhagen — aligns Nord Pool / Energi day boundaries (avoids UTC midnight skew). */
-const fmtDate = (d: Date) =>
-  d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Copenhagen' });
-
-type EnergiFetchOk<T> = { data: T; httpOk: boolean };
-
-const fetchElectricityPrices = async (country: CountryKey): Promise<EnergiFetchOk<ElectricityPriceData[]>> => {
-  const zone = getEnergiApiPriceArea(country);
-  if (!zone) return { data: [], httpOk: true };
-  try {
-    const today    = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const params = new URLSearchParams({
-      start:  fmtDate(today),
-      end:    fmtDate(tomorrow),         // end is exclusive — must be tomorrow
-      filter: JSON.stringify({ PriceArea: zone }),
-      sort:   'HourUTC asc',
-      limit:  '24',
-    });
-    const url = `${ENERGI_BASE}?${params}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      const text = await response.text();
-      console.warn('[EnergiAPI] today error:', response.status, text.slice(0, 300));
-      return { data: [], httpOk: false };
-    }
-    const data = await response.json();
-    console.log('[EnergiAPI] today records:', data.records?.length ?? 0, '| total:', data.total);
-    const rows = (data.records || []).map((r: any) => ({
-      hour:  new Date(r.HourDK || r.HourUTC).getHours().toString().padStart(2, '0') + ':00',
-      price: parseFloat(((r.SpotPriceDKK || r.SpotPriceEUR || 0) / 1000).toFixed(4)),
-      date:  fmtDate(new Date(r.HourDK || r.HourUTC)),
-    }));
-    return { data: rows, httpOk: true };
-  } catch (err) {
-    console.warn('[EnergiAPI] fetchElectricityPrices failed:', err);
-    return { data: [], httpOk: false };
-  }
-};
-
-const fetchHistoricalPrices = async (country: CountryKey, days = 7): Promise<EnergiFetchOk<DailyPriceData[]>> => {
-  const zone = getEnergiApiPriceArea(country);
-  if (!zone) return { data: [], httpOk: true };
-  try {
-    const end   = new Date();
-    end.setDate(end.getDate() + 1);      // end is exclusive — include today
-    const start = new Date();
-    start.setDate(start.getDate() - days);
-    const params = new URLSearchParams({
-      start:  fmtDate(start),
-      end:    fmtDate(end),
-      filter: JSON.stringify({ PriceArea: zone }),
-      sort:   'HourUTC asc',
-      limit:  String(days * 25),
-    });
-    const url = `${ENERGI_BASE}?${params}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      const text = await response.text();
-      console.warn('[EnergiAPI] historical error:', response.status, text.slice(0, 300));
-      return { data: [], httpOk: false };
-    }
-    const data = await response.json();
-    console.log('[EnergiAPI] historical records:', data.records?.length ?? 0);
-    const byDate: Record<string, number[]> = {};
-    (data.records || []).forEach((r: any) => {
-      const date  = fmtDate(new Date(r.HourDK || r.HourUTC));
-      const price = (r.SpotPriceDKK || r.SpotPriceEUR || 0) / 1000;
-      if (!byDate[date]) byDate[date] = [];
-      byDate[date].push(price);
-    });
-    const rows = Object.entries(byDate).map(([date, prices]) => ({
-      date,
-      avgPrice: parseFloat((prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(4)),
-      minPrice: parseFloat(Math.min(...prices).toFixed(4)),
-      maxPrice: parseFloat(Math.max(...prices).toFixed(4)),
-    }));
-    return { data: rows, httpOk: true };
-  } catch (err) {
-    console.warn('[EnergiAPI] fetchHistoricalPrices failed:', err);
-    return { data: [], httpOk: false };
-  }
 };
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
@@ -306,60 +201,6 @@ const ECONOMIC_DATA: Record<string, {
 
 /** User-entered tariffs for economics (same units as ECONOMIC_DATA for the region — e.g. DKK/kWh, SEK/kWh). */
 type TariffOverride = { pricePerKwh?: number; feedInTariff?: number };
-
-/** When set, Section 3 charts use flat synthetic curves from these values instead of Energi API rows. */
-function tariffOverrideDrivesSection3(t: TariffOverride | undefined): t is TariffOverride {
-  if (!t) return false;
-  const g = t.pricePerKwh;
-  const f = t.feedInTariff;
-  if (g != null && Number.isFinite(g) && g > 0) return true;
-  if (f != null && Number.isFinite(f) && f >= 0) return true;
-  return false;
-}
-
-function buildSyntheticSection3TodayHourly(tariff: TariffOverride): ElectricityPriceData[] {
-  const grid = tariff.pricePerKwh;
-  const feed = tariff.feedInTariff;
-  const rowPrice = grid != null && grid > 0 ? grid : feed;
-  if (rowPrice == null || !Number.isFinite(rowPrice) || !(rowPrice >= 0)) return [];
-  const todayStr = fmtDate(new Date());
-  const out: ElectricityPriceData[] = [];
-  for (let h = 0; h < 24; h++) {
-    out.push({
-      hour: `${String(h).padStart(2, '0')}:00`,
-      price: rowPrice,
-      date: todayStr,
-    });
-  }
-  return out;
-}
-
-function buildSyntheticSection3History(tariff: TariffOverride, days = 7): DailyPriceData[] {
-  const grid = tariff.pricePerKwh;
-  const feed = tariff.feedInTariff;
-  const hasGrid = grid != null && Number.isFinite(grid) && grid > 0;
-  const hasFeed = feed != null && Number.isFinite(feed) && feed >= 0;
-  if (!hasGrid && !hasFeed) return [];
-  const rows: DailyPriceData[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dateStr = fmtDate(d);
-    if (hasGrid && hasFeed) {
-      rows.push({
-        date: dateStr,
-        minPrice: Math.min(grid!, feed!),
-        maxPrice: Math.max(grid!, feed!),
-        avgPrice: (grid! + feed!) / 2,
-      });
-    } else if (hasGrid) {
-      rows.push({ date: dateStr, avgPrice: grid!, minPrice: grid!, maxPrice: grid! });
-    } else {
-      rows.push({ date: dateStr, avgPrice: feed!, minPrice: feed!, maxPrice: feed! });
-    }
-  }
-  return rows;
-}
 
 // ─── Economic calculator ──────────────────────────────────────────────────────
 function calcEconomics(
@@ -487,7 +328,7 @@ const downloadFullReportPdf = async (
   res: CalculatorResult, backupHours: number, country: CountryKey,
   advanced: { peakFactor: number; maxPower: number; invEff: number; cableLoss: number },
   matchingInverters: any[], matchingBatteries: any[], matchingSolarPanels: any[],
-  includeSolar: boolean, electricityPrices?: ElectricityPriceData[], tariffOverride?: TariffOverride | null,
+  includeSolar: boolean, tariffOverride?: TariffOverride | null,
 ) => {
   const corr = SCANDINAVIA_CORRECTIONS[country] || SCANDINAVIA_CORRECTIONS.denmark;
   const dateStr = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'long', year:'numeric' });
@@ -505,10 +346,6 @@ const downloadFullReportPdf = async (
   const panN = matchingSolarPanels.length > 0 ? (matchingSolarPanels[0] as any).panelsNeeded : 0;
   const compatChecks = (inv0 && bat0) ? runCompatibilityChecks(inv0, bat0, pan0||{}, panN, res) : [];
   const econ = (inv0 && bat0) ? calcEconomics(country, res.monthlyKwh, inv0, bat0, pan0||{}, panN, tariffOverride) : null;
-
-  const avgPx = electricityPrices?.length ? (electricityPrices.reduce((s,p)=>s+p.price,0)/electricityPrices.length).toFixed(4) : 'N/A';
-  const minPx = electricityPrices?.length ? Math.min(...electricityPrices.map(p=>p.price)).toFixed(4) : 'N/A';
-  const maxPx = electricityPrices?.length ? Math.max(...electricityPrices.map(p=>p.price)).toFixed(4) : 'N/A';
 
   const css = `<style>${GLS_PDF_TOPBAR_BRAND_CSS}
 *{box-sizing:border-box;margin:0;padding:0;}.page{width:794px;min-height:1123px;padding:32px 44px 60px;font-family:Arial,sans-serif;color:#0f172a;background:#fff;position:relative;page-break-after:always;}.topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px 14px;border-radius:10px;background:#059669;color:#fff;margin-bottom:16px;}.brand{font-weight:900;font-size:20px;color:#fff;}.subtitle{margin-top:2px;font-weight:800;font-size:10px;text-transform:uppercase;color:rgba(255,255,255,.9);}.company{text-align:right;font-size:8px;font-weight:700;color:rgba(255,255,255,.95);line-height:1.5;}.sh{font-size:11px;font-weight:900;text-transform:uppercase;color:#059669;border-bottom:2px solid #059669;padding-bottom:4px;margin:14px 0 8px;}.kvg{display:grid;grid-template-columns:1fr 1fr;gap:3px 20px;}.kvr{display:flex;justify-content:space-between;font-size:9px;padding:2px 0;border-bottom:1px solid #f1f5f9;}.kvk{color:#475569;font-weight:700;}.kvv{color:#0f172a;font-weight:900;font-family:monospace;}.cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:8px 0;}.card{border:1px solid #e2e8f0;border-radius:8px;padding:8px;}.card-lbl{font-size:7px;font-weight:900;text-transform:uppercase;color:#64748b;}.card-val{font-size:18px;font-weight:900;color:#059669;font-family:monospace;margin:2px 0;}.card-sub{font-size:8px;color:#64748b;line-height:1.3;}.rec{border:1px solid #fde68a;background:#fffbeb;border-radius:8px;padding:8px 10px;margin:6px 0;}.rec h3{font-size:8px;font-weight:900;text-transform:uppercase;color:#92400e;margin-bottom:4px;}.ri{font-size:8px;color:#7c2d12;font-weight:700;line-height:1.5;margin:2px 0;}.pg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0;}.pc{border:1px solid #e2e8f0;border-radius:6px;padding:7px 9px;}.pn{font-size:9px;font-weight:900;color:#0f172a;line-height:1.2;}.ps{font-size:8px;color:#64748b;font-family:monospace;margin-top:1px;}.pp{font-size:9px;font-weight:900;color:#16a34a;font-family:monospace;margin-top:2px;}.pb{display:inline-block;font-size:7px;font-weight:900;text-transform:uppercase;padding:1px 5px;border-radius:3px;margin-top:2px;}.bi{background:#fef3c7;color:#92400e;}.bb{background:#dbeafe;color:#1e40af;}.bs{background:#dcfce7;color:#166534;}.tbl{width:100%;border-collapse:collapse;font-size:8px;margin:4px 0;}.tbl thead th{background:#f8fafc;text-align:left;padding:4px 7px;font-weight:900;border:1px solid #e2e8f0;color:#374151;}.tbl tbody td{padding:3px 7px;border:1px solid #e2e8f0;color:#0f172a;font-weight:600;}.tbl tbody tr:nth-child(even) td{background:#f8fafc;}.cr{display:flex;align-items:flex-start;gap:8px;padding:4px 7px;border-radius:6px;margin:3px 0;font-size:8px;}.cok{background:#f0fdf4;border:1px solid #bbf7d0;}.cwn{background:#fffbeb;border:1px solid #fde68a;}.cfl{background:#fef2f2;border:1px solid #fecaca;}.cin{background:#eff6ff;border:1px solid #bfdbfe;}.cd{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:1px;}.dok{background:#22c55e;}.dwn{background:#f59e0b;}.dfl{background:#ef4444;}.din{background:#60a5fa;}.eco{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:8px 0;}.ec{border:1px solid #e2e8f0;border-radius:8px;padding:8px;text-align:center;}.ev{font-size:16px;font-weight:900;font-family:monospace;color:#059669;}.el{font-size:7px;font-weight:900;text-transform:uppercase;color:#64748b;margin-top:1px;}.es{font-size:7px;color:#94a3b8;margin-top:1px;}.ft{position:absolute;bottom:12px;left:44px;right:44px;display:flex;justify-content:space-between;color:#94a3b8;font-size:7px;font-weight:800;border-top:1px solid #e2e8f0;padding-top:4px;}.fpb{background:#059669;color:#fff;font-size:7px;font-weight:900;padding:1px 6px;border-radius:10px;}.tg{font-size:7px;font-weight:900;padding:1px 5px;border-radius:3px;}.tgn{background:#dcfce7;color:#166534;}.tga{background:#fef3c7;color:#92400e;}.tgr{background:#fee2e2;color:#991b1b;}</style>`;
@@ -555,7 +392,6 @@ const downloadFullReportPdf = async (
   <div><div class="kvr"><span class="kvk">Monthly consumption</span><span class="kvv">${res.monthlyKwh} kWh/month</span></div><div class="kvr"><span class="kvk">Daily consumption</span><span class="kvv">${res.dailyKwh.toFixed(2)} kWh/day</span></div><div class="kvr"><span class="kvk">Average hourly load</span><span class="kvv">${res.hourlyKwh.toFixed(3)} kW</span></div><div class="kvr"><span class="kvk">Backup duration</span><span class="kvv">${backupHours} hours</span></div></div>
   <div><div class="kvr"><span class="kvk">Region</span><span class="kvv">${corr.label}</span></div><div class="kvr"><span class="kvk">Solar factor</span><span class="kvv">×${corr.solarFactor}</span></div><div class="kvr"><span class="kvk">Battery cold buffer</span><span class="kvv">×${corr.batteryBuffer}</span></div><div class="kvr"><span class="kvk">System efficiency</span><span class="kvv">${(sysEff*100).toFixed(0)}%</span></div></div>
 </div>
-${corr.priceZone && electricityPrices?.length ? `<div class="sh">Real-Time Electricity Prices (${corr.label})</div><div class="kvg"><div class="kvr"><span class="kvk">Avg price today</span><span class="kvv">${avgPx} /kWh</span></div><div class="kvr"><span class="kvk">Min / Max</span><span class="kvv">${minPx} / ${maxPx}</span></div></div>` : ''}
 <div class="sh">Recommended Components</div>
 <div class="cards">
   <div class="card"><div class="card-lbl">Inverter Power</div><div class="card-val">${res.recommendedInverterPower} kW</div><div class="card-sub">Peak: ${peakLoad.toFixed(3)} kW · +10%<br/>Range: ${invMin}–${(parseFloat(invMin)+0.5).toFixed(1)} kW</div></div>
@@ -1113,12 +949,6 @@ export const Calculator: React.FC = () => {
   const [maxPowerKw, setMaxPowerKw] = useState('');
   const [inverterEfficiencyPercent, setInverterEfficiencyPercent] = useState('92');
   const [cableLossPercent, setCableLossPercent] = useState('2');
-  const [electricityPrices, setElectricityPrices] = useState<ElectricityPriceData[]>([]);
-  const [historicalPrices, setHistoricalPrices] = useState<DailyPriceData[]>([]);
-  const [pricesLoading, setPricesLoading] = useState(false);
-  /** User-facing state for Section 3 empty chart (distinct from “region unsupported”). */
-  const [energiPricesUi, setEnergiPricesUi] = useState<'loading' | 'ok' | 'error' | 'empty' | 'empty_today'>('loading');
-  const [pricesReloadKey, setPricesReloadKey] = useState(0);
   /** Optional — same currency as regional model (bill / kWh) for economics & PDF. */
   const [userGridPricePerKwh, setUserGridPricePerKwh] = useState('');
   const [userFeedInTariffPerKwh, setUserFeedInTariffPerKwh] = useState('');
@@ -1131,37 +961,6 @@ export const Calculator: React.FC = () => {
   useEffect(() => {
     setSavedResults(getCalculatorResults());
   }, []);
-
-  useEffect(() => {
-    if (!getEnergiApiPriceArea(country)) return;
-    setPricesLoading(true);
-    setEnergiPricesUi('loading');
-    Promise.all([fetchElectricityPrices(country), fetchHistoricalPrices(country, 7)])
-      .then(([todayRes, histRes]) => {
-        setElectricityPrices(todayRes.data);
-        setHistoricalPrices(histRes.data);
-        const httpFail = !todayRes.httpOk || !histRes.httpOk;
-        if (httpFail) {
-          setEnergiPricesUi('error');
-          return;
-        }
-        if (todayRes.data.length === 0 && histRes.data.length === 0) {
-          setEnergiPricesUi('empty');
-          return;
-        }
-        if (todayRes.data.length === 0 && histRes.data.length > 0) {
-          setEnergiPricesUi('empty_today');
-          return;
-        }
-        setEnergiPricesUi('ok');
-      })
-      .catch(() => {
-        setElectricityPrices([]);
-        setHistoricalPrices([]);
-        setEnergiPricesUi('error');
-      })
-      .finally(() => setPricesLoading(false));
-  }, [country, pricesReloadKey]);
 
   const correction = SCANDINAVIA_CORRECTIONS[country] || SCANDINAVIA_CORRECTIONS.denmark;
   const regionalEco = useMemo(() => {
@@ -1179,24 +978,6 @@ export const Calculator: React.FC = () => {
     if (!('pricePerKwh' in out) && !('feedInTariff' in out)) return undefined;
     return out;
   }, [userGridPricePerKwh, userFeedInTariffPerKwh]);
-
-  const section3ClientTariffs = tariffOverrideDrivesSection3(tariffOverrideForEcon);
-
-  const displayElectricityPrices = useMemo(() => {
-    if (section3ClientTariffs && tariffOverrideForEcon) {
-      const syn = buildSyntheticSection3TodayHourly(tariffOverrideForEcon);
-      if (syn.length) return syn;
-    }
-    return electricityPrices;
-  }, [section3ClientTariffs, tariffOverrideForEcon, electricityPrices]);
-
-  const displayHistoricalPrices = useMemo(() => {
-    if (section3ClientTariffs && tariffOverrideForEcon) {
-      const syn = buildSyntheticSection3History(tariffOverrideForEcon);
-      if (syn.length) return syn;
-    }
-    return historicalPrices;
-  }, [section3ClientTariffs, tariffOverrideForEcon, historicalPrices]);
 
   const advancedParams = {
     peakFactor: parseFloat(peakLoadFactor)||3,
@@ -1309,32 +1090,6 @@ export const Calculator: React.FC = () => {
     ].filter(d=>d.value>0);
   }, [currentEcon, matchingSolarPanels]);
 
-  const priceChartData = useMemo(() => {
-    const g = tariffOverrideForEcon?.pricePerKwh;
-    const f = tariffOverrideForEcon?.feedInTariff;
-    const showFeedLine =
-      g != null && g > 0 && f != null && f >= 0 && Number.isFinite(g) && Number.isFinite(f);
-    return displayElectricityPrices.slice(0, 24).map((p) => ({
-      hour: p.hour,
-      price: p.price,
-      ...(showFeedLine ? { feedIn: f } : {}),
-    }));
-  }, [displayElectricityPrices, tariffOverrideForEcon]);
-
-  const historicalChartData = useMemo(() => {
-    return displayHistoricalPrices.map((p) => {
-      const short = p.date.length >= 10 ? `${p.date.slice(8, 10)}/${p.date.slice(5, 7)}` : p.date;
-      return { date: short, avg: p.avgPrice, min: p.minPrice, max: p.maxPrice };
-    });
-  }, [displayHistoricalPrices]);
-
-  const hourlyChartPrimaryLabel = useMemo(() => {
-    if (!section3ClientTariffs) return t('calc_energi_chart_spot_legend');
-    const g = tariffOverrideForEcon?.pricePerKwh;
-    if (g != null && g > 0) return t('calc_user_grid_price_label');
-    return t('calc_user_feedin_label');
-  }, [section3ClientTariffs, tariffOverrideForEcon, t]);
-
   const handleSave = () => { if (!result) return; saveCalculatorResult({...result,notes}); setSavedResults(getCalculatorResults()); };
   const handleReset = () => {
     setMonthlyKwh(''); setBackupHours('8'); setNotes(''); setResult(null); setPeakLoadFactor('3'); setMaxPowerKw('');
@@ -1349,7 +1104,7 @@ export const Calculator: React.FC = () => {
           <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
             <CalculatorIcon className="h-8 w-8 text-[#059669]" /> Energy Calculator
           </h1>
-          <p className="text-slate-500 mt-2 font-mono text-sm">Calculate required components with real-time electricity prices and economic analysis</p>
+          <p className="text-slate-500 mt-2 font-mono text-sm">Calculate required components and economic analysis for your region</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1640,7 +1395,7 @@ export const Calculator: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <button className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all text-[10px] font-black uppercase tracking-widest" onClick={handleSave}>Save</button>
                     <button className="px-4 py-2 rounded-xl border border-[#059669] text-[#059669] hover:bg-orange-50 transition-all text-[10px] font-black uppercase tracking-widest flex items-center gap-2"
-                      onClick={()=>downloadFullReportPdf(result, parseFloat(backupHours)||8, country, advancedParams, matchingInverters, matchingBatteries, matchingSolarPanels as any[], includeSolar, displayElectricityPrices, tariffOverrideForEcon)}>
+                      onClick={()=>downloadFullReportPdf(result, parseFloat(backupHours)||8, country, advancedParams, matchingInverters, matchingBatteries, matchingSolarPanels as any[], includeSolar, tariffOverrideForEcon)}>
                       <Printer className="h-4 w-4" /> Download PDF
                     </button>
                   </div>
@@ -1828,150 +1583,12 @@ export const Calculator: React.FC = () => {
               </div>
             )}
 
-            {/* Section 3 — Real-Time Electricity Prices */}
-            {getEnergiApiPriceArea(country) && (
-              <div className="bg-white border border-slate-100 rounded-[2rem] shadow-xl">
-                <div className="p-6 border-b border-slate-100">
-                  <div className="text-sm font-black uppercase tracking-wide flex items-center gap-2 text-slate-900">
-                    <Activity className="h-4 w-4 text-blue-500" /> Section 3 — Real-Time Electricity Prices
-                    {pricesLoading && !section3ClientTariffs && <Loader2 className="h-4 w-4 animate-spin text-[#059669]" />}
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {section3ClientTariffs
-                      ? `${t('calc_section3_user_tariffs_subtitle')} · ${correction.label}`
-                      : `Live data from Energi Data Service · ${correction.label}`}
-                  </p>
-                  {section3ClientTariffs && (
-                    <p className="text-[10px] text-emerald-900 bg-emerald-50 border border-emerald-100 rounded-lg px-2 py-1.5 mt-2 leading-relaxed">
-                      {t('calc_section3_user_tariffs_banner')}
-                    </p>
-                  )}
-                  {!section3ClientTariffs && country === 'norway_north' && (
-                    <p className="text-[10px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5 mt-2 leading-relaxed">
-                      {t('calc_energi_spot_no4_note')}
-                    </p>
-                  )}
-                </div>
-                <div className="p-6 space-y-6">
-                  {/* Today hourly */}
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2"><Calendar className="h-3 w-3" /> Today's Hourly Prices</div>
-                    {priceChartData.length > 0 ? (
-                      <SafeChart height={192}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={priceChartData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                            <XAxis dataKey="hour" tick={{ fontSize:10 }} stroke="#64748b" />
-                            <YAxis tick={{ fontSize:10 }} stroke="#64748b" />
-                            <Tooltip contentStyle={{ fontSize:11, borderRadius:8 }} />
-                            {priceChartData[0] != null && 'feedIn' in priceChartData[0] && (
-                              <Legend wrapperStyle={{ fontSize:10 }} />
-                            )}
-                            <Area
-                              type="monotone"
-                              dataKey="price"
-                              stroke="#059669"
-                              fill="#059669"
-                              fillOpacity={0.2}
-                              strokeWidth={2}
-                              name={hourlyChartPrimaryLabel}
-                            />
-                            {priceChartData[0] != null && 'feedIn' in priceChartData[0] && (
-                              <Area
-                                type="monotone"
-                                dataKey="feedIn"
-                                stroke="#2563eb"
-                                fill="#3b82f6"
-                                fillOpacity={0.12}
-                                strokeWidth={2}
-                                name={t('calc_user_feedin_label')}
-                              />
-                            )}
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </SafeChart>
-                    ) : (
-                      <div className="py-6 px-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-                        {pricesLoading || energiPricesUi === 'loading' ? (
-                          <div className="text-center text-slate-400 text-sm font-mono">Loading prices...</div>
-                        ) : energiPricesUi === 'error' ? (
-                          <>
-                            <div className="text-sm font-black text-slate-800">{t('calc_energi_prices_error_title')}</div>
-                            <p className="text-xs text-slate-600 leading-relaxed">{t('calc_energi_prices_error_lead')}</p>
-                            <p className="text-xs text-slate-600 leading-relaxed">{t('calc_energi_prices_error_steps')}</p>
-                            <p className="text-xs text-slate-500">
-                              <a href={`mailto:${COMPANY_EMAIL}`} className="font-bold text-[#059669] hover:underline">{COMPANY_EMAIL}</a>
-                            </p>
-                            <button
-                              type="button"
-                              disabled={pricesLoading}
-                              onClick={() => setPricesReloadKey((k) => k + 1)}
-                              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-                              <RefreshCw className={`h-3.5 w-3.5 ${pricesLoading ? 'animate-spin' : ''}`} />
-                              {t('calc_energi_prices_retry')}
-                            </button>
-                          </>
-                        ) : energiPricesUi === 'empty_today' ? (
-                          <>
-                            <div className="text-sm font-black text-slate-800">{t('calc_energi_prices_empty_today_title')}</div>
-                            <p className="text-xs text-slate-600 leading-relaxed">{t('calc_energi_prices_empty_today_lead')}</p>
-                            <button
-                              type="button"
-                              disabled={pricesLoading}
-                              onClick={() => setPricesReloadKey((k) => k + 1)}
-                              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-                              <RefreshCw className={`h-3.5 w-3.5 ${pricesLoading ? 'animate-spin' : ''}`} />
-                              {t('calc_energi_prices_retry')}
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <div className="text-sm font-black text-slate-800">{t('calc_energi_prices_empty_title')}</div>
-                            <p className="text-xs text-slate-600 leading-relaxed">{t('calc_energi_prices_empty_lead')}</p>
-                            <p className="text-xs text-slate-500 leading-relaxed border-t border-slate-200 pt-2 mt-1">{t('calc_energi_prices_zones_note')}</p>
-                            <button
-                              type="button"
-                              disabled={pricesLoading}
-                              onClick={() => setPricesReloadKey((k) => k + 1)}
-                              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-                              <RefreshCw className={`h-3.5 w-3.5 ${pricesLoading ? 'animate-spin' : ''}`} />
-                              {t('calc_energi_prices_retry')}
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {/* 7-day history */}
-                  {historicalChartData.length > 0 && (
-                    <div>
-                      <div className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2"><TrendingUp className="h-3 w-3" /> 7-Day Price History</div>
-                      <SafeChart height={160}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={historicalChartData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                            <XAxis dataKey="date" tick={{ fontSize:10 }} stroke="#64748b" />
-                            <YAxis tick={{ fontSize:10 }} stroke="#64748b" />
-                            <Tooltip contentStyle={{ fontSize:11, borderRadius:8 }} />
-                            <Legend wrapperStyle={{ fontSize:10 }} />
-                            <Bar dataKey="avg" fill="#059669" name="Avg" />
-                            <Bar dataKey="min" fill="#10b981" name="Min" />
-                            <Bar dataKey="max" fill="#ef4444" name="Max" />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </SafeChart>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Section 4 — Economic Analysis */}
+            {/* Section 3 — Economic Analysis */}
             {result && currentEcon && (
               <div className="bg-white border border-slate-100 rounded-[2rem] shadow-xl">
                 <div className="p-6 border-b border-slate-100">
                   <div className="text-sm font-black uppercase tracking-wide flex items-center gap-2 text-slate-900">
-                    <DollarSign className="h-4 w-4 text-green-500" /> Section 4 — Economic Analysis · {correction.label}
+                    <DollarSign className="h-4 w-4 text-green-500" /> Section 3 — Economic Analysis · {correction.label}
                   </div>
                 </div>
                 <div className="p-6 space-y-6">
@@ -2069,7 +1686,7 @@ export const Calculator: React.FC = () => {
               <div className="bg-white border border-slate-100 rounded-[2rem] shadow-xl">
                 <div className="p-6 border-b border-slate-100">
                   <div className="text-sm font-black uppercase tracking-wide flex items-center gap-2 text-slate-900">
-                    <Sun className="h-4 w-4 text-amber-500" /> Section 5 — Monthly Solar Generation vs Consumption
+                    <Sun className="h-4 w-4 text-amber-500" /> Section 4 — Monthly Solar Generation vs Consumption
                   </div>
                 </div>
                 <div className="p-6">
@@ -2152,7 +1769,6 @@ export const Calculator: React.FC = () => {
                 ['📍 Region','Adjusts solar irradiation factors and cold-climate battery buffer for your location.'],
                 ['☀️ Include Solar','Toggle to include solar panel sizing. Disable for battery+inverter-only systems.'],
                 ['⚙️ Advanced Settings','Peak Load Factor (default 3×) — max vs avg load ratio. Or enter Max Power directly. Inverter Efficiency 90–96%. Cable Losses 1–5%.'],
-                ['⚡ Electricity Prices','Live prices from Energi Data Service (Denmark/Nordics). Shows today\'s hourly chart and 7-day history.'],
                 ['💶 Your tariff (optional)', t('calc_guide_user_tariff')],
                 ['💰 Economic Analysis','Calculates annual savings, payback period, 25-year ROI and CO₂ reduction based on regional tariffs and subsidies (or your entered prices).'],
               ].map(([title,desc])=>(
