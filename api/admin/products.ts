@@ -1,10 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseAdmin = createClient(
-  process.env.VITE_SUPABASE_URL as string,
-  process.env.SUPABASE_SERVICE_ROLE_KEY as string,
-);
+import { getSupabaseAdmin } from '../../server/supabaseAdmin';
 
 const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET as string;
 
@@ -39,6 +34,17 @@ const allowedTables = new Set([
 ]);
 
 export default async function handler(req: any, res: any) {
+  let supabaseAdmin;
+  try {
+    supabaseAdmin = getSupabaseAdmin();
+  } catch (e: any) {
+    console.error('[admin/products] Supabase env:', e?.message || e);
+    return res.status(503).json({
+      error: 'Supabase not configured on server',
+      message: e?.message || String(e),
+    });
+  }
+
   if (!ensureAdmin(req, res)) return;
 
   const { method } = req;

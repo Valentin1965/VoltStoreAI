@@ -124,7 +124,7 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
         addNotification(`${t('admin_order_status_save_error')}: ${error.message}`, 'error');
         return;
       }
-      onUpdated({
+      onUpdated({ 
         ...o,
         order_status: statusEdit.status,
         shipping_date: statusEdit.shipping_date ? statusEdit.shipping_date : null,
@@ -295,8 +295,8 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
       addNotification(t('admin_order_delete_toast'), 'success');
       onDeleted?.(String(o.id));
       onClose();
-    } finally {
-      setIsSaving(false);
+    } finally { 
+      setIsSaving(false); 
     }
   };
 
@@ -384,7 +384,7 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
         className="bg-white w-full max-w-[min(100%,62.4rem)] rounded-[2.5rem] shadow-3xl relative border border-slate-100 flex flex-col max-h-[68.85vh] min-h-0 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-
+        
         {/* Header */}
         <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
           <div className="flex items-center gap-4">
@@ -532,20 +532,20 @@ export const AdminOrderModal: React.FC<AdminOrderModalProps> = ({ order: o, onCl
               <div className="space-y-1">
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><Truck size={9} /> Dato afsendelse</label>
                 <input type="date" value={statusEdit.shipping_date}
-                  onChange={e => setStatusEdit(prev => ({ ...prev, shipping_date: e.target.value }))}
+                onChange={e => setStatusEdit(prev => ({ ...prev, shipping_date: e.target.value }))} 
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-[11px] font-bold outline-none focus:border-emerald-400 transition-all" />
               </div>
               <div className="space-y-1">
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><MapPin size={9} /> Dato ankomst</label>
                 <input type="date" value={statusEdit.arrival_date}
-                  onChange={e => setStatusEdit(prev => ({ ...prev, arrival_date: e.target.value }))}
+                onChange={e => setStatusEdit(prev => ({ ...prev, arrival_date: e.target.value }))} 
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-[11px] font-bold outline-none focus:border-emerald-400 transition-all" />
               </div>
             </div>
-            <button
+            <button 
               type="button"
               onClick={() => void saveStatus()}
-              disabled={isSaving}
+              disabled={isSaving} 
               className="w-full py-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}

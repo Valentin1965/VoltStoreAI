@@ -99,7 +99,16 @@ export const CheckoutPage: React.FC<{
   const { items, totalPrice, clearCart } = useCart();
   const { addNotification } = useNotification();
   const { t, formatPrice, language, getLoc } = useLanguage();
-  const { currentUser } = useUser();
+  const { currentUser, needsSessionProfileCompletion, isLoadingUser, refreshSessionProfile } = useUser();
+
+  function openCheckoutSignIn(prefillEmail?: string) {
+    const em = prefillEmail?.trim().toLowerCase();
+    window.dispatchEvent(
+      new CustomEvent('gls-open-checkout-sign-in', {
+        detail: em && em.includes('@') ? { prefilledEmail: em } : {},
+      }),
+    );
+  }
 
   const [formData, setFormData] = useState<FormData>(currentUser ? {
     ...emptyForm,
@@ -118,6 +127,10 @@ export const CheckoutPage: React.FC<{
   const [paymentMethod, setPaymentMethod] = useState<'Email Order' | 'Credit Card'>('Email Order');
   const [clientMessage, setClientMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    void refreshSessionProfile();
+  }, [refreshSessionProfile]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -147,6 +160,19 @@ export const CheckoutPage: React.FC<{
     setIsProcessing(true);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user && !currentUser) {
+        addNotification(t('checkout_session_mfa_incomplete'), 'error');
+        openCheckoutSignIn(formData.email);
+        return;
+      }
+
+      if (!currentUser) {
+        addNotification(t('checkout_requires_sign_in'), 'error');
+        openCheckoutSignIn(formData.email);
+        return;
+      }
+
       const orderData = {
         client_id: currentUser?.id || null,
         customer_name: `${formData.first_name} ${formData.last_name}`,
@@ -279,6 +305,115 @@ export const CheckoutPage: React.FC<{
   };
 
   const finalPrice = totalPrice;
+
+  if (isLoadingUser) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-10 animate-fade-in text-left">
+        <button
+          type="button"
+          onClick={onBackToCart}
+          className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-black uppercase text-[10px] tracking-widest transition-all mb-8"
+        >
+          <ChevronLeft size={16} /> {t('back_to_cart')}
+        </button>
+        <div className="bg-white rounded-[3rem] p-16 shadow-2xl border border-slate-100 flex flex-col items-center justify-center gap-4 text-center">
+          <Loader2 size={40} className="animate-spin text-emerald-500" />
+          <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">{t('cart_account_loading')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (needsSessionProfileCompletion) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-10 animate-fade-in text-left">
+        <button
+          type="button"
+          onClick={onBackToCart}
+          className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-black uppercase text-[10px] tracking-widest transition-all mb-8"
+        >
+          <ChevronLeft size={16} /> {t('back_to_cart')}
+        </button>
+        <div className="max-w-xl mx-auto bg-white rounded-[3rem] p-10 md:p-14 shadow-2xl border border-slate-100 space-y-6 text-center">
+          <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto text-amber-600">
+            <ShieldCheck size={32} />
+          </div>
+          <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900">{t('cart_sign_in_to_order')}</h2>
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
+            {t('checkout_session_mfa_incomplete')}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+            <button
+              type="button"
+              onClick={() => openCheckoutSignIn()}
+              className="btn-action w-full sm:w-auto px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest"
+            >
+              {t('cart_sign_in_to_order')}
+            </button>
+            <button
+              type="button"
+              onClick={onBackToCart}
+              className="w-full sm:w-auto px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest border-2 border-slate-200 text-slate-600 hover:border-slate-900 hover:text-slate-900 transition-all"
+            >
+              {t('back_to_cart')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    const openSignInWithStoredEmail = () => {
+      try {
+        const raw = sessionStorage.getItem('gls_precheckout_guest_email');
+        const em = raw?.trim().toLowerCase();
+        if (em?.includes('@')) {
+          openCheckoutSignIn(em);
+          return;
+        }
+      } catch {
+        /* noop */
+      }
+      openCheckoutSignIn();
+    };
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-10 animate-fade-in text-left">
+        <button
+          type="button"
+          onClick={onBackToCart}
+          className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-black uppercase text-[10px] tracking-widest transition-all mb-8"
+        >
+          <ChevronLeft size={16} /> {t('back_to_cart')}
+        </button>
+        <div className="max-w-xl mx-auto bg-white rounded-[3rem] p-10 md:p-14 shadow-2xl border border-slate-100 space-y-6 text-center">
+          <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto text-emerald-600">
+            <ShieldCheck size={32} />
+          </div>
+          <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900">{t('checkout_security_step_title')}</h2>
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
+            {t('checkout_security_step_body')}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+            <button
+              type="button"
+              onClick={openSignInWithStoredEmail}
+              className="btn-action w-full sm:w-auto px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest"
+            >
+              {t('cart_sign_in_to_order')}
+            </button>
+            <button
+              type="button"
+              onClick={onBackToCart}
+              className="w-full sm:w-auto px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest border-2 border-slate-200 text-slate-600 hover:border-slate-900 hover:text-slate-900 transition-all"
+            >
+              {t('back_to_cart')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10 animate-fade-in text-left">

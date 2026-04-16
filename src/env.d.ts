@@ -8,6 +8,8 @@ interface ImportMetaEnv {
   readonly VITE_PAYMENT_API_BASE?: string
   /** When "true", sendFunnelEmail() invokes send-funnel-email (public triggers); admin uses sendFunnelEmailAdmin always */
   readonly VITE_EMAIL_FUNNEL_ENABLED?: string
+  /** When `"true"`, password login uses only Supabase Auth (with MFA). Legacy `login_client_with_password` is disabled. */
+  readonly VITE_DISABLE_LEGACY_PASSWORD_LOGIN?: string
   readonly VITE_SUPABASE_URL: string
   readonly VITE_SUPABASE_ANON_KEY: string
   readonly VITE_ADMIN_PASSWORD: string

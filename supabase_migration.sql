@@ -1152,3 +1152,23 @@ ON CONFLICT (code) DO NOTHING;
 --   )
 -- );
 -- Then re-run CREATE OR REPLACE for public.admin_update_order_status (see earlier in this file).
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- Auth: block legacy password RPC when email has Supabase Auth user (MFA / session)
+-- ════════════════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION public.auth_user_exists_for_email(p_email text)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM auth.users u
+    WHERE lower(trim(both from u.email)) = lower(trim(both from p_email))
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.auth_user_exists_for_email(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.auth_user_exists_for_email(text) TO anon, authenticated;

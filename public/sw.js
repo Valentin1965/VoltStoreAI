@@ -1,5 +1,5 @@
 // Bump this to force SW cache invalidation on deploy.
-const CACHE_NAME = 'gl-solar-v23';
+const CACHE_NAME = 'gl-solar-v24';
 const OFFLINE_URL = '/index.html';
 
 const ASSETS = [
@@ -57,25 +57,54 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
           return networkResponse;
         })
-        .catch(() => caches.match(event.request).then((r) => r || caches.match(OFFLINE_URL)))
+        .catch(() =>
+          caches.match(event.request).then((r) => r || caches.match(OFFLINE_URL))
+        )
+        .then((r) => r || new Response('Offline', { status: 503, statusText: 'Offline' }))
     );
     return;
   }
 
-  // Cache-first for other requests (JS/CSS/images), with network fallback + cache update.
+  // Vite hashed chunks under /assets/ — never cache-first (avoids stale JS after deploy + HTML mistaken for JS).
+  const isBuildAsset = url.pathname.startsWith('/assets/');
+  if (isBuildAsset) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          const ct = (networkResponse.headers.get('content-type') || '').toLowerCase();
+          if (
+            networkResponse.ok &&
+            ct.includes('text/html') &&
+            url.pathname.endsWith('.js')
+          ) {
+            return new Response('Asset missing or misrouted', { status: 504, statusText: 'Bad Gateway' });
+          }
+          return networkResponse;
+        })
+        .catch(
+          () =>
+            new Response('Network error', { status: 503, statusText: 'Network error' })
+        )
+    );
+    return;
+  }
+
+  // Cache-first for other static files, with network fallback + cache update.
   event.respondWith(
     caches.match(event.request).then((response) => {
       if (response) return response;
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+      return fetch(event.request)
+        .then((networkResponse) => {
+          if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+            return networkResponse;
+          }
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
           return networkResponse;
-        }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
-        return networkResponse;
-      }).catch(() => {
-        // For non-navigation requests we can just fail silently.
-      });
+        })
+        .catch(
+          () => new Response('Network error', { status: 503, statusText: 'Network error' })
+        );
     })
   );
 });

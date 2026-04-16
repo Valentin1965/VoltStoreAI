@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCart } from '../../contexts/CartContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useUser } from '../../contexts/UserContext';
 import { IMAGE_FALLBACK } from '../../utils/constants';
 import { AppView } from '../../types';
-import { Plus, Minus, ShoppingBag, ArrowRight, UserCheck, UserPlus, UserCircle, ChevronLeft, Trash2, Check, ShieldAlert, FileText, Loader2, ChevronDown, Info } from 'lucide-react';
+import { Plus, Minus, ShoppingBag, ArrowRight, UserCheck, UserPlus, ChevronLeft, Trash2, Check, ShieldAlert, FileText, Loader2, ChevronDown, Info } from 'lucide-react';
 import { LocalizedText } from '../../types';
 import { DualPrice } from '../PriceDisplay';
 import { exportCartDocx } from '../../utils/docExport';
@@ -18,15 +18,19 @@ const useLocalizedText = () => {
   };
 };
 
+const GUEST_PREFILL_EMAIL_KEY = 'gls_precheckout_guest_email';
+
 interface CartPageProps { onCheckout: () => void; }
 
 export const CartPage: React.FC<CartPageProps> = ({ onCheckout }) => {
   const { items, updateQuantity, removeItem, totalPrice, isVatEnabled, setVatEnabled } = useCart();
   const { t, formatPrice, language } = useLanguage();
-  const { currentUser } = useUser();
+  const { currentUser, needsSessionProfileCompletion, isLoadingUser } = useUser();
   const getLoc = useLocalizedText();
 
   const [showAuthChoice, setShowAuthChoice] = useState(false);
+  const [guestCheckoutEmail, setGuestCheckoutEmail] = useState('');
+  const [guestEmailFieldError, setGuestEmailFieldError] = useState<string | null>(null);
   const [docLoading, setDocLoading]         = useState(false);
   const [expandedSpecs, setExpandedSpecs]   = useState<Set<string>>(new Set());
 
@@ -38,9 +42,46 @@ export const CartPage: React.FC<CartPageProps> = ({ onCheckout }) => {
     });
   };
 
+  const emitOpenCheckoutSignIn = (prefillEmail?: string, opts?: { emailOtpFirst?: boolean }) => {
+    const em = prefillEmail?.trim().toLowerCase();
+    window.dispatchEvent(
+      new CustomEvent('gls-open-checkout-sign-in', {
+        detail: {
+          ...(em && em.includes('@') ? { prefilledEmail: em } : {}),
+          ...(opts?.emailOtpFirst ? { emailOtpFirst: true as const } : {}),
+        },
+      }),
+    );
+  };
+
+  useEffect(() => {
+    const showGuestIdentification = () => setShowAuthChoice(true);
+    window.addEventListener('gls-cart-guest-identification', showGuestIdentification);
+    return () => window.removeEventListener('gls-cart-guest-identification', showGuestIdentification);
+  }, []);
+
   const handlePlaceOrder = () => {
+    if (needsSessionProfileCompletion) {
+      emitOpenCheckoutSignIn();
+      return;
+    }
     if (currentUser) onCheckout();
     else setShowAuthChoice(true);
+  };
+
+  const handleSignInToOrderFromIdentification = () => {
+    setGuestEmailFieldError(null);
+    const em = guestCheckoutEmail.trim().toLowerCase();
+    if (!em.includes('@')) {
+      setGuestEmailFieldError(t('auth_magic_link_invalid_email'));
+      return;
+    }
+    try {
+      sessionStorage.setItem(GUEST_PREFILL_EMAIL_KEY, em);
+    } catch {
+      /* private mode / quota */
+    }
+    emitOpenCheckoutSignIn(em, { emailOtpFirst: true });
   };
 
   const handleExportWord = async () => {
@@ -77,27 +118,42 @@ export const CartPage: React.FC<CartPageProps> = ({ onCheckout }) => {
           <div className="space-y-3 text-center sm:text-left">
             <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">{t('checkout_identify')}</h2>
             <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.15em] leading-relaxed">
-              {language === 'da' ? 'Vi anbefaler at bruge en profil for sikre betalinger og ordrehistorik.' : 'We recommend using a profile for secure card payments and order history.'}
+              {t('cart_auth_choice_intro')}
             </p>
           </div>
+          <div className="rounded-3xl border-2 border-slate-100 bg-slate-50/60 p-6 space-y-2">
+            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
+              {t('guest_checkout_email_label')}
+            </label>
+            <input
+              type="email"
+              autoComplete="email"
+              value={guestCheckoutEmail}
+              onChange={e => {
+                setGuestCheckoutEmail(e.target.value);
+                setGuestEmailFieldError(null);
+              }}
+              placeholder={t('checkout_placeholder_email')}
+              className="w-full bg-white border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all"
+            />
+            <p className="text-[10px] font-bold text-slate-400 leading-relaxed normal-case">
+              {t('guest_checkout_email_hint')}
+            </p>
+            {guestEmailFieldError && (
+              <p className="text-[10px] font-bold text-rose-600 normal-case">{guestEmailFieldError}</p>
+            )}
+          </div>
           <div className="grid grid-cols-1 gap-4">
-            <button onClick={onCheckout} className="group p-6 rounded-3xl border-2 border-slate-100 hover:border-emerald-500 transition-all flex items-center gap-6 text-left">
-              <div className="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center shrink-0 group-hover:bg-emerald-500 transition-colors"><UserCircle size={28} /></div>
-              <div>
-                <div className="text-base font-black text-slate-900 uppercase tracking-tight">{t('identify_guest')}</div>
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{t('identify_guest_desc')}</div>
-              </div>
-              <ArrowRight className="ml-auto text-slate-200 group-hover:translate-x-1 transition-transform" size={24} />
-            </button>
             <button
               type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent('gls-open-checkout-sign-in'))}
+              onClick={handleSignInToOrderFromIdentification}
               className="group p-6 rounded-3xl border-2 border-emerald-200 bg-emerald-50/50 hover:border-emerald-500 transition-all flex items-center gap-6 text-left w-full"
             >
               <div className="w-14 h-14 bg-emerald-600 text-white rounded-2xl flex items-center justify-center shrink-0"><UserCheck size={28} /></div>
               <div>
                 <div className="text-base font-black text-slate-900 uppercase tracking-tight">{t('cart_sign_in_to_order')}</div>
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{t('auth_checkout_subtitle')}</div>
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1 normal-case">{t('identify_checkout_flow_subtitle')}</div>
+                <div className="text-[10px] font-bold text-slate-400 mt-2 leading-relaxed normal-case">{t('cart_sign_in_totp_hint')}</div>
               </div>
               <ArrowRight className="ml-auto text-emerald-400 group-hover:translate-x-1 transition-transform" size={24} />
             </button>
@@ -442,10 +498,10 @@ export const CartPage: React.FC<CartPageProps> = ({ onCheckout }) => {
                 Download Word (.docx)
               </button>
 
-              {!currentUser && (
+              {!currentUser && !needsSessionProfileCompletion && (
                 <button
                   type="button"
-                  onClick={() => window.dispatchEvent(new CustomEvent('gls-open-checkout-sign-in'))}
+                  onClick={() => emitOpenCheckoutSignIn()}
                   className="w-full bg-white text-slate-900 py-5 rounded-3xl font-black text-xs uppercase tracking-widest transition-all border-2 border-emerald-400 flex items-center justify-center gap-3 hover:bg-emerald-50 active:scale-95"
                 >
                   <UserCheck size={20} className="text-emerald-600" />
@@ -453,9 +509,26 @@ export const CartPage: React.FC<CartPageProps> = ({ onCheckout }) => {
                 </button>
               )}
 
-              <button onClick={handlePlaceOrder}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-6 rounded-3xl font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 active:scale-95">
-                {currentUser ? t('cart_checkout_btn') : t('cart_guest_checkout')} <ArrowRight size={20} />
+              {needsSessionProfileCompletion && (
+                <p className="text-[10px] font-bold text-amber-200/90 uppercase tracking-widest leading-relaxed text-center">
+                  {t('checkout_session_mfa_incomplete')}
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={handlePlaceOrder}
+                disabled={isLoadingUser}
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-6 rounded-3xl font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {isLoadingUser
+                  ? t('cart_account_loading')
+                  : currentUser
+                    ? t('cart_checkout_btn')
+                    : needsSessionProfileCompletion
+                      ? t('cart_sign_in_to_order')
+                      : t('cart_guest_checkout')}{' '}
+                <ArrowRight size={20} />
               </button>
             </div>
           </div>

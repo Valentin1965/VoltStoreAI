@@ -49,9 +49,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
   const navItems = [
     { id: AppView.ABOUT, label: t('nav_about'), icon: Info },
     { id: AppView.CATALOG, label: t('nav_catalog'), icon: LayoutGrid },
-    { id: AppView.CONTACT, label: t('nav_contact'), icon: Phone },
     { id: AppView.CALCULATOR, label: t('nav_architect'), icon: Calculator },
     { id: AppView.SERVICE, label: t('nav_mounting_services'), icon: Wrench },
+    { id: AppView.CONTACT, label: t('nav_contact'), icon: Phone },
   ];
 
   const languages: { code: Language; label: string }[] = [
@@ -178,16 +178,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
             <div className="flex-1 p-6 space-y-6 overflow-y-auto text-left">
               {/* Navigation links */}
               <div className="space-y-1">
-                {[...navItems, { id: AppView.CABINET, label: t('nav_cabinet'), icon: User }, { id: AppView.CART, label: t('nav_cart'), icon: ShoppingCart }, { id: AppView.ADMIN, label: t('nav_admin'), icon: ShieldAlert }].map((item) => (
+                {[...navItems, { id: AppView.CABINET, label: t('nav_cabinet'), icon: User }, { id: AppView.ADMIN, label: t('nav_admin'), icon: ShieldAlert }].map((item) => (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => {
-                      if (item.id === AppView.CART && onCartOpen) {
-                        onCartOpen();
-                        setIsMobileMenuOpen(false);
-                        return;
-                      }
                       setView(item.id);
                       setIsMobileMenuOpen(false);
                     }}
@@ -275,9 +270,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
             <div className="flex flex-col gap-1.5 md:items-center text-slate-400 font-black uppercase text-[8px] tracking-widest">
               <button onClick={() => setView(AppView.CATALOG)} className="hover:text-emerald-500 transition-colors">{t('nav_catalog')}</button>
               <button onClick={() => setView(AppView.ABOUT)} className="hover:text-emerald-500 transition-colors">{t('nav_about')}</button>
-              <button onClick={() => setView(AppView.CONTACT)} className="hover:text-emerald-500 transition-colors">{t('nav_contact')}</button>
               <button onClick={() => setIsPrivacyModalOpen(true)} className="hover:text-emerald-500 transition-colors">{t('footer_privacy')}</button>
               <button onClick={() => setIsTermsModalOpen(true)} className="hover:text-emerald-500 transition-colors">{t('footer_terms')}</button>
+              <button onClick={() => setView(AppView.CONTACT)} className="hover:text-emerald-500 transition-colors">{t('nav_contact')}</button>
             </div>
           </div>
 

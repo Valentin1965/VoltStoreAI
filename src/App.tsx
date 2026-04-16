@@ -11,7 +11,7 @@ import { safeStorage } from './utils/storage';
 import { CartProvider } from './contexts/CartContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { CompareProvider } from './contexts/CompareContext';
-import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
+import { useLanguage } from './contexts/LanguageContext';
 import { UserProvider } from './contexts/UserContext';
 import { CartDrawer } from './components/cart/CartDrawer';
 import { CheckoutSignInModal } from './components/auth/CheckoutSignInModal';
@@ -132,7 +132,9 @@ const AppContent: React.FC = () => {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [checkoutSignInOpen, setCheckoutSignInOpen] = useState(false);
-  const { currentUser } = useUser();
+  const [checkoutSignInPrefillEmail, setCheckoutSignInPrefillEmail] = useState<string | null>(null);
+  const [checkoutSignInEmailOtpFirst, setCheckoutSignInEmailOtpFirst] = useState(false);
+  const { currentUser, refreshSessionProfile } = useUser();
   const { applyDiscount, setCartUser } = useCart();
 
   const routeParsed = useMemo(() => {
@@ -249,8 +251,17 @@ const AppContent: React.FC = () => {
     applyDiscount(currentUser?.discount ?? 0);
   }, [currentUser?.discount, applyDiscount]);
 
+  /** Same profile sync as after cabinet / TOTP: keeps cart storage key, discount, and checkout prefill aligned with Supabase session. */
+  useEffect(() => {
+    if (currentView !== AppView.CART && currentView !== AppView.CHECKOUT) return;
+    void refreshSessionProfile();
+  }, [currentView, refreshSessionProfile]);
+
   const setView = useCallback(
     (view: AppView) => {
+      if (view === AppView.CART) {
+        setCartDrawerOpen(false);
+      }
       if (view === AppView.ADMIN) {
         navigate('/?view=admin');
         return;
@@ -294,7 +305,7 @@ const AppContent: React.FC = () => {
         }
       }
     },
-    [navigate, siteCountry],
+    [navigate, siteCountry, setCartDrawerOpen],
   );
 
   useEffect(() => {
@@ -327,7 +338,13 @@ const AppContent: React.FC = () => {
       setCartDrawerOpen(false);
       setView(AppView.CART);
     };
-    const openSignIn = () => setCheckoutSignInOpen(true);
+    const openSignIn = (e: Event) => {
+      const d = (e as CustomEvent<{ prefilledEmail?: string; emailOtpFirst?: boolean }>).detail;
+      const em = typeof d?.prefilledEmail === 'string' ? d.prefilledEmail.trim().toLowerCase() : '';
+      setCheckoutSignInPrefillEmail(em.includes('@') ? em : null);
+      setCheckoutSignInEmailOtpFirst(Boolean(d?.emailOtpFirst));
+      setCheckoutSignInOpen(true);
+    };
     window.addEventListener('gls-nav-cart-full', goFullCart as EventListener);
     window.addEventListener('gls-open-checkout-sign-in', openSignIn as EventListener);
     return () => {
@@ -481,10 +498,28 @@ const AppContent: React.FC = () => {
         isOpen={cartDrawerOpen}
         onClose={() => setCartDrawerOpen(false)}
         onCheckout={() => setView(AppView.CHECKOUT)}
-        onSignInToOrder={() => setCheckoutSignInOpen(true)}
-        onGuestCheckout={() => setView(AppView.CHECKOUT)}
+        onSignInToOrder={() => {
+          setCheckoutSignInPrefillEmail(null);
+          setCheckoutSignInEmailOtpFirst(false);
+          setCheckoutSignInOpen(true);
+        }}
+        onGuestCheckout={() => {
+          setCartDrawerOpen(false);
+          setView(AppView.CART);
+          queueMicrotask(() => window.dispatchEvent(new CustomEvent('gls-cart-guest-identification')));
+        }}
       />
-      <CheckoutSignInModal isOpen={checkoutSignInOpen} onClose={() => setCheckoutSignInOpen(false)} siteCountry={siteCountry} />
+      <CheckoutSignInModal
+        isOpen={checkoutSignInOpen}
+        onClose={() => {
+          setCheckoutSignInOpen(false);
+          setCheckoutSignInPrefillEmail(null);
+          setCheckoutSignInEmailOtpFirst(false);
+        }}
+        siteCountry={siteCountry}
+        prefilledEmail={checkoutSignInPrefillEmail}
+        startWithEmailOtp={checkoutSignInEmailOtpFirst}
+      />
     </>
   );
 };
@@ -504,17 +539,15 @@ const App: React.FC = () => {
         }}
       >
         <NotificationProvider>
-          <LanguageProvider>
-            <UserProvider>
-              <ProductsProvider>
-                <CartProvider>
-                  <CompareProvider>
-                    <AppContent />
-                  </CompareProvider>
-                </CartProvider>
-              </ProductsProvider>
-            </UserProvider>
-          </LanguageProvider>
+          <UserProvider>
+            <ProductsProvider>
+              <CartProvider>
+                <CompareProvider>
+                  <AppContent />
+                </CompareProvider>
+              </CartProvider>
+            </ProductsProvider>
+          </UserProvider>
         </NotificationProvider>
       </BrowserRouter>
     </div>

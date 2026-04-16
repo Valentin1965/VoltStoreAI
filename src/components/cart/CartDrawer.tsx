@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useCart } from '../../contexts/CartContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useUser } from '../../contexts/UserContext';
@@ -36,7 +35,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 }) => {
   const { items, updateQuantity, removeItem, totalPrice, totalItems } = useCart();
   const { t } = useLanguage();
-  const { currentUser } = useUser();
+  const { currentUser, refreshSessionProfile, needsSessionProfileCompletion, isLoadingUser } = useUser();
+
+  useEffect(() => {
+    if (!isOpen) return;
+    void refreshSessionProfile();
+  }, [isOpen, refreshSessionProfile]);
   const getLoc = useLocalizedText();
 
   const getSafeImage = (img: string | null | undefined) => {
@@ -145,7 +149,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('cart_total_value')}</span>
               <DualPrice priceExVat={totalPrice} align="right" className="text-xl" />
             </div>
-            {currentUser ? (
+            {isLoadingUser ? (
+              <div className="text-center py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                {t('cart_account_loading')}
+              </div>
+            ) : currentUser ? (
               <button
                 type="button"
                 onClick={() => { onClose(); onCheckout(); }}
@@ -154,6 +162,20 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 {t('cart_checkout_btn')}
                 <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </button>
+            ) : needsSessionProfileCompletion ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => { onClose(); onSignInToOrder(); }}
+                  className="w-full bg-slate-900 hover:bg-emerald-500 text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 group active:scale-95"
+                >
+                  <LogIn size={18} />
+                  {t('cart_sign_in_to_order')}
+                </button>
+                <p className="text-[9px] font-bold text-slate-500 text-center leading-relaxed normal-case px-1">
+                  {t('checkout_session_mfa_incomplete')}
+                </p>
+              </>
             ) : (
               <>
                 <button
@@ -164,6 +186,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   <LogIn size={18} />
                   {t('cart_sign_in_to_order')}
                 </button>
+                <p className="text-[9px] font-bold text-slate-500 text-center leading-relaxed normal-case px-1">
+                  {t('cart_sign_in_totp_hint')}
+                </p>
                 <button
                   type="button"
                   onClick={() => { onClose(); onGuestCheckout(); }}

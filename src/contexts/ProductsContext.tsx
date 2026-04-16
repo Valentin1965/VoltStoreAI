@@ -160,24 +160,78 @@ const safeLocParse = (data: any, fallback: string = ''): LocText => {
   return ensure({});
 };
 
-const safeStringArrayParse = (data: any): string[] => {
-  if (!data) return [];
-  if (Array.isArray(data)) return data.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim());
-  if (typeof data !== 'string') return [];
-  const trimmed = data.trim();
-  if (!trimmed) return [];
-  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (Array.isArray(parsed)) {
-        return parsed.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim());
+/**
+ * Collect public image URLs from DB shapes: string, JSON string, string[], jsonb[],
+ * arrays of { url }, { src }, or plain objects whose values are URL strings.
+ */
+function normalizeImageUrlsFromDb(raw: unknown): string[] {
+  const collected: string[] = [];
+  const push = (s: unknown) => {
+    if (typeof s !== 'string') return;
+    const t = s.trim();
+    if (t) collected.push(t);
+  };
+
+  const walk = (data: unknown): void => {
+    if (data == null) return;
+
+    if (typeof data === 'string') {
+      let t = data.trim();
+      if (!t) return;
+      for (let i = 0; i < 4 && t.startsWith('"') && t.endsWith('"'); i++) {
+        try {
+          const inner = JSON.parse(t);
+          if (typeof inner !== 'string') break;
+          t = inner.trim();
+        } catch {
+          break;
+        }
       }
-    } catch {}
-  }
-  // single URL
-  if (trimmed.startsWith('http')) return [trimmed];
-  return [];
-};
+      if ((t.startsWith('[') && t.endsWith(']')) || (t.startsWith('{') && t.endsWith('}'))) {
+        try {
+          walk(JSON.parse(t));
+          return;
+        } catch {
+          /* fall through — might be a plain URL with rare chars */
+        }
+      }
+      if (/^https?:\/\//i.test(t) || t.startsWith('/') || t.startsWith('data:')) push(t);
+      return;
+    }
+
+    if (Array.isArray(data)) {
+      for (const item of data) {
+        if (typeof item === 'string' || typeof item === 'number') push(String(item));
+        else if (item && typeof item === 'object') {
+          const o = item as Record<string, unknown>;
+          if (typeof o.url === 'string') push(o.url);
+          else if (typeof o.src === 'string') push(o.src);
+          else if (typeof o.href === 'string') push(o.href);
+          else walk(item);
+        }
+      }
+      return;
+    }
+
+    if (typeof data === 'object') {
+      const o = data as Record<string, unknown>;
+      if (Array.isArray(o.urls)) {
+        walk(o.urls);
+        return;
+      }
+      const vals = Object.values(o);
+      if (
+        vals.length > 0 &&
+        vals.every((v) => typeof v === 'string' && String(v).trim().length > 0)
+      ) {
+        for (const v of vals) push(v as string);
+      }
+    }
+  };
+
+  walk(raw);
+  return Array.from(new Set(collected));
+}
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -368,10 +422,11 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
         const nameLoc = safeLocParse(rawName, fallbackName);
         const descLoc = safeLocParse(rawDescription, '');
-        const imagesArr = safeStringArrayParse(p.images);
-        const imageStr = (typeof p.image === 'string' && p.image.trim())
-          ? p.image.trim()
-          : (imagesArr[0] || '');
+        const fromImagesCol = normalizeImageUrlsFromDb(p.images);
+        const fromImageCol = normalizeImageUrlsFromDb(p.image);
+        const imagesArr =
+          fromImagesCol.length > 0 ? fromImagesCol : fromImageCol;
+        const imageStr = imagesArr[0] || '';
         const rawKitComponents = isKit
           ? (Array.isArray(p.components) ? p.components : safeJsonParse(p.components, 'kit'))
           : safeJsonParse(p.kit_components, 'kit');

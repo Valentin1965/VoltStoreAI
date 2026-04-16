@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase, isSupabaseConfigured } from '../../services/supabase';
+import { supabase, isSupabaseConfigured, isSupabaseUsingEnvCredentials } from '../../services/supabase';
 import {
   Database, CheckCircle2, XCircle, AlertTriangle, Loader2,
   RefreshCw, ChevronDown, ChevronUp, Wifi, WifiOff, Table2
@@ -77,9 +77,7 @@ export const DbStatus: React.FC = () => {
   const allOk = tables.length > 0 && tables.every(trow => trow.ok);
   const anyOk = tables.some(trow => trow.ok);
 
-  const statusIcon = !envOk ? (
-    <WifiOff size={14} className="text-rose-500" />
-  ) : checking ? (
+  const statusIcon = checking ? (
     <Loader2 size={14} className="animate-spin text-slate-400" />
   ) : allOk ? (
     <Wifi size={14} className="text-emerald-500" />
@@ -120,13 +118,9 @@ export const DbStatus: React.FC = () => {
           <div className="p-5 space-y-4">
             <div className="space-y-2">
               <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('admin_db_environment')}</div>
-              <div className={`flex items-center gap-2 p-3 rounded-xl text-[9px] font-black uppercase ${envOk ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-                {envOk ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
-                VITE_SUPABASE_URL — {envOk ? t('admin_db_configured') : t('admin_db_missing')}
-              </div>
-              <div className={`flex items-center gap-2 p-3 rounded-xl text-[9px] font-black uppercase ${envOk ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-                {envOk ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
-                VITE_SUPABASE_ANON_KEY — {envOk ? t('admin_db_configured') : t('admin_db_missing')}
+              <div className={`flex items-center gap-2 p-3 rounded-xl text-[9px] font-black uppercase ${envOk ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>
+                {envOk ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
+                VITE_SUPABASE_URL + ANON — {envOk ? t('admin_db_configured') : t('admin_db_missing')}
               </div>
 
               {!envOk && (
@@ -175,7 +169,7 @@ export const DbStatus: React.FC = () => {
             )}
 
             <div className={`rounded-xl p-3 text-[9px] font-black uppercase text-center ${
-              envOk && anyOk ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'
+              envOk && anyOk ? 'bg-emerald-500 text-white' : anyOk ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'
             }`}>
               {envOk && anyOk ? t('admin_db_live_mode') : t('admin_db_demo_mode')}
             </div>

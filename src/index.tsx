@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import { ErrorBoundary } from './App';
+import { LanguageProvider } from './contexts/LanguageContext';
 import './index.css';
 
 const setupApp = () => {
@@ -16,7 +17,7 @@ const setupApp = () => {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       // Cache-bust SW URL to ensure updates after deploys (CDN/browser caches).
-      navigator.serviceWorker.register('/sw.js?v=23').catch((err) => {
+      navigator.serviceWorker.register('/sw.js?v=24').catch((err) => {
         console.warn('[SW] registration failed', err);
       });
     });
@@ -31,9 +32,11 @@ const setupApp = () => {
 
   const root = createRoot(freshMount);
   root.render(
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
+    <LanguageProvider>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </LanguageProvider>
   );
 };
 

@@ -19,6 +19,16 @@ import { Marker } from '../MarkerComponent.tsx';
 import { DualPrice } from '../PriceDisplay';
 import { DocExportButton } from '../DocExportButton';
 
+/** Унікальні URL галереї (поля image + images), узгоджено з ProductsContext */
+export function buildCatalogGalleryUrls(product: Pick<Product, 'image' | 'images'>): string[] {
+  const imgs = product.images;
+  const raw: string[] = Array.isArray(imgs)
+    ? imgs.filter((u): u is string => typeof u === 'string' && u.trim().length > 0).map((u) => u.trim())
+    : [];
+  const merged = [product.image, ...raw].filter((u): u is string => typeof u === 'string' && u.trim().length > 0);
+  return Array.from(new Set(merged.map((u) => u.trim())));
+}
+
 /** Рядок «Мій вибір» у каталозі (локальний список перед кошиком) */
 export type CatalogSelectionLine = {
   key: string;
@@ -42,6 +52,19 @@ export const ProductCard: React.FC<{
   const discountedPrice = getDiscountedPrice(product.price);
   const hasDiscount = currentUser && currentUser.discount && currentUser.discount > 0;
 
+  /** У картці лише головне (перше) фото; повна галерея — у модалці */
+  const cardMainSrc = useMemo(() => {
+    const urls = buildCatalogGalleryUrls(product);
+    return urls[0] || product.image || IMAGE_FALLBACK;
+  }, [product.image, product.images]);
+
+  const [mainBroken, setMainBroken] = useState(false);
+  useEffect(() => {
+    setMainBroken(false);
+  }, [product.id, cardMainSrc]);
+
+  const displaySrc = mainBroken ? IMAGE_FALLBACK : cardMainSrc;
+
   return (
     <div
       className="group bg-white border-2 border-slate-100 hover:border-emerald-300 rounded-3xl p-4 hover:shadow-lg transition-all flex flex-col h-full notranslate cursor-pointer"
@@ -50,8 +73,9 @@ export const ProductCard: React.FC<{
     >
       <div className="relative aspect-square rounded-2xl overflow-hidden mb-3 bg-slate-50 border border-slate-50">
         <img
-          src={product.image || IMAGE_FALLBACK}
+          src={displaySrc}
           alt=""
+          onError={() => setMainBroken(true)}
           className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500"
         />
       </div>
@@ -278,6 +302,8 @@ export const CatalogSection: React.FC<{ catalogSlug?: string | null }> = ({ cata
   // Kit modal: selected optional add-on components (is_base=false)
   const [kitSelectedAddons, setKitSelectedAddons] = useState<Record<string, number>>({});
   const [catalogSelection, setCatalogSelection] = useState<CatalogSelectionLine[]>([]);
+  /** Велике фото в модалці товару: індекс у buildCatalogGalleryUrls(selectedProduct) */
+  const [modalGalleryIndex, setModalGalleryIndex] = useState(0);
 
   useEffect(() => {
     if (!setSelectedCategory) return;
@@ -288,6 +314,10 @@ export const CatalogSection: React.FC<{ catalogSlug?: string | null }> = ({ cata
     const cat = CATALOG_SLUG_TO_CATEGORY[catalogSlug];
     if (cat) setSelectedCategory(cat);
   }, [catalogSlug, setSelectedCategory]);
+
+  useEffect(() => {
+    setModalGalleryIndex(0);
+  }, [selectedProduct?.id]);
 
   const addLineToCatalogSelection = useCallback(
     (product: Product, unitPrice: number, parts?: KitPart[]) => {
@@ -802,6 +832,13 @@ export const CatalogSection: React.FC<{ catalogSlug?: string | null }> = ({ cata
         const allComponents: KitComponent[] = selectedProduct.kitComponents || [];
         const baseComponents = allComponents.filter(c => c.is_base !== false);
         const addonComponents = allComponents.filter(c => c.is_base === false);
+        const modalGalleryUrls = buildCatalogGalleryUrls(selectedProduct);
+        const gi =
+          modalGalleryUrls.length > 0
+            ? Math.min(modalGalleryIndex, modalGalleryUrls.length - 1)
+            : 0;
+        const modalHeroSrc =
+          modalGalleryUrls[gi] || selectedProduct.image || IMAGE_FALLBACK;
 
         return (
         <div className="fixed inset-0 z-[1000000] flex items-end md:items-center justify-center md:p-10 bg-slate-900/95 backdrop-blur-xl animate-fade-in text-left">
@@ -856,10 +893,45 @@ export const CatalogSection: React.FC<{ catalogSlug?: string | null }> = ({ cata
 
                   {/* Kit image + description */}
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                    <div className="lg:col-span-4">
-                      <div className="bg-slate-50 rounded-[2.5rem] p-8 flex items-center justify-center border border-slate-100 h-[280px] shadow-inner">
-                        <img src={selectedProduct.image || IMAGE_FALLBACK} className="max-w-full max-h-full object-contain drop-shadow-xl" alt="" />
+                    <div className="lg:col-span-4 space-y-4">
+                      <div className="bg-slate-50 rounded-[2.5rem] p-4 md:p-6 flex items-center justify-center border border-slate-100 min-h-[280px] shadow-inner">
+                        <img
+                          src={modalHeroSrc}
+                          className="max-w-full max-h-[min(360px,50vh)] object-contain drop-shadow-xl transition-opacity duration-300"
+                          alt=""
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = IMAGE_FALLBACK;
+                          }}
+                        />
                       </div>
+                      {modalGalleryUrls.length > 1 ? (
+                        <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar snap-x">
+                          {modalGalleryUrls.map((url, idx) => (
+                            <button
+                              key={`kit-modal-thumb-${idx}`}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setModalGalleryIndex(idx);
+                              }}
+                              className={`shrink-0 w-20 h-20 rounded-2xl border p-1.5 flex items-center justify-center snap-start transition-all outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
+                                idx === gi
+                                  ? 'border-emerald-500 ring-2 ring-emerald-400 bg-emerald-50/50'
+                                  : 'border-slate-100 bg-slate-50 hover:border-emerald-300'
+                              }`}
+                            >
+                              <img
+                                src={url}
+                                className="max-w-full max-h-full object-contain"
+                                alt=""
+                                onError={(ev) => {
+                                  (ev.target as HTMLImageElement).src = IMAGE_FALLBACK;
+                                }}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                     <div className="lg:col-span-8 space-y-4">
                       {/* Description */}
@@ -942,33 +1014,43 @@ export const CatalogSection: React.FC<{ catalogSlug?: string | null }> = ({ cata
                   <div className="lg:col-span-5 space-y-8">
                     <div className="space-y-4">
                       <div className="bg-slate-50 rounded-[3rem] p-12 flex items-center justify-center border border-slate-100 h-[350px] md:h-[450px] shadow-inner relative group overflow-hidden">
-                        <img src={selectedProduct.image || IMAGE_FALLBACK} className="max-w-full max-h-full object-contain drop-shadow-2xl transition-transform duration-700 group-hover:scale-110" alt="" />
+                        <img
+                          src={modalHeroSrc}
+                          className="max-w-full max-h-full object-contain drop-shadow-2xl transition-transform duration-700 group-hover:scale-110"
+                          alt=""
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = IMAGE_FALLBACK;
+                          }}
+                        />
                       </div>
-                      {(() => {
-                        const raw = (selectedProduct as any).images;
-                        let extra: string[] = [];
-                        if (Array.isArray(raw)) extra = raw;
-                        else if (typeof raw === 'string') {
-                          try {
-                            const parsed = JSON.parse(raw);
-                            if (Array.isArray(parsed)) extra = parsed;
-                          } catch { /* ignore */ }
-                        }
-
-                        const all = [selectedProduct.image, ...extra].filter(Boolean) as string[];
-                        const unique = Array.from(new Set(all));
-                        if (unique.length <= 1) return null;
-                        return (
+                      {modalGalleryUrls.length > 1 ? (
                         <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar snap-x">
-                          {unique.map((img, idx) => (
-                            <div key={idx} className="w-24 h-24 shrink-0 bg-slate-50 rounded-2xl border border-slate-100 p-2 flex items-center justify-center cursor-pointer hover:border-emerald-400 transition-all snap-start"
-                              onClick={() => { const el = document.querySelector('.lg\\:col-span-5 img') as HTMLImageElement; if (el) el.src = img; }}>
-                              <img src={img} className="max-w-full max-h-full object-contain" alt="" />
-                            </div>
+                          {modalGalleryUrls.map((img, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setModalGalleryIndex(idx);
+                              }}
+                              className={`w-24 h-24 shrink-0 rounded-2xl border p-2 flex items-center justify-center snap-start transition-all outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
+                                idx === gi
+                                  ? 'border-emerald-500 ring-2 ring-emerald-400 bg-emerald-50/50'
+                                  : 'border-slate-100 bg-slate-50 hover:border-emerald-400'
+                              }`}
+                            >
+                              <img
+                                src={img}
+                                className="max-w-full max-h-full object-contain"
+                                alt=""
+                                onError={(ev) => {
+                                  (ev.target as HTMLImageElement).src = IMAGE_FALLBACK;
+                                }}
+                              />
+                            </button>
                           ))}
                         </div>
-                        );
-                      })()}
+                      ) : null}
                     </div>
                     {selectedProduct.video_url && (
                       <div className="bg-slate-900 rounded-[2rem] p-6 flex items-center justify-between text-white group cursor-pointer hover:bg-emerald-600 transition-all">

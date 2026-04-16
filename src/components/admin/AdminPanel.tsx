@@ -405,7 +405,18 @@ export const AdminPanel: React.FC<{ onLogout?: () => void }> = ({ onLogout }) =>
         name: typeof product.name === 'string' ? { da: product.name, en: product.name, no: product.name, se: product.name } : { ...emptyLoc(), ...(product.name || {}) },
         description: typeof product.description === 'string' ? { da: product.description, en: product.description, no: product.description, se: product.description } : { ...emptyLoc(), ...(product.description || {}) },
       });
-      setLocalImages(product.images?.length > 0 ? product.images : [product.image || '']);
+      let imgList: string[] = [];
+      if (Array.isArray(product.images) && product.images.length > 0) {
+        imgList = product.images.map((u: string) => String(u).trim()).filter(Boolean);
+      } else if (typeof product.images === 'string' && product.images.trim().startsWith('[')) {
+        try {
+          const parsed = JSON.parse(product.images);
+          if (Array.isArray(parsed)) imgList = parsed.map((u: unknown) => String(u).trim()).filter(Boolean);
+        } catch {
+          /* ignore */
+        }
+      }
+      setLocalImages(imgList.length > 0 ? imgList : [product.image || '']);
       setLocalSpecs(parsedField(product.specs, [{ label: '', value: '' }]));
       setLocalDocs(parsedField(product.docs, [{ title: '', url: '' }]));
       // Split kit components into base (is_base !== false) and additional (is_base === false)

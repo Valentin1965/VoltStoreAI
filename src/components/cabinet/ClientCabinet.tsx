@@ -1,21 +1,24 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNotification } from '../../contexts/NotificationContext';
-import { useUser } from '../../contexts/UserContext';
+import {
+  useUser,
+  MFA_ENROLL_REQUIRED_MESSAGE,
+  parseMfaVerifyPendingMessage,
+} from '../../contexts/UserContext';
 import { useCart } from '../../contexts/CartContext';
 import { AppView } from '../../types';
 import {
   ShoppingBag, User, ShieldCheck,
   AtSign, UserPlus, ArrowRight, Loader2,
-  KeyRound, ChevronLeft, LogIn, Activity, Mail, Smartphone,
+  KeyRound, ChevronLeft, LogIn, Activity, Mail,
   LogOut, Package, MapPin, Phone,
   ShoppingCart, Zap, Building2, Percent,
-  Truck, Edit3, Check, Bell, BellOff, CheckCircle2
+  Truck, Edit3, Check, Bell, BellOff, CheckCircle2,
 } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
-import { getRememberedSiteCountry } from '../../routing/siteCountry';
-import { defaultCallingCodeForSiteCountry, normalizePhoneE164 } from '../../utils/phoneE164';
+import { totpVerifyUserFacingMessage } from '../../utils/totpVerifyErrors';
 
 export const ClientCabinet: React.FC = () => {
   const { t, language, formatPrice } = useLanguage();
@@ -25,10 +28,10 @@ export const ClientCabinet: React.FC = () => {
     isLoadingUser,
     loginWithEmailPassword,
     completeTotpVerification,
+    renewTotpChallenge,
     registerClient,
+    refreshSessionProfile,
     logout,
-    requestSignInOtp,
-    verifySignInOtp,
   } = useUser();
   const push = usePushNotifications(currentUser?.id ?? null);
   const { items: cartItems, totalPrice, totalItems: cartCount } = useCart();
@@ -40,18 +43,17 @@ export const ClientCabinet: React.FC = () => {
   const [loadingOrders, setLoadingOrders] = useState(false);
 
   // Login form
-  const [loginMethod, setLoginMethod] = useState<'password' | 'email_otp' | 'phone_otp'>('email_otp');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  const [loginPhone, setLoginPhone] = useState('');
-  const [normalizedOtpPhone, setNormalizedOtpPhone] = useState<string | null>(null);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
   const [hasSbSession, setHasSbSession] = useState(false);
   const [totpOn, setTotpOn] = useState(false);
   const [loginMfa, setLoginMfa] = useState<{ factorId: string; challengeId: string } | null>(null);
   const [loginTotpCode, setLoginTotpCode] = useState('');
-  const [totpEnroll, setTotpEnroll] = useState<{ factorId: string; qrSvg: string } | null>(null);
+  const [totpEnroll, setTotpEnroll] = useState<{
+    factorId: string;
+    qrSvg: string;
+    secret: string;
+  } | null>(null);
   const [totpConfirmCode, setTotpConfirmCode] = useState('');
 
   // Register form
@@ -81,25 +83,38 @@ export const ClientCabinet: React.FC = () => {
       });
   }, [activeTab, currentUser]);
 
-  const resetLoginOtp = useCallback(() => {
-    setOtpSent(false);
-    setOtpCode('');
-    setNormalizedOtpPhone(null);
+  const resetLoginMfaState = useCallback(() => {
     setLoginMfa(null);
     setLoginTotpCode('');
   }, []);
 
+  const inLoginStep2 = loginMfa !== null || totpEnroll !== null;
+
+  const cancelPendingMfa = useCallback(async () => {
+    setIsProcessing(true);
+    await supabase.auth.signOut();
+    resetLoginMfaState();
+    setTotpEnroll(null);
+    setTotpConfirmCode('');
+    setIsProcessing(false);
+  }, [resetLoginMfaState]);
+
   const goProfileLogin = useCallback(() => {
     setActiveTab('profile');
     setAuthMode('login');
-    resetLoginOtp();
-    setLoginMethod('email_otp');
+    resetLoginMfaState();
+    setTotpEnroll(null);
+    setTotpConfirmCode('');
     setLoginPassword('');
-  }, [resetLoginOtp]);
-  const goProfileRegister = useCallback(() => {
+  }, [resetLoginMfaState]);
+  const goProfileRegister = useCallback(async () => {
     setActiveTab('profile');
+    resetLoginMfaState();
+    setTotpEnroll(null);
+    setTotpConfirmCode('');
     setAuthMode('register');
-  }, []);
+    await supabase.auth.signOut();
+  }, [resetLoginMfaState]);
 
   useEffect(() => {
     if (!currentUser) setAuthMode('idle');
@@ -120,131 +135,6 @@ export const ClientCabinet: React.FC = () => {
     if (!currentUser) return;
     void refreshTotpStatus();
   }, [currentUser, activeTab, refreshTotpStatus]);
-
-  const handleLogin = useCallback(async () => {
-    if (!loginEmail.trim()) { addNotification(t('cabinet_enter_email'), 'info'); return; }
-    if (!loginPassword) { addNotification(t('cabinet_password_required'), 'info'); return; }
-    setIsProcessing(true);
-    setLoginMfa(null);
-    setLoginTotpCode('');
-    const result = await loginWithEmailPassword(loginEmail.trim(), loginPassword);
-    if (result.status === 'found') {
-      addNotification(t('cabinet_welcome_back'), 'success');
-      setAuthMode('idle');
-      setLoginEmail('');
-      setLoginPassword('');
-      setLoginPhone('');
-      resetLoginOtp();
-      void refreshTotpStatus();
-    } else if (result.status === 'mfa') {
-      setLoginMfa({ factorId: result.factorId, challengeId: result.challengeId });
-      addNotification(t('auth_totp_step_hint'), 'info');
-    } else if (result.status === 'no_profile') {
-      addNotification(t('auth_otp_no_profile'), 'error');
-    } else {
-      addNotification(t('cabinet_invalid_credentials'), 'error');
-      setReg(r => ({ ...r, email: loginEmail.trim() }));
-    }
-    setIsProcessing(false);
-  }, [loginEmail, loginPassword, loginWithEmailPassword, addNotification, t, refreshTotpStatus, resetLoginOtp]);
-
-  const handleSendLoginOtp = useCallback(async () => {
-    const siteCountry = getRememberedSiteCountry() ?? 'dk';
-    setLoginMfa(null);
-    setLoginTotpCode('');
-    if (loginMethod === 'email_otp') {
-      if (!loginEmail.trim()) {
-        addNotification(t('cabinet_enter_email'), 'info');
-        return;
-      }
-      setIsProcessing(true);
-      const { error } = await requestSignInOtp('email', loginEmail.trim(), siteCountry);
-      setIsProcessing(false);
-      if (error) {
-        addNotification(t('auth_otp_request_failed'), 'error');
-        return;
-      }
-      setOtpSent(true);
-      addNotification(t('auth_otp_sent_email'), 'info');
-      return;
-    }
-    const cc = defaultCallingCodeForSiteCountry(siteCountry);
-    const ph = normalizePhoneE164(loginPhone, cc);
-    if (ph.replace(/\D/g, '').length < 8) {
-      addNotification(t('err_phone_invalid'), 'error');
-      return;
-    }
-    setIsProcessing(true);
-    const { error, normalizedPhone: norm } = await requestSignInOtp('phone', loginPhone, siteCountry);
-    setIsProcessing(false);
-    if (error) {
-      addNotification(t('auth_otp_request_failed'), 'error');
-      return;
-    }
-    setNormalizedOtpPhone(norm ?? ph);
-    setOtpSent(true);
-    addNotification(t('auth_otp_sent_phone'), 'info');
-  }, [loginMethod, loginEmail, loginPhone, requestSignInOtp, addNotification, t]);
-
-  const handleVerifyLoginOtp = useCallback(async () => {
-    const ch = loginMethod === 'email_otp' ? 'email' as const : 'phone' as const;
-    const addr = ch === 'email' ? loginEmail.trim().toLowerCase() : (normalizedOtpPhone ?? '');
-    if (ch === 'phone' && !addr) {
-      addNotification(t('err_phone_invalid'), 'error');
-      return;
-    }
-    if (!otpCode.replace(/\s/g, '')) {
-      addNotification(t('auth_magic_link_code_invalid'), 'info');
-      return;
-    }
-    setIsProcessing(true);
-    setLoginMfa(null);
-    setLoginTotpCode('');
-    const result = await verifySignInOtp(ch, addr, otpCode);
-    setIsProcessing(false);
-    if (result.status === 'found') {
-      addNotification(t('cabinet_welcome_back'), 'success');
-      setAuthMode('idle');
-      setLoginEmail('');
-      setLoginPassword('');
-      setLoginPhone('');
-      resetLoginOtp();
-      void refreshTotpStatus();
-    } else if (result.status === 'mfa') {
-      setLoginMfa({ factorId: result.factorId, challengeId: result.challengeId });
-      addNotification(t('auth_totp_step_hint'), 'info');
-    } else if (result.status === 'no_profile') {
-      addNotification(t('auth_otp_no_profile'), 'error');
-    } else {
-      addNotification(result.errorMessage || t('auth_otp_otp_invalid'), 'error');
-    }
-  }, [loginMethod, loginEmail, normalizedOtpPhone, otpCode, verifySignInOtp, addNotification, t, refreshTotpStatus, resetLoginOtp]);
-
-  const switchLoginMethod = (m: 'password' | 'email_otp' | 'phone_otp') => {
-    setLoginMethod(m);
-    resetLoginOtp();
-    setLoginPassword('');
-  };
-
-  const handleLoginTotp = useCallback(async () => {
-    if (!loginMfa) return;
-    setIsProcessing(true);
-    const { error } = await completeTotpVerification(loginMfa.factorId, loginMfa.challengeId, loginTotpCode);
-    setIsProcessing(false);
-    if (error) {
-      addNotification(error.message || t('auth_magic_link_code_invalid'), 'error');
-      return;
-    }
-    addNotification(t('cabinet_welcome_back'), 'success');
-    setAuthMode('idle');
-    setLoginMfa(null);
-    setLoginTotpCode('');
-    setLoginEmail('');
-    setLoginPassword('');
-    setLoginPhone('');
-    resetLoginOtp();
-    void refreshTotpStatus();
-  }, [loginMfa, loginTotpCode, completeTotpVerification, addNotification, t, refreshTotpStatus, resetLoginOtp]);
 
   const startTotpEnroll = useCallback(async () => {
     setIsProcessing(true);
@@ -283,30 +173,118 @@ export const ClientCabinet: React.FC = () => {
       issuer: 'GREEN LIGHT',
     });
     setIsProcessing(false);
-    if (error || !data?.totp?.qr_code) {
+    if (error || !data?.totp?.qr_code || !data.totp.secret) {
       addNotification(error?.message || t('cabinet_create_error'), 'error');
       return;
     }
-    setTotpEnroll({ factorId: data.id, qrSvg: data.totp.qr_code });
+    setTotpEnroll({
+      factorId: data.id,
+      qrSvg: data.totp.qr_code,
+      secret: data.totp.secret,
+    });
   }, [addNotification, t, refreshTotpStatus]);
 
   const confirmTotpEnroll = useCallback(async () => {
     if (!totpEnroll) return;
+    const clean = totpConfirmCode.replace(/\s/g, '');
     setIsProcessing(true);
     const { error } = await supabase.auth.mfa.challengeAndVerify({
       factorId: totpEnroll.factorId,
-      code: totpConfirmCode.replace(/\s/g, ''),
+      code: clean,
     });
     setIsProcessing(false);
     if (error) {
-      addNotification(error.message || t('auth_magic_link_code_invalid'), 'error');
+      addNotification(totpVerifyUserFacingMessage(error, t), 'error');
       return;
     }
     setTotpEnroll(null);
     setTotpConfirmCode('');
-    addNotification(t('cabinet_totp_done'), 'success');
     void refreshTotpStatus();
-  }, [totpEnroll, totpConfirmCode, addNotification, t, refreshTotpStatus]);
+    await refreshSessionProfile();
+    const finishingCabinetAuth = authMode === 'login' || authMode === 'register';
+    if (finishingCabinetAuth) {
+      if (authMode === 'login') {
+        addNotification(t('cabinet_welcome_back'), 'success');
+        setLoginEmail('');
+        setLoginPassword('');
+        resetLoginMfaState();
+      } else {
+        addNotification(t('cabinet_profile_created'), 'success');
+        setReg(r => ({ ...r, password: '', password_confirm: '' }));
+      }
+      setAuthMode('idle');
+    } else {
+      addNotification(t('cabinet_totp_done'), 'success');
+    }
+  }, [totpEnroll, totpConfirmCode, addNotification, t, refreshTotpStatus, refreshSessionProfile, authMode, resetLoginMfaState]);
+
+  const renewLoginMfaChallenge = useCallback(async () => {
+    if (!loginMfa) return;
+    setIsProcessing(true);
+    const { challengeId, error } = await renewTotpChallenge(loginMfa.factorId);
+    setIsProcessing(false);
+    if (error || !challengeId) {
+      addNotification(error?.message?.trim() ? error.message : t('cabinet_create_error'), 'error');
+      return;
+    }
+    setLoginMfa({ factorId: loginMfa.factorId, challengeId });
+    setLoginTotpCode('');
+  }, [loginMfa, renewTotpChallenge, addNotification, t]);
+
+  const handleLogin = useCallback(async () => {
+    if (!loginEmail.trim()) { addNotification(t('cabinet_enter_email'), 'info'); return; }
+    if (!loginPassword) { addNotification(t('cabinet_password_required'), 'info'); return; }
+    setIsProcessing(true);
+    resetLoginMfaState();
+    setTotpEnroll(null);
+    setTotpConfirmCode('');
+    const result = await loginWithEmailPassword(loginEmail.trim(), loginPassword);
+    if (result.status === 'found') {
+      addNotification(t('cabinet_welcome_back'), 'success');
+      setAuthMode('idle');
+      setLoginEmail('');
+      setLoginPassword('');
+      resetLoginMfaState();
+      void refreshTotpStatus();
+    } else if (result.status === 'mfa_enroll_required') {
+      addNotification(t('auth_mfa_enroll_login_hint'), 'info');
+      void startTotpEnroll();
+    } else if (result.status === 'mfa') {
+      setLoginMfa({ factorId: result.factorId, challengeId: result.challengeId });
+      addNotification(t('auth_totp_step_hint'), 'info');
+    } else if (result.status === 'no_profile') {
+      addNotification(t('auth_otp_no_profile'), 'error');
+    } else {
+      const msg =
+        result.status === 'invalid' && result.errorTranslationKey
+          ? t(result.errorTranslationKey)
+          : result.status === 'invalid' && result.errorMessage?.trim()
+            ? result.errorMessage.trim()
+            : t('cabinet_invalid_credentials');
+      addNotification(msg, 'error');
+      setReg(r => ({ ...r, email: loginEmail.trim() }));
+    }
+    setIsProcessing(false);
+  }, [loginEmail, loginPassword, loginWithEmailPassword, addNotification, t, refreshTotpStatus, resetLoginMfaState, startTotpEnroll]);
+
+  const handleLoginTotp = useCallback(async () => {
+    if (!loginMfa) return;
+    setIsProcessing(true);
+    const { error } = await completeTotpVerification(loginMfa.factorId, loginMfa.challengeId, loginTotpCode);
+    setIsProcessing(false);
+    if (error) {
+      addNotification(totpVerifyUserFacingMessage(error, t), 'error');
+      return;
+    }
+    addNotification(t('cabinet_welcome_back'), 'success');
+    setAuthMode('idle');
+    setLoginMfa(null);
+    setLoginTotpCode('');
+    setLoginEmail('');
+    setLoginPassword('');
+    resetLoginMfaState();
+    void refreshTotpStatus();
+  }, [loginMfa, loginTotpCode, completeTotpVerification, addNotification, t, refreshTotpStatus, resetLoginMfaState]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -328,10 +306,21 @@ export const ClientCabinet: React.FC = () => {
       const msg = String(err?.message || err || '');
       if (msg.includes('password_too_short') || msg.includes('P0001')) {
         addNotification(t('cabinet_password_too_short'), 'error');
-      } else if (msg.includes('duplicate') || msg.includes('23505') || msg.includes('unique')) {
-        addNotification(t('cabinet_email_exists'), 'error');
+      } else if (msg === '__AUTH_CLIENT_PASSWORD_MISMATCH__') {
+        addNotification(t('auth_register_auth_password_mismatch'), 'error');
+      } else if (msg === MFA_ENROLL_REQUIRED_MESSAGE) {
+        addNotification(t('auth_mfa_enroll_register_hint'), 'info');
+        void startTotpEnroll();
       } else {
-        addNotification(msg || t('cabinet_create_error'), 'error');
+        const pending = parseMfaVerifyPendingMessage(msg);
+        if (pending) {
+          setLoginMfa({ factorId: pending.factorId, challengeId: pending.challengeId });
+          addNotification(t('auth_totp_step_hint'), 'info');
+        } else if (msg.includes('duplicate') || msg.includes('23505') || msg.includes('unique')) {
+          addNotification(t('cabinet_email_exists'), 'error');
+        } else {
+          addNotification(msg || t('cabinet_create_error'), 'error');
+        }
       }
     }
     setIsProcessing(false);
@@ -614,6 +603,10 @@ export const ClientCabinet: React.FC = () => {
                               className="w-40 h-40"
                             />
                           </div>
+                          <div className="rounded-xl bg-white border border-slate-200 p-3">
+                            <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1.5">{t('auth_totp_secret_label')}</div>
+                            <code className="text-[11px] font-mono font-bold text-slate-800 break-all select-all block leading-snug">{totpEnroll.secret}</code>
+                          </div>
                           <input
                             value={totpConfirmCode}
                             onChange={e => setTotpConfirmCode(e.target.value)}
@@ -622,6 +615,7 @@ export const ClientCabinet: React.FC = () => {
                             placeholder={t('cabinet_totp_confirm_placeholder')}
                             className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm font-bold tracking-widest outline-none focus:border-emerald-400"
                           />
+                          <p className="text-[9px] text-slate-500 font-bold leading-relaxed normal-case">{t('auth_totp_enroll_timing_hint')}</p>
                           <div className="flex gap-2">
                             <button type="button" onClick={confirmTotpEnroll} disabled={isProcessing}
                               className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-black text-[10px] uppercase tracking-widest disabled:opacity-50">
@@ -675,7 +669,7 @@ export const ClientCabinet: React.FC = () => {
                           {t('cabinet_gate_login_sub')}
                         </span>
                       </button>
-                      <button type="button" onClick={() => setAuthMode('register')}
+                      <button type="button" onClick={goProfileRegister}
                         className="w-full bg-emerald-500 text-white py-5 px-4 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-400 transition-all flex flex-col items-center gap-2 shadow-xl">
                         <span className="flex items-center justify-center gap-3">
                           <UserPlus size={18} /> {t('cabinet_btn_register')}
@@ -691,65 +685,76 @@ export const ClientCabinet: React.FC = () => {
                     </div>
                   ) : authMode === 'login' ? (
                     <div className="space-y-4">
-                      {!loginMfa && (
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => switchLoginMethod('email_otp')}
-                            className={`flex-1 flex flex-col items-center gap-1 py-3 px-1 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${
-                              loginMethod === 'email_otp' ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
-                            }`}
-                          >
-                            <Mail size={14} />
-                            {t('auth_otp_tab_email')}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => switchLoginMethod('phone_otp')}
-                            className={`flex-1 flex flex-col items-center gap-1 py-3 px-1 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${
-                              loginMethod === 'phone_otp' ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
-                            }`}
-                          >
-                            <Smartphone size={14} />
-                            {t('auth_otp_tab_phone')}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => switchLoginMethod('password')}
-                            className={`flex-1 flex flex-col items-center gap-1 py-3 px-1 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${
-                              loginMethod === 'password' ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
-                            }`}
-                          >
-                            <KeyRound size={14} />
-                            {t('auth_otp_tab_password')}
-                          </button>
-                        </div>
-                      )}
-
-                      {loginMfa ? (
+                      {inLoginStep2 ? (
                         <>
-                          <div className="space-y-2">
-                            <p className="text-[10px] font-bold text-slate-600">{t('auth_totp_step_hint')}</p>
-                            <input
-                              value={loginTotpCode}
-                              onChange={e => setLoginTotpCode(e.target.value)}
-                              onKeyDown={e => e.key === 'Enter' && handleLoginTotp()}
-                              inputMode="numeric"
-                              autoComplete="one-time-code"
-                              placeholder={t('auth_totp_code_label')}
-                              className="w-full bg-emerald-50 border-2 border-emerald-200 rounded-2xl px-4 py-4 text-sm font-bold tracking-widest outline-none focus:border-emerald-500 transition-all"
-                            />
-                          </div>
-                          <button type="button" onClick={handleLoginTotp} disabled={isProcessing}
-                            className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50">
-                            {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <><ShieldCheck size={18} /> {t('auth_totp_verify')}</>}
-                          </button>
-                          <button type="button" onClick={() => { setLoginMfa(null); setLoginTotpCode(''); }}
+                          <p className="text-[10px] font-bold text-slate-600 text-center leading-relaxed normal-case">
+                            {t('auth_mfa_step_intro')}
+                          </p>
+                          {totpEnroll && !loginMfa && (
+                            <div className="space-y-3 pt-2">
+                              <p className="text-[10px] text-slate-600 font-bold">{t('cabinet_totp_scan')}</p>
+                              <div className="bg-white p-4 rounded-2xl border border-slate-100 flex justify-center">
+                                <img
+                                  src={
+                                    totpEnroll.qrSvg.startsWith('data:')
+                                      ? totpEnroll.qrSvg
+                                      : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(totpEnroll.qrSvg)}`
+                                  }
+                                  alt="QR"
+                                  className="w-40 h-40"
+                                />
+                              </div>
+                              <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3">
+                                <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1.5">{t('auth_totp_secret_label')}</div>
+                                <code className="text-[11px] font-mono font-bold text-slate-800 break-all select-all block leading-snug">{totpEnroll.secret}</code>
+                              </div>
+                              <input
+                                value={totpConfirmCode}
+                                onChange={e => setTotpConfirmCode(e.target.value)}
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
+                                placeholder={t('cabinet_totp_confirm_placeholder')}
+                                className="w-full border-2 border-slate-200 rounded-2xl px-4 py-4 text-sm font-bold tracking-widest outline-none focus:border-emerald-400"
+                              />
+                              <p className="text-[9px] text-slate-500 font-bold leading-relaxed normal-case">{t('auth_totp_enroll_timing_hint')}</p>
+                              <button type="button" onClick={confirmTotpEnroll} disabled={isProcessing}
+                                className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 flex items-center justify-center gap-2 disabled:opacity-50">
+                                {isProcessing ? <Loader2 className="animate-spin" size={18} /> : t('cabinet_totp_confirm_btn')}
+                              </button>
+                            </div>
+                          )}
+                          {loginMfa && (
+                            <div className="space-y-3 pt-2">
+                              <p className="text-[10px] font-bold text-slate-600">{t('auth_totp_step_hint')}</p>
+                              <input
+                                value={loginTotpCode}
+                                onChange={e => setLoginTotpCode(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleLoginTotp()}
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
+                                placeholder={t('auth_totp_code_label')}
+                                className="w-full bg-emerald-50 border-2 border-emerald-200 rounded-2xl px-4 py-4 text-sm font-bold tracking-widest outline-none focus:border-emerald-500 transition-all"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => { void renewLoginMfaChallenge(); }}
+                                disabled={isProcessing}
+                                className="w-full py-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 text-[10px] font-black uppercase tracking-widest text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 transition-all disabled:opacity-50"
+                              >
+                                {t('auth_totp_request_new_challenge')}
+                              </button>
+                              <button type="button" onClick={handleLoginTotp} disabled={isProcessing}
+                                className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50">
+                                {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <><ShieldCheck size={18} /> {t('auth_totp_verify')}</>}
+                              </button>
+                            </div>
+                          )}
+                          <button type="button" onClick={cancelPendingMfa} disabled={isProcessing}
                             className="w-full text-slate-400 text-[9px] font-black uppercase tracking-widest hover:text-slate-900 py-2">
                             {t('auth_totp_back')}
                           </button>
                         </>
-                      ) : loginMethod === 'password' ? (
+                      ) : (
                         <>
                           <div className="relative group">
                             <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors" size={16} />
@@ -768,81 +773,92 @@ export const ClientCabinet: React.FC = () => {
                           <p className="text-[9px] text-slate-400 text-center font-bold tracking-wide leading-relaxed">
                             {t('cabinet_login_password_hint')}
                           </p>
+                          <p className="text-[9px] text-slate-400 text-center font-bold tracking-wide leading-relaxed">
+                            {t('auth_mfa_login_footer')}
+                          </p>
                           <button type="button" onClick={handleLogin} disabled={isProcessing}
                             className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50">
                             {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <><LogIn size={18} /> {t('cabinet_btn_login')}</>}
                           </button>
                         </>
-                      ) : (
-                        <>
-                          {loginMethod === 'email_otp' ? (
-                            <div className="relative group">
-                              <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors" size={16} />
-                              <input
-                                value={loginEmail}
-                                onChange={e => setLoginEmail(e.target.value)}
-                                disabled={otpSent}
-                                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all disabled:opacity-50"
-                                placeholder="din@email.dk"
-                                type="email"
-                                autoComplete="username"
-                              />
-                            </div>
-                          ) : (
-                            <div className="relative group">
-                              <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors" size={16} />
-                              <input
-                                value={loginPhone}
-                                onChange={e => setLoginPhone(e.target.value)}
-                                disabled={otpSent}
-                                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-4 text-sm font-bold outline-none focus:border-emerald-400 transition-all disabled:opacity-50"
-                                placeholder={t('auth_otp_phone_placeholder')}
-                                type="tel"
-                                autoComplete="tel"
-                              />
-                              <p className="text-[9px] text-slate-400 font-bold mt-2 pl-1 leading-relaxed">{t('auth_otp_phone_hint')}</p>
-                            </div>
-                          )}
-                          {otpSent && (
-                            <input
-                              value={otpCode}
-                              onChange={e => setOtpCode(e.target.value)}
-                              onKeyDown={e => e.key === 'Enter' && handleVerifyLoginOtp()}
-                              inputMode="numeric"
-                              autoComplete="one-time-code"
-                              placeholder={t('auth_otp_code_placeholder')}
-                              className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-4 text-sm font-bold tracking-widest outline-none focus:border-emerald-400 transition-all"
-                            />
-                          )}
-                          <p className="text-[9px] text-slate-400 text-center font-bold tracking-wide leading-relaxed">
-                            {t('auth_checkout_otp_totp_note')}
-                          </p>
-                          {otpSent ? (
-                            <button type="button" onClick={handleVerifyLoginOtp} disabled={isProcessing}
-                              className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50">
-                              {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <><ShieldCheck size={18} /> {t('auth_otp_verify_code')}</>}
-                            </button>
-                          ) : (
-                            <button type="button" onClick={handleSendLoginOtp} disabled={isProcessing}
-                              className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50">
-                              {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <><LogIn size={18} /> {t('auth_otp_send_code')}</>}
-                            </button>
-                          )}
-                          {otpSent && (
-                            <button type="button" onClick={() => resetLoginOtp()}
-                              className="w-full text-slate-400 text-[9px] font-black uppercase tracking-widest hover:text-slate-900 py-2">
-                              {t('auth_otp_change_recipient')}
-                            </button>
-                          )}
-                        </>
                       )}
 
-                      <button type="button" onClick={() => setAuthMode('register')}
+                      <button type="button" onClick={goProfileRegister}
                         className="w-full text-slate-400 text-[9px] font-black uppercase tracking-widest hover:text-slate-900 transition-all py-2">
                         {t('cabinet_new_customer')}
                       </button>
                     </div>
                   ) : (
+                    (totpEnroll || loginMfa) ? (
+                      <div className="space-y-4">
+                        <p className="text-[10px] font-bold text-slate-600 text-center leading-relaxed normal-case">
+                          {t('auth_mfa_step_intro')}
+                        </p>
+                        {totpEnroll && !loginMfa && (
+                          <div className="space-y-3">
+                            <p className="text-[10px] text-slate-600 font-bold">{t('cabinet_totp_scan')}</p>
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-center">
+                              <img
+                                src={
+                                  totpEnroll.qrSvg.startsWith('data:')
+                                    ? totpEnroll.qrSvg
+                                    : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(totpEnroll.qrSvg)}`
+                                }
+                                alt="QR"
+                                className="w-40 h-40"
+                              />
+                            </div>
+                            <div className="rounded-2xl bg-white border border-slate-200 p-3">
+                              <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1.5">{t('auth_totp_secret_label')}</div>
+                              <code className="text-[11px] font-mono font-bold text-slate-800 break-all select-all block leading-snug">{totpEnroll.secret}</code>
+                            </div>
+                            <input
+                              value={totpConfirmCode}
+                              onChange={e => setTotpConfirmCode(e.target.value)}
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              placeholder={t('cabinet_totp_confirm_placeholder')}
+                              className="w-full border-2 border-slate-200 rounded-2xl px-4 py-4 text-sm font-bold tracking-widest outline-none focus:border-emerald-400"
+                            />
+                            <p className="text-[9px] text-slate-500 font-bold leading-relaxed normal-case">{t('auth_totp_enroll_timing_hint')}</p>
+                            <button type="button" onClick={confirmTotpEnroll} disabled={isProcessing}
+                              className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 flex items-center justify-center gap-2 disabled:opacity-50">
+                              {isProcessing ? <Loader2 className="animate-spin" size={18} /> : t('cabinet_totp_confirm_btn')}
+                            </button>
+                          </div>
+                        )}
+                        {loginMfa && (
+                          <div className="space-y-3">
+                            <p className="text-[10px] font-bold text-slate-600">{t('auth_totp_step_hint')}</p>
+                            <input
+                              value={loginTotpCode}
+                              onChange={e => setLoginTotpCode(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && handleLoginTotp()}
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              placeholder={t('auth_totp_code_label')}
+                              className="w-full bg-emerald-50 border-2 border-emerald-200 rounded-2xl px-4 py-4 text-sm font-bold tracking-widest outline-none focus:border-emerald-500 transition-all"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => { void renewLoginMfaChallenge(); }}
+                              disabled={isProcessing}
+                              className="w-full py-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 text-[10px] font-black uppercase tracking-widest text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300 transition-all disabled:opacity-50"
+                            >
+                              {t('auth_totp_request_new_challenge')}
+                            </button>
+                            <button type="button" onClick={handleLoginTotp} disabled={isProcessing}
+                              className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-emerald-500 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50">
+                              {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <><ShieldCheck size={18} /> {t('auth_totp_verify')}</>}
+                            </button>
+                          </div>
+                        )}
+                        <button type="button" onClick={cancelPendingMfa} disabled={isProcessing}
+                          className="w-full text-slate-400 text-[9px] font-black uppercase tracking-widest hover:text-slate-900 py-2">
+                          {t('auth_totp_back')}
+                        </button>
+                      </div>
+                    ) : (
                     <form onSubmit={handleRegister} className="space-y-3">
                       <div className="grid grid-cols-2 gap-2">
                         {(['private', 'business'] as const).map(ct => (
@@ -924,7 +940,9 @@ export const ClientCabinet: React.FC = () => {
                         {t('cabinet_have_profile')}
                       </button>
                     </form>
-                  )}
+                  )
+                )
+              }
                 </div>
               )}
             </div>

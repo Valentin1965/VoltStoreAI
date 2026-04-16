@@ -146,6 +146,22 @@ export const translations = {
     cart_sign_in_to_order: "Log ind for at bestille",
     cart_guest_checkout: "Fortsæt som gæst",
     cart_open_full: "Åbn fuld indkøbskurv",
+    cart_account_loading: "Indlæser konto…",
+    cart_sign_in_totp_hint:
+      "Profilkonti skal gennemføre to-faktor (Google Authenticator) — også direkte fra kurven uden kabinet.",
+    cart_auth_choice_intro:
+      "Angiv din e-mail, tryk «Log ind for at bestille», bekræft koden fra mailen og derefter Google Authenticator — dernæst betaling og ordre.",
+    identify_checkout_flow_subtitle: "E-mailkode → Authenticator → betaling (ingen adgangskode på dette trin).",
+    checkout_identify_email_otp_intro:
+      "Vi sender et engangskodeord til din e-mail. Tjek også spam. Derefter skal du bruge Google Authenticator.",
+    auth_checkout_send_email_code: "Send kode til min e-mail",
+    auth_checkout_email_code_placeholder: "Kode fra mailen",
+    auth_checkout_resend_email_code: "Send koden igen",
+    auth_checkout_use_password_instead: "Brug adgangskode i stedet",
+    auth_checkout_totp_after_email_hint: "Efter e-mailkoden kommer trinnet med 6 cifre fra Google Authenticator.",
+    guest_checkout_email_label: "E-mail til bestilling",
+    guest_checkout_email_hint:
+      "Tryk «Log ind for at bestille» for at modtage mailkode, derefter Authenticator.",
     auth_magic_link_title: "Log ind for at gennemføre din ordre",
     auth_magic_link_subtitle: "Vi sender et engangslink til din e-mail. Ingen adgangskode.",
     auth_magic_link_email: "E-mail",
@@ -159,17 +175,34 @@ export const translations = {
     auth_magic_link_open_checkout: "Jeg er allerede logget ind → fortsæt til betaling",
     auth_magic_link_code_invalid: "Ugyldig eller udløbet kode.",
     auth_checkout_title: "Log ind for at bestille",
-    auth_checkout_subtitle: "Engangskode på e-mail eller SMS, adgangskode eller Google Authenticator (TOTP).",
+    auth_checkout_subtitle: "Adgangskode og obligatorisk Google Authenticator (TOTP) for konti med Supabase-login.",
     auth_checkout_password: "Adgangskode",
     auth_checkout_sign_in: "Log ind og fortsæt",
-    auth_checkout_totp_note: "Har du tilknyttet Google Authenticator i Min side, indtastes 6-cifret kode efter adgangskode.",
+    auth_checkout_totp_note:
+      "Alle med e-mail-login skal bruge to-faktor (TOTP). Har du ikke sat app’en op endnu, viser næste trin en QR-kode. Fejl her ved adgangskode betyder typisk forkert e-mail eller kode — ikke din Authenticator endnu.",
+    auth_mfa_step_intro: "To-faktor (TOTP) er påkrævet. Opret den i app’en her, eller indtast koden fra Authenticator.",
+    auth_mfa_login_footer:
+      "Konti med Supabase-login skal have Google Authenticator. Ny konto får QR-kode til opsætning efter adgangskode; eksisterende får 6-cifret trin.",
+    auth_mfa_enroll_login_hint: "Scan QR i Authenticator og bekræft med 6 cifre for at fuldføre login.",
+    auth_mfa_enroll_register_hint: "Kontoen er oprettet. Scan QR og bekræft for at aktivere to-faktor og færdiggøre registrering.",
+    auth_mfa_enroll_checkout_intro: "Tilføj Google Authenticator til kontoen: scan QR og indtast 6-cifret kode for at fortsætte til betaling.",
     auth_totp_step_hint: "Åbn Authenticator-appen og indtast den aktuelle kode.",
     auth_totp_code_label: "Autentificering kode",
     auth_totp_verify: "Bekræft",
     auth_totp_back: "Tilbage",
+    auth_totp_request_new_challenge: "Ny server-udfordring",
+    auth_totp_challenge_expired: "Udfordringen er udløbet. Anmod om en ny og prøv igen.",
+    auth_totp_verify_failed_hint:
+      "Koden matchede ikke, eller udfordringen var udløbet. Brug den seneste 6-cifrede kode fra app'en, tjek at telefonens ur er korrekt (automatisk tid), eller anmod her på skærmen om en ny server-udfordring og indtast koden med det samme.",
+    auth_totp_secret_label: "Hemlig nøgle (manuel indtastning, Base32)",
+    auth_totp_enroll_timing_hint:
+      "Hvert bekræftelsesforsøg starter en ny serverkontrol. Skriv den 6-cifrede kode, din app viser lige nu, og bekræft med det samme.",
+    auth_otp_tab_app: "Google Authenticator",
     auth_otp_tab_email: "E-mail kode",
     auth_otp_tab_phone: "SMS",
     auth_otp_tab_password: "Adgangskode",
+    auth_otp_email_send_intro: "Tryk for at få tilsendt en kode til din e-mail.",
+    auth_otp_sms_send_intro: "Indtast mobilnummer og tryk for at modtage SMS-kode.",
     auth_otp_send_code: "Send kode",
     auth_otp_verify_code: "Bekræft kode",
     auth_otp_code_label: "Engangskode",
@@ -226,6 +259,14 @@ export const translations = {
     checkout_payment_title: "Betaling",
     checkout_summary_title: "Ordreoversigt",
     checkout_place_order_btn: "Send bestilling",
+    checkout_guest_auth_required:
+      "Denne e-mail har en beskyttet konto (login med TOTP). Log ind med adgangskode og Authenticator for at bestille — gæstebestilling er ikke mulig for denne adresse.",
+    checkout_session_mfa_incomplete:
+      "Du er delvist logget ind — færdiggør to-faktor (Authenticator/TOTP) før bestilling. Brug \"Log ind for at bestille\".",
+    checkout_requires_sign_in: "Du skal gennemføre login og Authenticator (Google Authenticator), før betaling.",
+    checkout_security_step_title: "Næste skridt: sikker login",
+    checkout_security_step_body:
+      "Fortsæt med adgangskode og kode fra Google Authenticator. Derefter åbnes betalingsformularen.",
     checkout_subtotal: "Subtotal",
     checkout_total: "I alt",
     checkout_total_excl_vat: "Ekskl. moms",
@@ -341,6 +382,8 @@ export const translations = {
     cabinet_fields_required: "Fornavn og email er påkrævet",
     cabinet_profile_created: "Profil oprettet!",
     cabinet_create_error: "Fejl ved oprettelse",
+    auth_register_auth_password_mismatch:
+      "Profilen er gemt, men adgangskoden til login (Supabase Authentication) matcher ikke den i databasen. Under Authentication → Users: nulstil eller angiv samme adgangskode som på ‘Min side’ — ellers er de to adgangskoder forskellige.",
     // Form placeholders
     cabinet_placeholder_first_name: "Fornavn *",
     cabinet_placeholder_last_name: "Efternavn",
@@ -352,6 +395,12 @@ export const translations = {
     cabinet_password_too_short: "Adgangskoden skal være mindst 8 tegn",
     cabinet_password_mismatch: "Adgangskoderne matcher ikke",
     cabinet_invalid_credentials: "Forkert e-mail eller adgangskode",
+    auth_login_error_email_not_confirmed:
+      "Bekræft din e-mail først — åbn linket i den besked, vi har sendt. Få hjælp fra support, hvis du ikke har modtaget den.",
+    auth_login_error_invalid_credentials:
+      "Forkert e-mail eller adgangskode. Tjek for tastefejl. Har du glemt adgangskoden, skal du nulstille den — kontakt support, hvis du stadig ikke kan logge ind.",
+    auth_login_error_supabase_required:
+      "Denne konto findes kun i den gamle database-login. For 2FA skal e-mail findes i Supabase Auth — kontakt support eller brug ”Glemt adgangskode” i Auth, så kontoen kan linkes.",
     cabinet_email_exists: "Denne e-mail er allerede registreret",
     cabinet_login_password_hint:
       "Log ind med e-mail og adgangskode. Havde du konto uden adgangskode før, sættes adgangskoden ved første log ind.",
@@ -949,6 +998,22 @@ export const translations = {
     cart_sign_in_to_order: "Logg inn for å bestille",
     cart_guest_checkout: "Fortsett som gjest",
     cart_open_full: "Åpne full handlekurv",
+    cart_account_loading: "Laster konto…",
+    cart_sign_in_totp_hint:
+      "Profilkontoer må fullføre tofaktor (Google Authenticator) — også rett fra handlekurven uten å åpne kundesenteret.",
+    cart_auth_choice_intro:
+      "Skriv inn e-post, trykk «Logg inn for å bestille», bekreft koden fra e-posten og deretter Google Authenticator — så betaling og ordre.",
+    identify_checkout_flow_subtitle: "E-postkode → Authenticator → betaling (ikke passord på dette trinnet).",
+    checkout_identify_email_otp_intro:
+      "Vi sender en engangskode på e-post. Sjekk søppelpost også. Deretter bruker du Google Authenticator.",
+    auth_checkout_send_email_code: "Send kode til e-posten min",
+    auth_checkout_email_code_placeholder: "Kode fra e-posten",
+    auth_checkout_resend_email_code: "Send koden på nytt",
+    auth_checkout_use_password_instead: "Bruk passord i stedet",
+    auth_checkout_totp_after_email_hint: "Etter e-postkoden følger trinnet med 6 siffer fra Google Authenticator.",
+    guest_checkout_email_label: "E-post for bestilling",
+    guest_checkout_email_hint:
+      "Trykk «Logg inn for å bestille» for e-postkode, deretter Authenticator.",
     auth_magic_link_title: "Logg inn for å fullføre bestillingen",
     auth_magic_link_subtitle: "Vi sender en engangslenke på e-post. Ingen passord.",
     auth_magic_link_email: "E-post",
@@ -962,17 +1027,34 @@ export const translations = {
     auth_magic_link_open_checkout: "Jeg er allerede innlogget → til betaling",
     auth_magic_link_code_invalid: "Ugyldig eller utløpt kode.",
     auth_checkout_title: "Logg inn for å bestille",
-    auth_checkout_subtitle: "Engangskode på e-post eller SMS, passord eller Google Authenticator (TOTP).",
+    auth_checkout_subtitle: "Passord og obligatorisk Google Authenticator (TOTP) for kontoer med Supabase-innlogging.",
     auth_checkout_password: "Passord",
     auth_checkout_sign_in: "Logg inn og fortsett",
-    auth_checkout_totp_note: "Har du koblet Google Authenticator i Min side, skriv inn 6-sifret kode etter passord.",
+    auth_checkout_totp_note:
+      "Alle med e-post-innlogging må bruke tofaktor (TOTP). Har du ikke satt opp appen ennå, viser neste steg QR-kode. Feil her på passord betyr vanligvis feil e-post eller passord — ikke Authenticator ennå.",
+    auth_mfa_step_intro: "Tofaktor (TOTP) er påkrevd. Opprett i appen her, eller skriv inn koden fra Authenticator.",
+    auth_mfa_login_footer:
+      "Kontoer med Supabase-innlogging må ha Google Authenticator. Ny konto får QR for oppsett etter passord; eksisterende får 6-sifret steg.",
+    auth_mfa_enroll_login_hint: "Skann QR i Authenticator og bekreft med 6 siffer for å fullføre innlogging.",
+    auth_mfa_enroll_register_hint: "Kontoen er opprettet. Skann QR og bekreft for å aktivere tofaktor og fullføre registrering.",
+    auth_mfa_enroll_checkout_intro: "Legg til Google Authenticator: skann QR og skriv inn 6-sifret kode for å gå videre til betaling.",
     auth_totp_step_hint: "Åpne Authenticator-appen og skriv inn gjeldende kode.",
     auth_totp_code_label: "Autentiseringskode",
     auth_totp_verify: "Bekreft",
     auth_totp_back: "Tilbake",
+    auth_totp_request_new_challenge: "Ny serverutfordring",
+    auth_totp_challenge_expired: "Utfordringen er utløpt. Be om en ny og prøv igjen.",
+    auth_totp_verify_failed_hint:
+      "Koden stemte ikke, eller utfordringen er utløpt. Bruk den siste 6-sifrede koden fra appen, sjekk at telefonklokken er riktig (automatisk tid), eller be om ny serverutfordring på denne skjermen og skriv inn koden med en gang.",
+    auth_totp_secret_label: "Hemmelig nøkkel (manuell innlegging, Base32)",
+    auth_totp_enroll_timing_hint:
+      "Hvert forsøk starter en ny serverkontroll. Skriv inn den 6-sifrede koden appen viser nå, og bekreft med en gang.",
+    auth_otp_tab_app: "Google Authenticator",
     auth_otp_tab_email: "E-post kode",
     auth_otp_tab_phone: "SMS",
     auth_otp_tab_password: "Passord",
+    auth_otp_email_send_intro: "Trykk for å få tilsendt en kode på e-post.",
+    auth_otp_sms_send_intro: "Skriv inn mobilnummer og trykk for å motta SMS-kode.",
     auth_otp_send_code: "Send kode",
     auth_otp_verify_code: "Bekreft kode",
     auth_otp_code_label: "Engangskode",
@@ -1027,6 +1109,14 @@ export const translations = {
     checkout_payment_title: "Betaling",
     checkout_summary_title: "Ordreoversigt",
     checkout_place_order_btn: "Send bestilling",
+    checkout_guest_auth_required:
+      "Denne e-posten har en beskyttet konto (innlogging med TOTP). Logg inn med passord og Authenticator for å bestille — gjesteutsjekk er ikke mulig for denne adressen.",
+    checkout_session_mfa_incomplete:
+      "Du er delvis innlogget — fullfør tofaktor (Authenticator/TOTP) før bestilling. Bruk «Logg inn for å bestille».",
+    checkout_requires_sign_in: "Du må fullføre innlogging og Authenticator (Google Authenticator) før betaling.",
+    checkout_security_step_title: "Neste steg: sikker innlogging",
+    checkout_security_step_body:
+      "Fortsett med passord og kode fra Google Authenticator. Deretter åpnes betalingsskjemaet.",
     checkout_subtotal: "Subtotal",
     checkout_total: "I alt",
     checkout_total_excl_vat: "Ekskl. moms",
@@ -1131,6 +1221,8 @@ export const translations = {
     cabinet_fields_required: "Fornavn og email er påkrævet",
     cabinet_profile_created: "Profil oprettet!",
     cabinet_create_error: "Fejl ved oprettelse",
+    auth_register_auth_password_mismatch:
+      "Profilen er lagret, men innloggingspassordet (Supabase Authentication) stemmer ikke med databasen. Under Authentication → Users: tilbakestill eller angi samme passord som på ‘Min side’ — ellers er de to passordene forskjellige.",
     cabinet_placeholder_first_name: "Fornavn *",
     cabinet_placeholder_last_name: "Efternavn",
     cabinet_placeholder_email: "Email *",
@@ -1141,6 +1233,12 @@ export const translations = {
     cabinet_password_too_short: "Passordet må være minst 8 tegn",
     cabinet_password_mismatch: "Passordene stemmer ikke",
     cabinet_invalid_credentials: "Feil e-post eller passord",
+    auth_login_error_email_not_confirmed:
+      "Bekreft e-posten din først — åpne lenken i e-posten vi sendte. Kontakt support hvis du ikke har mottatt den.",
+    auth_login_error_invalid_credentials:
+      "Feil e-post eller passord. Sjekk for skrivefeil. Har du glemt passordet, må du tilbakestille det — kontakt support hvis du fortsatt ikke kommer inn.",
+    auth_login_error_supabase_required:
+      "Kontoen finnes bare i den gamle innloggingen. For 2FA må e-posten være i Supabase Auth — kontakt support eller bruk «Glemt passord» i Auth for å koble kontoen.",
     cabinet_email_exists: "Denne e-posten er allerede registrert",
     cabinet_login_password_hint:
       "Logg inn med e-post og passord. Hadde du konto uten passord før, settes passordet ved første innlogging.",
@@ -1725,6 +1823,22 @@ export const translations = {
     cart_sign_in_to_order: "Logga in för att beställa",
     cart_guest_checkout: "Fortsätt som gäst",
     cart_open_full: "Öppna full varukorg",
+    cart_account_loading: "Laddar konto…",
+    cart_sign_in_totp_hint:
+      "Konton med profil måste slutföra tvåfaktor (Google Authenticator) — även direkt från varukorgen utan kundkonto.",
+    cart_auth_choice_intro:
+      "Ange din e-post, tryck «Logga in för att beställa», bekräfta koden från mejlet och sedan Google Authenticator — därefter betalning och order.",
+    identify_checkout_flow_subtitle: "Mejlkod → Authenticator → betalning (inget lösenord i det här steget).",
+    checkout_identify_email_otp_intro:
+      "Vi skickar en engångskod till din e-post. Kolla skräppost också. Därefter använder du Google Authenticator.",
+    auth_checkout_send_email_code: "Skicka kod till min e-post",
+    auth_checkout_email_code_placeholder: "Kod från mejlet",
+    auth_checkout_resend_email_code: "Skicka koden igen",
+    auth_checkout_use_password_instead: "Använd lösenord i stället",
+    auth_checkout_totp_after_email_hint: "Efter mejlkoden kommer steget med 6 siffror från Google Authenticator.",
+    guest_checkout_email_label: "E-beställning",
+    guest_checkout_email_hint:
+      "Tryck «Logga in för att beställa» för mejlkod, sedan Authenticator.",
     auth_magic_link_title: "Logga in för att slutföra din beställning",
     auth_magic_link_subtitle: "Vi skickar en engångslänk till din e-post. Inget lösenord.",
     auth_magic_link_email: "E-post",
@@ -1738,17 +1852,34 @@ export const translations = {
     auth_magic_link_open_checkout: "Jag är redan inloggad → till betalning",
     auth_magic_link_code_invalid: "Ogiltig eller utgången kod.",
     auth_checkout_title: "Logga in för att beställa",
-    auth_checkout_subtitle: "Engångskod via e-post eller SMS, lösenord eller Google Authenticator (TOTP).",
+    auth_checkout_subtitle: "Lösenord och obligatorisk Google Authenticator (TOTP) för konton med Supabase-inloggning.",
     auth_checkout_password: "Lösenord",
     auth_checkout_sign_in: "Logga in och fortsätt",
-    auth_checkout_totp_note: "Har du kopplat Google Authenticator under Min sida anger du 6-siffrig kod efter lösenord.",
+    auth_checkout_totp_note:
+      "Alla med e-postinloggning måste använda tvåfaktor (TOTP). Har du inte satt upp appen ännu visas en QR-kod i nästa steg. Fel här på lösenord betyder oftast fel e-post eller lösenord — inte Authenticator ännu.",
+    auth_mfa_step_intro: "Tvåfaktor (TOTP) krävs. Sätt upp i appen här, eller ange koden från Authenticator.",
+    auth_mfa_login_footer:
+      "Konton med Supabase-inloggning måste ha Google Authenticator. Nytt konto får QR efter lösenord; befintligt får 6-siffrigt steg.",
+    auth_mfa_enroll_login_hint: "Skanna QR i Authenticator och bekräfta med 6 siffror för att slutföra inloggning.",
+    auth_mfa_enroll_register_hint: "Kontot är skapat. Skanna QR och bekräfta för att aktivera tvåfaktor och slutföra registreringen.",
+    auth_mfa_enroll_checkout_intro: "Lägg till Google Authenticator: skanna QR och ange 6-siffrig kod för att fortsätta till betalning.",
     auth_totp_step_hint: "Öppna Authenticator-appen och ange aktuell kod.",
     auth_totp_code_label: "Autentiseringskod",
     auth_totp_verify: "Verifiera",
     auth_totp_back: "Tillbaka",
+    auth_totp_request_new_challenge: "Ny serverutmaning",
+    auth_totp_challenge_expired: "Utmaningen har gått ut. Begär en ny och försök igen.",
+    auth_totp_verify_failed_hint:
+      "Koden stämde inte, eller utmaningen har gått ut. Använd den senaste 6-siffriga koden från appen, kontrollera att telefonens tid är korrekt (automatisk), eller begär en ny serverutmaning på den här skärmen och ange koden direkt.",
+    auth_totp_secret_label: "Hemlig nyckel (manuell inmatning, Base32)",
+    auth_totp_enroll_timing_hint:
+      "Varje bekräftelse startar en ny serverkontroll. Ange den 6-siffriga koden som appen visar just nu och bekräfta direkt.",
+    auth_otp_tab_app: "Google Authenticator",
     auth_otp_tab_email: "E-post kod",
     auth_otp_tab_phone: "SMS",
     auth_otp_tab_password: "Lösenord",
+    auth_otp_email_send_intro: "Tryck för att få en kod skickad till din e-post.",
+    auth_otp_sms_send_intro: "Ange mobilnummer och tryck för att få SMS-kod.",
     auth_otp_send_code: "Skicka kod",
     auth_otp_verify_code: "Bekräfta kod",
     auth_otp_code_label: "Engångskod",
@@ -1803,6 +1934,14 @@ export const translations = {
     checkout_payment_title: "Betaling",
     checkout_summary_title: "Ordreoversigt",
     checkout_place_order_btn: "Send bestilling",
+    checkout_guest_auth_required:
+      "Den här e-postadressen har ett skyddat konto (inloggning med TOTP). Logga in med lösenord och Authenticator för att beställa — gästutcheckning är inte möjlig för denna adress.",
+    checkout_session_mfa_incomplete:
+      "Du är delvis inloggad — slutför tvåfaktor (Authenticator/TOTP) innan beställning. Använd «Logga in för att beställa».",
+    checkout_requires_sign_in: "Du måste slutföra inloggning och Authenticator (Google Authenticator) innan betalning.",
+    checkout_security_step_title: "Nästa steg: säker inloggning",
+    checkout_security_step_body:
+      "Fortsätt med lösenord och kod från Google Authenticator. Därefter öppnas betalningsformuläret.",
     checkout_subtotal: "Subtotal",
     checkout_total: "I alt",
     checkout_total_excl_vat: "Ekskl. moms",
@@ -1907,6 +2046,8 @@ export const translations = {
     cabinet_fields_required: "Fornavn og email er påkrævet",
     cabinet_profile_created: "Profil oprettet!",
     cabinet_create_error: "Fejl ved oprettelse",
+    auth_register_auth_password_mismatch:
+      "Profilen har sparats, men inloggningslösenordet (Supabase Authentication) matchar inte databasen. Under Authentication → Users: återställ eller ange samma lösenord som på ‘Min sida’ — annars skiljer sig de två lösenorden.",
     cabinet_placeholder_first_name: "Fornavn *",
     cabinet_placeholder_last_name: "Efternavn",
     cabinet_placeholder_email: "Email *",
@@ -1917,6 +2058,12 @@ export const translations = {
     cabinet_password_too_short: "Lösenordet måste vara minst 8 tecken",
     cabinet_password_mismatch: "Lösenorden matchar inte",
     cabinet_invalid_credentials: "Fel e-post eller lösenord",
+    auth_login_error_email_not_confirmed:
+      "Bekräfta din e-post först — öppna länken i meddelandet vi skickade. Kontakta support om du inte har fått det.",
+    auth_login_error_invalid_credentials:
+      "Fel e-post eller lösenord. Kontrollera stavningen. Har du glömt lösenordet behöver du återställa det — kontakta support om du fortfarande inte kan logga in.",
+    auth_login_error_supabase_required:
+      "Kontot finns bara i den gamla inloggningen. För 2FA måste e-posten finnas i Supabase Auth — kontakta support eller använd «Glömt lösenord» i Auth för att koppla kontot.",
     cabinet_email_exists: "Denna e-postadress är redan registrerad",
     cabinet_login_password_hint:
       "Logga in med e-post och lösenord. Hade du konto utan lösenord tidigare sätts lösenordet vid första inloggningen.",
@@ -2502,6 +2649,22 @@ export const translations = {
     cart_sign_in_to_order: "Sign in to order",
     cart_guest_checkout: "Continue as guest",
     cart_open_full: "Open full cart",
+    cart_account_loading: "Loading account…",
+    cart_sign_in_totp_hint:
+      "Profile sign-in requires two-factor (Google Authenticator)—including straight from the cart without opening your cabinet.",
+    cart_auth_choice_intro:
+      "Enter your email, tap «Sign in to order», confirm the code from your inbox, then Google Authenticator — then payment and your order.",
+    identify_checkout_flow_subtitle: "Email code → Authenticator → payment (no password on this step).",
+    checkout_identify_email_otp_intro:
+      "We send a one-time code to your email. Check spam too. Then you will use Google Authenticator.",
+    auth_checkout_send_email_code: "Send code to my email",
+    auth_checkout_email_code_placeholder: "Code from email",
+    auth_checkout_resend_email_code: "Resend code",
+    auth_checkout_use_password_instead: "Use password instead",
+    auth_checkout_totp_after_email_hint: "After the email code, you will enter the 6-digit Google Authenticator code.",
+    guest_checkout_email_label: "Email for checkout",
+    guest_checkout_email_hint:
+      "Tap «Sign in to order» for an email code, then Authenticator.",
     auth_magic_link_title: "Sign in to complete your order",
     auth_magic_link_subtitle: "We will email you a one-time link. No password.",
     auth_magic_link_email: "Email",
@@ -2515,17 +2678,34 @@ export const translations = {
     auth_magic_link_open_checkout: "I already signed in → go to checkout",
     auth_magic_link_code_invalid: "Invalid or expired code.",
     auth_checkout_title: "Sign in to order",
-    auth_checkout_subtitle: "One-time code by email or SMS, password, or Google Authenticator (TOTP).",
+    auth_checkout_subtitle: "Password and mandatory Google Authenticator (TOTP) for Supabase sign-in accounts.",
     auth_checkout_password: "Password",
     auth_checkout_sign_in: "Sign in and continue",
-    auth_checkout_totp_note: "If you enrolled Google Authenticator in My account, enter the 6-digit code after your password.",
+    auth_checkout_totp_note:
+      "Every email sign-in must complete two-factor (TOTP). If you have not set up the app yet, the next step shows a QR code. Errors on this step are usually wrong email or password — not your authenticator code yet.",
+    auth_mfa_step_intro: "Two-factor (TOTP) is required. Finish setup with the QR code, or enter the code from your authenticator app.",
+    auth_mfa_login_footer:
+      "Supabase accounts must use Google Authenticator. New accounts see a QR setup step after password; existing accounts see the 6-digit prompt.",
+    auth_mfa_enroll_login_hint: "Scan the QR in your authenticator app and confirm with 6 digits to finish signing in.",
+    auth_mfa_enroll_register_hint: "Your account is created. Scan the QR and confirm to enable two-factor and complete registration.",
+    auth_mfa_enroll_checkout_intro: "Add Google Authenticator: scan the QR and enter the 6-digit code to continue to checkout.",
     auth_totp_step_hint: "Open your authenticator app and enter the current code.",
     auth_totp_code_label: "Authenticator code",
     auth_totp_verify: "Verify",
     auth_totp_back: "Back",
+    auth_totp_request_new_challenge: "New server challenge",
+    auth_totp_challenge_expired: "This challenge has expired. Request a new one and try again.",
+    auth_totp_verify_failed_hint:
+      "That code did not work or the challenge has expired. Enter the latest 6-digit code from your app, make sure your device time is set automatically, or use \"New server challenge\" on this screen and type the code right away.",
+    auth_totp_secret_label: "Secret key (manual entry, Base32)",
+    auth_totp_enroll_timing_hint:
+      "Each confirm starts a fresh server check. Enter the 6-digit code your app shows right now, then confirm immediately.",
+    auth_otp_tab_app: "Google Authenticator",
     auth_otp_tab_email: "Email code",
     auth_otp_tab_phone: "SMS",
     auth_otp_tab_password: "Password",
+    auth_otp_email_send_intro: "Tap below and we’ll email you a one-time code.",
+    auth_otp_sms_send_intro: "Enter your mobile number, then tap to receive an SMS code.",
     auth_otp_send_code: "Send code",
     auth_otp_verify_code: "Verify code",
     auth_otp_code_label: "One-time code",
@@ -2580,6 +2760,14 @@ export const translations = {
     checkout_payment_title: "Payment",
     checkout_summary_title: "Order summary",
     checkout_place_order_btn: "Place order",
+    checkout_guest_auth_required:
+      "This email belongs to a password-protected account (TOTP). Sign in with password and Authenticator to place an order — guest checkout is not available for this address.",
+    checkout_session_mfa_incomplete:
+      "You are partially signed in — complete two-factor (Authenticator/TOTP) before placing an order. Use \"Sign in to order\".",
+    checkout_requires_sign_in: "Complete sign-in and Google Authenticator before payment.",
+    checkout_security_step_title: "Next step: secure sign-in",
+    checkout_security_step_body:
+      "Continue with your password, then your Google Authenticator code. The payment form opens after that.",
     checkout_subtotal: "Subtotal",
     checkout_total: "Total",
     checkout_total_excl_vat: "Excl. VAT",
@@ -2684,6 +2872,8 @@ export const translations = {
     cabinet_fields_required: "First name and email are required",
     cabinet_profile_created: "Profile created!",
     cabinet_create_error: "Error creating profile",
+    auth_register_auth_password_mismatch:
+      "Your profile was saved, but the login password in Supabase Authentication does not match the one in the database. In Authentication → Users, reset or set the same password you use in My account — otherwise the two passwords stay out of sync.",
     cabinet_placeholder_first_name: "First name *",
     cabinet_placeholder_last_name: "Last name",
     cabinet_placeholder_email: "Email *",
@@ -2694,6 +2884,12 @@ export const translations = {
     cabinet_password_too_short: "Password must be at least 8 characters",
     cabinet_password_mismatch: "Passwords do not match",
     cabinet_invalid_credentials: "Incorrect email or password",
+    auth_login_error_email_not_confirmed:
+      "Please confirm your email first — open the link in the message we sent you. Contact support if you didn’t receive it.",
+    auth_login_error_invalid_credentials:
+      "That email or password doesn’t match. Check for typos. If you forgot your password, reset it — contact support if you still can’t sign in.",
+    auth_login_error_supabase_required:
+      "This account only exists on legacy DB login. Two-factor (TOTP) needs the email in Supabase Auth — contact support or use Auth password recovery to link the account.",
     cabinet_email_exists: "This email is already registered",
     cabinet_login_password_hint:
       "Sign in with email and password. If your account had no password before, it will be set on first login.",
